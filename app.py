@@ -458,23 +458,38 @@ def render_dashboard_caixa(spreadsheet):
         
         hoje_str = str(date.today())
         
-        # Calcular saldo considerando TODAS as operações (não apenas hoje)
+        # Calcular saldo considerando TODAS as operações
+        saldo_inicial = 5000.0  # Valor inicial do caixa
+        total_suprimentos = 0
+        total_saques_liquidos = 0
+        
+        # Debug: vamos calcular separadamente para entender
         for op in operacoes_data:
-            if op["Tipo_Operacao"] in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
-                # No saque, o caixa entrega o valor líquido ao cliente
-                saldo_caixa -= float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
-            elif op["Tipo_Operacao"] == "Troca Cheque":
-                # No cheque, o caixa entrega o valor líquido ao cliente
-                saldo_caixa -= float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
-            elif op["Tipo_Operacao"] == "Suprimento":
-                # Suprimento adiciona dinheiro ao caixa
-                saldo_caixa += float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
-            
-            # Contar operações de hoje para métricas
+            try:
+                if op["Tipo_Operacao"] == "Suprimento":
+                    valor = float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
+                    total_suprimentos += valor
+                elif op["Tipo_Operacao"] in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
+                    valor = float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
+                    total_saques_liquidos += valor
+                elif op["Tipo_Operacao"] == "Troca Cheque":
+                    valor = float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
+                    total_saques_liquidos += valor
+            except (ValueError, TypeError):
+                continue  # Pular valores inválidos
+        
+        # Cálculo final do saldo
+        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+        
+        # Contar operações de hoje para métricas
+        for op in operacoes_data:
             if op["Data"] == hoje_str:
                 operacoes_hoje += 1
                 if op["Tipo_Operacao"] in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
-                    valor_saque_hoje += float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
+                    try:
+                        valor_saque_hoje += float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
+                    except (ValueError, TypeError):
+                        continue
         
         with col1:
             st.markdown(f"""
@@ -555,32 +570,47 @@ def render_dashboard_caixa(spreadsheet):
 def render_form_saque_cartao(spreadsheet):
     st.markdown("### 💳 Saque Cartão")
     
-    with st.form("form_saque_cartao"):
-        col1, col2 = st.columns(2)
+    # Campos fora do form para permitir simulação
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
+        cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
+        valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0)
+        tipo_cartao = st.selectbox("Tipo de Cartão:", ["Débito", "Crédito"])
+    
+    with col2:
+        observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...")
         
-        with col1:
-            cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
-            cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
-            valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0)
-            tipo_cartao = st.selectbox("Tipo de Cartão:", ["Débito", "Crédito"])
-        
-        with col2:
-            observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...")
-            
-            # Cálculo automático baseado no tipo - interface limpa
+        # Botão de simulação
+        if st.button("🧮 Simular Operação", use_container_width=True):
             if valor > 0:
                 if tipo_cartao == "Débito":
                     calc = calcular_taxa_cartao_debito(valor)
-                    st.markdown("#### 💰 Resumo da Operação")
+                    st.success("✅ **Simulação - Cartão Débito**")
                     st.write(f"**Taxa Cliente (1%):** R$ {calc['taxa_cliente']:.2f}")
                 else:
                     calc = calcular_taxa_cartao_credito(valor)
-                    st.markdown("#### 💰 Resumo da Operação")
+                    st.success("✅ **Simulação - Cartão Crédito**")
                     st.write(f"**Taxa Cliente (5,33%):** R$ {calc['taxa_cliente']:.2f}")
                 
                 st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+                st.write(f"**💰 Taxa que fica no caixa:** R$ {calc['taxa_cliente']:.2f}")
+    
+    # Formulário para confirmação
+    with st.form("form_saque_cartao"):
+        st.markdown("#### 💾 Confirmar e Salvar Operação")
         
-        submitted = st.form_submit_button("💾 Confirmar Operação", use_container_width=True)
+        # Mostrar resumo novamente
+        if valor > 0:
+            if tipo_cartao == "Débito":
+                calc = calcular_taxa_cartao_debito(valor)
+                st.info(f"**Resumo:** Taxa R$ {calc['taxa_cliente']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
+            else:
+                calc = calcular_taxa_cartao_credito(valor)
+                st.info(f"**Resumo:** Taxa R$ {calc['taxa_cliente']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
+        
+        submitted = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
         
         if submitted:
             # Calcular baseado no tipo
@@ -630,33 +660,47 @@ def render_form_saque_cartao(spreadsheet):
 def render_form_troca_cheque(spreadsheet):
     st.markdown("### 📄 Troca de Cheque")
     
-    with st.form("form_troca_cheque"):
-        col1, col2 = st.columns(2)
+    # Campos fora do form para permitir simulação
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
+        cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=50.0, max_value=50000.0, value=1000.0, step=50.0)
+        data_cheque = st.date_input("Data do Cheque:", value=date.today())
+    
+    with col2:
+        banco = st.text_input("Banco:", placeholder="Nome do banco")
+        numero_cheque = st.text_input("Número do Cheque:", placeholder="000000")
+        observacoes = st.text_area("Observações:", height=100)
         
-        with col1:
-            cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
-            cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
-            valor = st.number_input("Valor do Cheque (R$):", min_value=50.0, max_value=50000.0, value=1000.0, step=50.0)
-            data_cheque = st.date_input("Data do Cheque:", value=date.today())
-        
-        with col2:
-            banco = st.text_input("Banco:", placeholder="Nome do banco")
-            numero_cheque = st.text_input("Número do Cheque:", placeholder="000000")
-            observacoes = st.text_area("Observações:", height=100)
-            
-            # Cálculo automático - interface limpa
+        # Botão de simulação
+        if st.button("🧮 Simular Operação", use_container_width=True):
             if valor > 0:
                 calc = calcular_taxa_cheque(valor, str(data_cheque))
                 if calc:
-                    st.markdown("#### 💰 Resumo da Operação")
+                    st.success("✅ **Simulação - Troca de Cheque**")
                     st.write(f"**Taxa Total:** R$ {calc['taxa_total']:.2f}")
                     if calc['dias'] > 0:
                         st.write(f"**Dias até vencimento:** {calc['dias']}")
                     st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+                    st.write(f"**💰 Taxa que fica no caixa:** R$ {calc['taxa_total']:.2f}")
                 else:
                     st.error("❌ Prazo máximo de 15 dias excedido!")
+    
+    # Formulário para confirmação
+    with st.form("form_troca_cheque"):
+        st.markdown("#### 💾 Confirmar e Salvar Operação")
         
-        submitted = st.form_submit_button("💾 Confirmar Operação", use_container_width=True)
+        # Mostrar resumo novamente
+        if valor > 0:
+            calc = calcular_taxa_cheque(valor, str(data_cheque))
+            if calc:
+                st.info(f"**Resumo:** Taxa R$ {calc['taxa_total']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
+            else:
+                st.error("❌ Prazo máximo de 15 dias excedido!")
+        
+        submitted = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
         
         if submitted:
             calc = calcular_taxa_cheque(valor, str(data_cheque))
@@ -902,3 +946,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
