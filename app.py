@@ -459,7 +459,7 @@ def render_dashboard_caixa(spreadsheet):
         hoje_str = str(date.today())
         
         # Calcular saldo considerando TODAS as operações
-        saldo_inicial = 5000.0  # Valor inicial do caixa
+        saldo_inicial = 0  # Valor inicial do caixa
         total_suprimentos = 0
         total_saques_liquidos = 0
         
