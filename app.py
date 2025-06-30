@@ -4,147 +4,122 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+from decimal import Decimal, ROUND_HALF_UP
+import hashlib
 
 # Configuração da página
 st.set_page_config(
-    page_title="Sistema Lotérica - Google Sheets",
-    page_icon="🎰",
+    page_title="Sistema Unificado - Lotérica & Caixa Interno",
+    page_icon="🏪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------------------------
-# CSS Customizado para UX Melhorado
-# ---------------------------
-def load_custom_css():
-    st.markdown("""
-    <style>
-    /* Importar fonte moderna */
+# CSS customizado para interface moderna
+st.markdown("""
+<style>
+    /* Importar fonte Inter */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* Reset e configurações gerais */
-    .main {
+    /* Aplicar fonte globalmente */
+    html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
     
-    /* Botões maiores e mais atraentes */
+    /* Estilo para botões principais */
     .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         height: 3.5rem;
         width: 100%;
-        font-size: 1.1rem;
-        font-weight: 500;
-        border-radius: 12px;
-        border: none;
-        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
-        color: white;
-        box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
-        transition: all 0.3s ease;
     }
     
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(30, 136, 229, 0.4);
-        background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
     }
     
-    /* Botões de ação específicos */
-    .btn-success {
-        background: linear-gradient(135deg, #43A047 0%, #2E7D32 100%) !important;
-        box-shadow: 0 4px 12px rgba(67, 160, 71, 0.3) !important;
+    /* Botões de ação rápida */
+    .action-button {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 1rem;
+        font-weight: 600;
+        margin: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
     }
     
-    .btn-warning {
-        background: linear-gradient(135deg, #FB8C00 0%, #E65100 100%) !important;
-        box-shadow: 0 4px 12px rgba(251, 140, 0, 0.3) !important;
+    /* Cards de métricas */
+    .metric-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
     }
     
-    .btn-danger {
-        background: linear-gradient(135deg, #E53935 0%, #C62828 100%) !important;
-        box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3) !important;
+    .metric-card h3 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
     }
     
-    /* Inputs maiores e mais amigáveis */
+    .metric-card p {
+        margin: 0.5rem 0 0 0;
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    /* Inputs maiores para mobile */
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input,
     .stSelectbox > div > div > select {
         height: 3rem;
         font-size: 1.1rem;
-        border-radius: 8px;
-        border: 2px solid #E0E0E0;
-        transition: border-color 0.3s ease;
+        border-radius: 10px;
+        border: 2px solid #e1e5e9;
+        padding: 0 1rem;
     }
     
-    .stTextInput > div > div > input:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #1E88E5;
-        box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
-    }
-    
-    /* Cards personalizados */
-    .metric-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 1.5rem;
-        border-radius: 16px;
-        border: 1px solid #E0E0E0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        margin: 0.5rem 0;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1E88E5;
-        margin: 0;
-    }
-    
-    .metric-label {
-        font-size: 0.9rem;
-        color: #666;
-        margin: 0;
-        font-weight: 500;
-    }
-    
-    /* Alertas melhorados */
+    /* Alertas coloridos */
     .alert-success {
-        background: linear-gradient(135deg, #E8F5E8 0%, #C8E6C9 100%);
-        border-left: 4px solid #43A047;
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         margin: 1rem 0;
     }
     
     .alert-warning {
-        background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
-        border-left: 4px solid #FB8C00;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    .alert-danger {
-        background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%);
-        border-left: 4px solid #E53935;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    /* Sidebar melhorada */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1E88E5 0%, #1565C0 100%);
-    }
-    
-    .css-1d391kg .css-1v0mbdj {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    .alert-info {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
     }
     
     /* Responsividade mobile */
@@ -154,89 +129,14 @@ def load_custom_css():
             font-size: 1.2rem;
         }
         
-        .metric-card {
-            padding: 1rem;
-        }
-        
-        .metric-value {
-            font-size: 1.5rem;
-        }
-        
-        /* Ajustar colunas em mobile */
-        .row-widget.stHorizontal {
-            flex-direction: column;
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input {
+            height: 4rem;
+            font-size: 1.3rem;
         }
     }
-    
-    /* Animações suaves */
-    .element-container {
-        transition: all 0.3s ease;
-    }
-    
-    /* Melhorar tabelas */
-    .dataframe {
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Loading spinner customizado */
-    .stSpinner {
-        color: #1E88E5;
-    }
-    
-    /* Tabs melhoradas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 3rem;
-        padding: 0 1.5rem;
-        border-radius: 8px;
-        background: #F5F5F5;
-        border: none;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #1E88E5 0%, #1565C0 100%);
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ---------------------------
-# Componentes UI Customizados
-# ---------------------------
-def criar_card_metrica(titulo, valor, icone, cor="#1E88E5"):
-    """Cria um card de métrica personalizado"""
-    st.markdown(f"""
-    <div class="metric-card">
-        <p class="metric-label">{icone} {titulo}</p>
-        <h2 class="metric-value" style="color: {cor};">{valor}</h2>
-    </div>
-    """, unsafe_allow_html=True)
-
-def mostrar_alerta(tipo, mensagem):
-    """Mostra alertas customizados"""
-    if tipo == "success":
-        st.markdown(f'<div class="alert-success">✅ {mensagem}</div>', unsafe_allow_html=True)
-    elif tipo == "warning":
-        st.markdown(f'<div class="alert-warning">⚠️ {mensagem}</div>', unsafe_allow_html=True)
-    elif tipo == "error":
-        st.markdown(f'<div class="alert-danger">❌ {mensagem}</div>', unsafe_allow_html=True)
-
-def botao_acao(label, key, tipo="primary"):
-    """Cria botões de ação customizados"""
-    css_class = ""
-    if tipo == "success":
-        css_class = "btn-success"
-    elif tipo == "warning":
-        css_class = "btn-warning"
-    elif tipo == "danger":
-        css_class = "btn-danger"
-    
-    return st.button(label, key=key, use_container_width=True)
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------
 # Configuração Google Sheets
@@ -255,7 +155,7 @@ def init_google_sheets():
             # Fallback para arquivo local (desenvolvimento)
             with open("credentials.json") as f:
                 creds_dict = json.load(f)
-
+        
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         
@@ -280,488 +180,662 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
     return worksheet
 
 # ---------------------------
-# Sistema de Acesso Melhorado
+# Sistema de Acesso com Perfis
 # ---------------------------
 if 'acesso_liberado' not in st.session_state:
     st.session_state.acesso_liberado = False
+if 'perfil_usuario' not in st.session_state:
+    st.session_state.perfil_usuario = None
+if 'nome_usuario' not in st.session_state:
+    st.session_state.nome_usuario = None
+
+# Configuração de usuários e perfis
+USUARIOS = {
+    "gerente": {
+        "senha": "gerente123",
+        "perfil": "gerente",
+        "nome": "Gerente",
+        "modulos": ["loterica", "caixa_interno", "cofre", "relatorios", "configuracoes"]
+    },
+    "loterica": {
+        "senha": "loterica123", 
+        "perfil": "operador_loterica",
+        "nome": "Operador Lotérica",
+        "modulos": ["loterica", "relatorios_loterica"]
+    },
+    "caixa": {
+        "senha": "caixa123",
+        "perfil": "operador_caixa", 
+        "nome": "Operador Caixa",
+        "modulos": ["caixa_interno", "relatorios_caixa"]
+    }
+}
 
 def verificar_acesso():
-    # Carregar CSS customizado
-    load_custom_css()
+    st.title("🏪 Sistema Unificado - Lotérica & Caixa Interno")
+    st.markdown("### 🔐 Acesso ao Sistema")
     
-    # Container centralizado
-    st.markdown("<div style='text-align: center; padding: 2rem 0;'>", unsafe_allow_html=True)
-    
-    # Logo e título
-    st.markdown("""
-    <div style='text-align: center; margin-bottom: 2rem;'>
-        <h1 style='color: #1E88E5; font-size: 3rem; margin-bottom: 0.5rem;'>🎰</h1>
-        <h1 style='color: #333; margin-bottom: 0.5rem;'>Sistema de Gestão</h1>
-        <h2 style='color: #666; font-weight: 400;'>Lotérica Google Sheets</h2>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Formulário de login centralizado
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.markdown("### 🔐 Acesso ao Sistema")
+        st.markdown("#### Selecione seu perfil:")
         
-        with st.form("form_login", clear_on_submit=False):
-            senha = st.text_input(
-                "Digite a senha de acesso:", 
-                type="password", 
-                key="senha_acesso",
-                placeholder="Digite sua senha..."
-            )
+        perfil_selecionado = st.selectbox(
+            "Tipo de usuário:",
+            ["Selecione...", "👑 Gerente", "🎰 Operador Lotérica", "💳 Operador Caixa"],
+            key="perfil_select"
+        )
+        
+        if perfil_selecionado != "Selecione...":
+            senha = st.text_input("Digite a senha:", type="password", key="senha_acesso")
             
             col_btn1, col_btn2 = st.columns(2)
-            
             with col_btn1:
-                login_btn = st.form_submit_button("🚀 Acessar Sistema")
+                if st.button("🚀 Acessar Sistema", use_container_width=True):
+                    # Mapear seleção para chave do usuário
+                    mapa_perfil = {
+                        "👑 Gerente": "gerente",
+                        "🎰 Operador Lotérica": "loterica", 
+                        "💳 Operador Caixa": "caixa"
+                    }
+                    
+                    chave_usuario = mapa_perfil.get(perfil_selecionado)
+                    
+                    if chave_usuario and senha == USUARIOS[chave_usuario]["senha"]:
+                        st.session_state.acesso_liberado = True
+                        st.session_state.perfil_usuario = USUARIOS[chave_usuario]["perfil"]
+                        st.session_state.nome_usuario = USUARIOS[chave_usuario]["nome"]
+                        st.session_state.modulos_permitidos = USUARIOS[chave_usuario]["modulos"]
+                        st.success(f"✅ Acesso liberado! Bem-vindo, {USUARIOS[chave_usuario]['nome']}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Senha incorreta!")
             
             with col_btn2:
-                ajuda_btn = st.form_submit_button("ℹ️ Ajuda")
-            
-            if login_btn:
-                if senha == "loterica123":  # Senha padrão
-                    st.session_state.acesso_liberado = True
-                    mostrar_alerta("success", "Acesso liberado com sucesso!")
-                    st.rerun()
-                else:
-                    mostrar_alerta("error", "Senha incorreta! Tente novamente.")
-            
-            if ajuda_btn:
-                st.info("💡 **Senha padrão:** loterica123")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+                if st.button("ℹ️ Ajuda", use_container_width=True):
+                    st.info("""
+                    💡 **Senhas de Teste:**
+                    - **Gerente**: gerente123
+                    - **Operador Lotérica**: loterica123  
+                    - **Operador Caixa**: caixa123
+                    """)
 
 # ---------------------------
-# Sistema Principal Melhorado
+# Funções de Cálculo do Caixa Interno
+# ---------------------------
+def calcular_taxa_cartao_debito(valor):
+    """Calcula taxa para saque de cartão débito"""
+    taxa_cliente = valor * 0.01  # 1% sobre o valor
+    taxa_banco = 1.00  # R$ 1,00 fixo por operação
+    lucro = taxa_cliente - taxa_banco
+    valor_liquido = valor - taxa_cliente
+    
+    return {
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": max(0, lucro),
+        "valor_liquido": valor_liquido,
+        "tipo": "Débito"
+    }
+
+def calcular_taxa_cartao_credito(valor):
+    """Calcula taxa para saque de cartão crédito"""
+    taxa_cliente = valor * 0.0533  # 5,33% sobre o valor
+    taxa_banco = valor * 0.0433   # 4,33% sobre o valor
+    lucro = taxa_cliente - taxa_banco
+    valor_liquido = valor - taxa_cliente
+    
+    return {
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": max(0, lucro),
+        "valor_liquido": valor_liquido,
+        "tipo": "Crédito"
+    }
+
+def calcular_taxa_cheque(valor, data_cheque):
+    """Calcula taxa para troca de cheque"""
+    hoje = date.today()
+    data_venc = datetime.strptime(data_cheque, "%Y-%m-%d").date()
+    
+    # Taxa base de 2%
+    taxa_base = valor * 0.02
+    
+    # Se for pré-datado, adicionar taxa diária
+    if data_venc > hoje:
+        dias = (data_venc - hoje).days
+        if dias > 15:  # Limite máximo de 15 dias
+            return None
+        taxa_diaria = valor * 0.0033 * dias  # 0.33% por dia
+    else:
+        taxa_diaria = 0
+    
+    taxa_total = taxa_base + taxa_diaria
+    valor_liquido = valor - taxa_total
+    
+    return {
+        "taxa_base": taxa_base,
+        "taxa_diaria": taxa_diaria,
+        "taxa_total": taxa_total,
+        "valor_liquido": valor_liquido,
+        "dias": (data_venc - hoje).days if data_venc > hoje else 0
+    }
+
+# ---------------------------
+# Sistema Principal
 # ---------------------------
 def sistema_principal():
-    # Carregar CSS customizado
-    load_custom_css()
-    
     # Inicializar Google Sheets
     client, spreadsheet = init_google_sheets()
     
     if not client or not spreadsheet:
-        mostrar_alerta("error", "Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
+        st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
         return
     
-    # Header melhorado
-    col1, col2, col3 = st.columns([3, 1, 1])
+    # Header personalizado por perfil
+    col1, col2 = st.columns([4, 1])
     with col1:
-        st.markdown("""
-        <div style='display: flex; align-items: center; margin-bottom: 1rem;'>
-            <h1 style='color: #1E88E5; margin: 0; margin-right: 1rem;'>🏠</h1>
-            <div>
-                <h1 style='margin: 0; color: #333;'>Sistema de Gestão</h1>
-                <p style='margin: 0; color: #666;'>Lotérica Google Sheets</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        if st.session_state.perfil_usuario == "gerente":
+            st.title("👑 Dashboard Gerencial - Sistema Unificado")
+        elif st.session_state.perfil_usuario == "operador_loterica":
+            st.title("🎰 Sistema Lotérica")
+        else:
+            st.title("💳 Sistema Caixa Interno")
     
     with col2:
-        if st.button("🔄 Atualizar", use_container_width=True):
-            st.rerun()
-    
-    with col3:
-        if st.button("🚪 Sair", use_container_width=True):
+        st.write(f"**{st.session_state.nome_usuario}**")
+        if st.button("🚪 Sair"):
             st.session_state.acesso_liberado = False
+            st.session_state.perfil_usuario = None
+            st.session_state.nome_usuario = None
             st.rerun()
     
-    # Sidebar melhorada
-    with st.sidebar:
-        st.markdown("""
-        <div style='text-align: center; padding: 1rem 0; color: white;'>
-            <h2 style='margin: 0; color: white;'>📋 Menu Principal</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Status de conexão
-        mostrar_alerta("success", "Conectado ao Google Sheets")
-        
-        st.markdown("---")
-        
-        # Menu com ícones melhorados
-        opcoes = [
-            ("🏠", "Dashboard"),
-            ("💰", "Lançamentos de Caixa"),
-            ("🏦", "Gestão do Cofre"), 
-            ("📦", "Gestão de Estoque"),
-            ("📊", "Relatórios"),
-            ("⚙️", "Configurações")
-        ]
-        
-        opcao_selecionada = st.radio(
-            "Escolha uma opção:",
-            [f"{icone} {nome}" for icone, nome in opcoes],
-            label_visibility="collapsed"
-        )
+    # Sidebar com menu baseado no perfil
+    st.sidebar.title("📋 Menu Principal")
+    st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
+    st.sidebar.success("🌐 Conectado ao Google Sheets")
+    st.sidebar.markdown("---")
+    
+    # Menu dinâmico baseado no perfil
+    opcoes_menu = []
+    
+    if "loterica" in st.session_state.modulos_permitidos:
+        opcoes_menu.extend([
+            "🏠 Dashboard",
+            "💰 Lançamentos Lotérica",
+            "📦 Estoque Lotérica"
+        ])
+    
+    if "caixa_interno" in st.session_state.modulos_permitidos:
+        opcoes_menu.extend([
+            "💳 Dashboard Caixa",
+            "💸 Operações Caixa",
+            "📊 Relatórios Caixa"
+        ])
+    
+    if "cofre" in st.session_state.modulos_permitidos:
+        opcoes_menu.append("🏦 Gestão do Cofre")
+    
+    if "relatorios" in st.session_state.modulos_permitidos:
+        opcoes_menu.append("📈 Relatórios Gerenciais")
+    
+    if "configuracoes" in st.session_state.modulos_permitidos:
+        opcoes_menu.append("⚙️ Configurações")
+    
+    # Se for operador específico, mostrar apenas dashboard relevante
+    if st.session_state.perfil_usuario == "operador_loterica":
+        opcoes_menu = ["🎰 Dashboard Lotérica", "💰 Lançamentos Lotérica", "📦 Estoque Lotérica"]
+    elif st.session_state.perfil_usuario == "operador_caixa":
+        opcoes_menu = ["💳 Dashboard Caixa", "💸 Operações Caixa", "📊 Relatórios Caixa"]
+    
+    opcao = st.sidebar.selectbox("Escolha uma opção:", opcoes_menu)
     
     # Renderizar página baseada na seleção
-    if "Dashboard" in opcao_selecionada:
-        render_dashboard_melhorado(spreadsheet)
-    elif "Lançamentos" in opcao_selecionada:
-        render_lancamentos_melhorado(spreadsheet)
-    elif "Cofre" in opcao_selecionada:
-        render_cofre_melhorado(spreadsheet)
-    elif "Estoque" in opcao_selecionada:
-        render_estoque_melhorado(spreadsheet)
-    elif "Relatórios" in opcao_selecionada:
-        render_relatorios_melhorado(spreadsheet)
-    elif "Configurações" in opcao_selecionada:
-        render_configuracoes_melhorado()
+    if opcao in ["🏠 Dashboard", "🎰 Dashboard Lotérica"]:
+        render_dashboard_loterica(spreadsheet)
+    elif opcao == "💳 Dashboard Caixa":
+        render_dashboard_caixa(spreadsheet)
+    elif opcao in ["💰 Lançamentos Lotérica"]:
+        render_lancamentos_loterica(spreadsheet)
+    elif opcao == "💸 Operações Caixa":
+        render_operacoes_caixa(spreadsheet)
+    elif opcao == "🏦 Gestão do Cofre":
+        render_cofre(spreadsheet)
+    elif opcao in ["📦 Estoque Lotérica"]:
+        render_estoque(spreadsheet)
+    elif opcao in ["📊 Relatórios Caixa"]:
+        render_relatorios_caixa(spreadsheet)
+    elif opcao == "📈 Relatórios Gerenciais":
+        render_relatorios_gerenciais(spreadsheet)
+    elif opcao == "⚙️ Configurações":
+        render_configuracoes()
 
 # ---------------------------
-# Dashboard Melhorado
+# Dashboard Caixa Interno
 # ---------------------------
-def render_dashboard_melhorado(spreadsheet):
-    st.markdown("## 🏠 Dashboard")
+def render_dashboard_caixa(spreadsheet):
+    st.subheader("💳 Dashboard Caixa Interno")
     
     try:
-        # Carregar dados
-        lancamentos_sheet = get_or_create_worksheet(
-            spreadsheet, 
-            "Lançamentos Caixa",
-            ["Data", "Hora", "PDV", "Tipo", "Produto", "Quantidade", "Valor", "Observações"]
-        )
-        
-        cofre_sheet = get_or_create_worksheet(
+        # Carregar dados das operações do caixa
+        caixa_sheet = get_or_create_worksheet(
             spreadsheet,
-            "Cofre",
-            ["Data", "Hora", "Tipo", "Valor", "Saldo", "Descrição"]
+            "Operacoes_Caixa",
+            ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+             "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
         )
         
         # Obter dados
-        lancamentos_data = lancamentos_sheet.get_all_records()
-        cofre_data = cofre_sheet.get_all_records()
+        operacoes_data = caixa_sheet.get_all_records()
         
-        # Cards de métricas melhorados
+        # Métricas principais
         col1, col2, col3, col4 = st.columns(4)
         
+        # Calcular saldo atual (simulado)
+        saldo_caixa = 5000.0  # Valor inicial
+        lucro_hoje = 0
+        operacoes_hoje = 0
+        
+        hoje_str = str(date.today())
+        
+        for op in operacoes_data:
+            if op["Data"] == hoje_str:
+                operacoes_hoje += 1
+                if op["Tipo_Operacao"] in ["Saque Cartão", "Troca Cheque"]:
+                    saldo_caixa -= float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
+                    lucro_hoje += float(op["Lucro"]) if op["Lucro"] else 0
+                elif op["Tipo_Operacao"] == "Suprimento":
+                    saldo_caixa += float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
+        
         with col1:
-            saldo_cofre = cofre_data[-1]["Saldo"] if cofre_data else 1000.0
-            criar_card_metrica("Saldo do Cofre", f"R$ {saldo_cofre:.2f}", "💰", "#43A047")
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <p>💰 Saldo do Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            vendas_hoje = sum([float(l["Valor"]) for l in lancamentos_data 
-                              if l["Data"] == str(date.today()) and l["Tipo"] == "venda"])
-            criar_card_metrica("Vendas Hoje", f"R$ {vendas_hoje:.2f}", "📈", "#1E88E5")
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>R$ {lucro_hoje:,.2f}</h3>
+                <p>📈 Lucro Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col3:
-            total_movimentacoes = len([l for l in lancamentos_data 
-                                     if l["Data"] == str(date.today())])
-            criar_card_metrica("Movimentações", f"{total_movimentacoes}", "📋", "#FB8C00")
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{operacoes_hoje}</h3>
+                <p>📋 Operações Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col4:
-            criar_card_metrica("Status", "Online", "🌐", "#43A047")
+            status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
+            status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
+                <h3>{status_texto}</h3>
+                <p>🚦 Status Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # Botões de ação rápida
-        st.markdown("### ⚡ Ações Rápidas")
+        # Ações rápidas
+        st.subheader("🚀 Ações Rápidas")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if botao_acao("🎯 Venda Rápida", "venda_rapida", "success"):
-                st.session_state.acao_rapida = "venda"
+            if st.button("💳 Saque Cartão", use_container_width=True):
+                st.session_state.acao_rapida = "saque_cartao"
+                st.rerun()
         
         with col2:
-            if botao_acao("💰 Suprimento", "suprimento", "primary"):
+            if st.button("📄 Troca Cheque", use_container_width=True):
+                st.session_state.acao_rapida = "troca_cheque"
+                st.rerun()
+        
+        with col3:
+            if st.button("💰 Suprimento", use_container_width=True):
                 st.session_state.acao_rapida = "suprimento"
-        
-        with col3:
-            if botao_acao("📤 Sangria", "sangria", "warning"):
-                st.session_state.acao_rapida = "sangria"
+                st.rerun()
         
         with col4:
-            if botao_acao("📊 Relatório", "relatorio", "primary"):
+            if st.button("📊 Relatório Hoje", use_container_width=True):
                 st.session_state.acao_rapida = "relatorio"
+                st.rerun()
         
-        st.markdown("---")
+        # Processar ação rápida
+        if hasattr(st.session_state, 'acao_rapida'):
+            if st.session_state.acao_rapida == "saque_cartao":
+                render_form_saque_cartao(spreadsheet)
+            elif st.session_state.acao_rapida == "troca_cheque":
+                render_form_troca_cheque(spreadsheet)
+            elif st.session_state.acao_rapida == "suprimento":
+                render_form_suprimento(spreadsheet)
+            elif st.session_state.acao_rapida == "relatorio":
+                render_relatorio_rapido(operacoes_data)
         
-        # Gráfico de vendas melhorado
-        if lancamentos_data:
-            st.markdown("### 📊 Vendas dos Últimos 7 Dias")
+        # Gráfico de operações
+        if operacoes_data:
+            st.subheader("📊 Operações dos Últimos 7 Dias")
             
-            vendas_por_dia = {}
-            for lancamento in lancamentos_data:
-                if lancamento["Tipo"] == "venda":
-                    data = lancamento["Data"]
-                    if data not in vendas_por_dia:
-                        vendas_por_dia[data] = 0
-                    vendas_por_dia[data] += float(lancamento["Valor"])
-            
-            if vendas_por_dia:
-                df_vendas = pd.DataFrame(list(vendas_por_dia.items()), columns=["Data", "Vendas"])
+            # Preparar dados para gráfico
+            df_ops = pd.DataFrame(operacoes_data)
+            if not df_ops.empty:
+                # Filtrar últimos 7 dias
+                df_ops['Data'] = pd.to_datetime(df_ops['Data'])
+                data_limite = datetime.now() - timedelta(days=7)
+                df_recente = df_ops[df_ops['Data'] >= data_limite]
                 
-                fig = px.line(
-                    df_vendas, 
-                    x="Data", 
-                    y="Vendas", 
-                    title="📈 Evolução das Vendas",
-                    color_discrete_sequence=["#1E88E5"]
-                )
-                
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_family="Inter",
-                    title_font_size=20,
-                    title_font_color="#333"
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
+                if not df_recente.empty:
+                    # Agrupar por tipo de operação
+                    ops_por_tipo = df_recente.groupby('Tipo_Operacao').size().reset_index(name='Quantidade')
+                    
+                    fig = px.pie(ops_por_tipo, values='Quantidade', names='Tipo_Operacao', 
+                               title="Distribuição de Operações")
+                    st.plotly_chart(fig, use_container_width=True)
         
-        # Alertas e notificações
-        st.markdown("### 🔔 Alertas e Notificações")
-        
-        # Verificar alertas
-        alertas = verificar_alertas(cofre_data, lancamentos_data)
-        
-        if alertas:
-            for alerta in alertas:
-                mostrar_alerta(alerta["tipo"], alerta["mensagem"])
-        else:
-            mostrar_alerta("success", "Tudo funcionando perfeitamente!")
+        # Alertas
+        if saldo_caixa < 1000:
+            st.markdown("""
+            <div class="alert-warning">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """, unsafe_allow_html=True)
+        elif saldo_caixa < 2000:
+            st.markdown("""
+            <div class="alert-info">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """, unsafe_allow_html=True)
         
     except Exception as e:
-        mostrar_alerta("error", f"Erro ao carregar dashboard: {e}")
-
-def verificar_alertas(cofre_data, lancamentos_data):
-    """Verifica e retorna alertas do sistema"""
-    alertas = []
-    
-    # Verificar saldo baixo
-    if cofre_data:
-        saldo_atual = float(cofre_data[-1]["Saldo"])
-        if saldo_atual < 500:
-            alertas.append({
-                "tipo": "warning",
-                "mensagem": f"Saldo do cofre baixo: R$ {saldo_atual:.2f}"
-            })
-    
-    # Verificar movimentações do dia
-    hoje = str(date.today())
-    movs_hoje = len([l for l in lancamentos_data if l["Data"] == hoje])
-    
-    if movs_hoje == 0:
-        alertas.append({
-            "tipo": "warning",
-            "mensagem": "Nenhuma movimentação registrada hoje"
-        })
-    
-    return alertas
+        st.error(f"Erro ao carregar dashboard: {e}")
 
 # ---------------------------
-# Lançamentos Melhorados
+# Formulários de Operação
 # ---------------------------
-def render_lancamentos_melhorado(spreadsheet):
-    st.markdown("## 💰 Lançamentos de Caixa")
+def render_form_saque_cartao(spreadsheet):
+    st.markdown("### 💳 Saque Cartão")
     
-    try:
-        # Obter worksheet
-        sheet = get_or_create_worksheet(
-            spreadsheet,
-            "Lançamentos Caixa",
-            ["Data", "Hora", "PDV", "Tipo", "Produto", "Quantidade", "Valor", "Observações"]
-        )
+    with st.form("form_saque_cartao"):
+        col1, col2 = st.columns(2)
         
-        tab1, tab2 = st.tabs(["➕ Novo Lançamento", "📋 Histórico"])
+        with col1:
+            cliente = st.text_input("Nome do Cliente:", placeholder="Digite o nome completo")
+            cpf = st.text_input("CPF:", placeholder="000.000.000-00")
+            valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0)
+            tipo_cartao = st.selectbox("Tipo de Cartão:", ["Débito", "Crédito"])
         
-        with tab1:
-            st.markdown("#### ✨ Registrar Nova Movimentação")
+        with col2:
+            observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...")
             
-            # Formulário melhorado
-            with st.form("formulario_lancamento_melhorado", clear_on_submit=True):
-                col1, col2 = st.columns(2)
+            # Cálculo automático baseado no tipo
+            if valor > 0:
+                if tipo_cartao == "Débito":
+                    calc = calcular_taxa_cartao_debito(valor)
+                    st.markdown("#### 💰 Cálculo Automático - Débito")
+                    st.write(f"**Taxa Cliente (1%):** R$ {calc['taxa_cliente']:.2f}")
+                    st.write(f"**Taxa Banco (fixo):** R$ {calc['taxa_banco']:.2f}")
+                else:
+                    calc = calcular_taxa_cartao_credito(valor)
+                    st.markdown("#### 💰 Cálculo Automático - Crédito")
+                    st.write(f"**Taxa Cliente (5,33%):** R$ {calc['taxa_cliente']:.2f}")
+                    st.write(f"**Taxa Banco (4,33%):** R$ {calc['taxa_banco']:.2f}")
                 
-                with col1:
-                    pdv = st.selectbox(
-                        "🏪 PDV:", 
-                        ["PDV 1", "PDV 2", "PDV 3"],
-                        help="Selecione o ponto de venda"
+                st.write(f"**Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+                st.write(f"**Lucro Líquido:** R$ {calc['lucro']:.2f}")
+        
+        submitted = st.form_submit_button("💾 Confirmar Operação", use_container_width=True)
+        
+        if submitted:
+            if not cliente or not cpf:
+                st.error("❌ Preencha todos os campos obrigatórios!")
+            else:
+                # Calcular baseado no tipo
+                if tipo_cartao == "Débito":
+                    calc = calcular_taxa_cartao_debito(valor)
+                else:
+                    calc = calcular_taxa_cartao_credito(valor)
+                
+                caixa_sheet = get_or_create_worksheet(
+                    spreadsheet,
+                    "Operacoes_Caixa",
+                    ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                     "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
+                )
+                
+                nova_operacao = [
+                    str(date.today()),
+                    datetime.now().strftime("%H:%M:%S"),
+                    st.session_state.nome_usuario,
+                    f"Saque Cartão {tipo_cartao}",
+                    cliente,
+                    cpf,
+                    valor,
+                    calc['taxa_cliente'],
+                    calc['taxa_banco'],
+                    calc['valor_liquido'],
+                    calc['lucro'],
+                    "Concluído",
+                    observacoes
+                ]
+                
+                caixa_sheet.append_row(nova_operacao)
+                
+                st.success("✅ Operação registrada com sucesso!")
+                st.balloons()
+                
+                # Limpar ação rápida
+                if hasattr(st.session_state, 'acao_rapida'):
+                    del st.session_state.acao_rapida
+                
+                st.rerun()
+
+def render_form_troca_cheque(spreadsheet):
+    st.markdown("### 📄 Troca de Cheque")
+    
+    with st.form("form_troca_cheque"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            cliente = st.text_input("Nome do Cliente:", placeholder="Digite o nome completo")
+            cpf = st.text_input("CPF:", placeholder="000.000.000-00")
+            valor = st.number_input("Valor do Cheque (R$):", min_value=50.0, max_value=50000.0, value=1000.0, step=50.0)
+            data_cheque = st.date_input("Data do Cheque:", value=date.today())
+        
+        with col2:
+            banco = st.text_input("Banco:", placeholder="Nome do banco")
+            numero_cheque = st.text_input("Número do Cheque:", placeholder="000000")
+            observacoes = st.text_area("Observações:", height=100)
+            
+            # Cálculo automático
+            if valor > 0:
+                calc = calcular_taxa_cheque(valor, str(data_cheque))
+                if calc:
+                    st.markdown("#### 💰 Cálculo Automático")
+                    st.write(f"**Taxa Base (2%):** R$ {calc['taxa_base']:.2f}")
+                    if calc['dias'] > 0:
+                        st.write(f"**Taxa Diária ({calc['dias']} dias):** R$ {calc['taxa_diaria']:.2f}")
+                    st.write(f"**Taxa Total:** R$ {calc['taxa_total']:.2f}")
+                    st.write(f"**Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+                else:
+                    st.error("❌ Prazo máximo de 15 dias excedido!")
+        
+        submitted = st.form_submit_button("💾 Confirmar Operação", use_container_width=True)
+        
+        if submitted:
+            if not cliente or not cpf or not banco:
+                st.error("❌ Preencha todos os campos obrigatórios!")
+            else:
+                calc = calcular_taxa_cheque(valor, str(data_cheque))
+                if not calc:
+                    st.error("❌ Prazo máximo de 15 dias excedido!")
+                else:
+                    # Salvar operação
+                    caixa_sheet = get_or_create_worksheet(
+                        spreadsheet,
+                        "Operacoes_Caixa",
+                        ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                         "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
                     )
                     
-                    tipo = st.selectbox(
-                        "📝 Tipo de Movimentação:", 
-                        ["venda", "suprimento", "sangria", "vale", "pagamento_premio"],
-                        help="Escolha o tipo de operação"
-                    )
-                    
-                    if tipo == "venda":
-                        produto = st.selectbox(
-                            "🎯 Produto:", 
-                            ["bolao", "raspadinha", "loteria_federal"],
-                            help="Selecione o produto vendido"
-                        )
-                        quantidade = st.number_input(
-                            "📦 Quantidade:", 
-                            min_value=1, 
-                            value=1,
-                            help="Quantidade de produtos"
-                        )
-                        
-                        # Preços padrão com visual melhorado
-                        precos = {"bolao": 5.0, "raspadinha": 2.0, "loteria_federal": 10.0}
-                        valor = quantidade * precos[produto]
-                        
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <p class="metric-label">💰 Valor Total</p>
-                            <h2 class="metric-value">R$ {valor:.2f}</h2>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        produto = ""
-                        quantidade = 0
-                        valor = st.number_input(
-                            "💵 Valor (R$):", 
-                            min_value=0.01, 
-                            value=10.0, 
-                            step=0.01,
-                            help="Digite o valor da operação"
-                        )
-                
-                with col2:
-                    observacoes = st.text_area(
-                        "📝 Observações:", 
-                        height=150,
-                        placeholder="Digite observações adicionais...",
-                        help="Informações extras sobre a operação"
-                    )
-                
-                # Botão de envio melhorado
-                col_enviar = st.columns([2, 1, 2])[1]
-                with col_enviar:
-                    enviar = st.form_submit_button("💾 Registrar Lançamento")
-                
-                if enviar:
-                    # Preparar dados
-                    nova_linha = [
+                    nova_operacao = [
                         str(date.today()),
                         datetime.now().strftime("%H:%M:%S"),
-                        pdv,
-                        tipo,
-                        produto,
-                        quantidade,
+                        st.session_state.nome_usuario,
+                        "Troca Cheque",
+                        cliente,
+                        cpf,
                         valor,
-                        observacoes
+                        calc['taxa_total'],
+                        0,  # Sem taxa banco para cheques
+                        calc['valor_liquido'],
+                        calc['taxa_total'],  # Todo valor da taxa é lucro
+                        "Concluído",
+                        f"Banco: {banco}, Cheque: {numero_cheque}, Data: {data_cheque}. {observacoes}"
                     ]
                     
-                    # Salvar no Google Sheets
-                    sheet.append_row(nova_linha)
+                    caixa_sheet.append_row(nova_operacao)
                     
-                    # Atualizar cofre se for venda
-                    if tipo == "venda":
-                        atualizar_cofre(spreadsheet, valor, f"Venda {produto}")
+                    st.success("✅ Operação registrada com sucesso!")
+                    st.balloons()
                     
-                    mostrar_alerta("success", "Lançamento salvo no Google Sheets com sucesso!")
+                    # Limpar ação rápida
+                    if hasattr(st.session_state, 'acao_rapida'):
+                        del st.session_state.acao_rapida
+                    
                     st.rerun()
+
+# ---------------------------
+# Operações do Caixa Interno
+# ---------------------------
+def render_operacoes_caixa(spreadsheet):
+    st.subheader("💸 Operações do Caixa Interno")
+    
+    tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
+    
+    with tab1:
+        tipo_operacao = st.selectbox(
+            "Tipo de Operação:",
+            ["Saque Cartão (Débito/Crédito)", "Troca Cheque", "Suprimento Caixa"]
+        )
         
-        with tab2:
-            st.markdown("#### 📋 Histórico de Lançamentos")
-            
-            # Carregar dados
-            data = sheet.get_all_records()
+        if tipo_operacao == "Saque Cartão (Débito/Crédito)":
+            render_form_saque_cartao(spreadsheet)
+        elif tipo_operacao == "Troca Cheque":
+            render_form_troca_cheque(spreadsheet)
+        elif tipo_operacao == "Suprimento Caixa":
+            render_form_suprimento(spreadsheet)
+    
+    with tab2:
+        try:
+            caixa_sheet = spreadsheet.worksheet("Operacoes_Caixa")
+            data = caixa_sheet.get_all_records()
             
             if data:
                 df = pd.DataFrame(data)
                 
                 # Filtros
                 col1, col2, col3 = st.columns(3)
-                
                 with col1:
-                    filtro_data = st.date_input("📅 Filtrar por data:", value=date.today())
-                
+                    filtro_data = st.date_input("Filtrar por data:", value=date.today())
                 with col2:
-                    tipos_unicos = df["Tipo"].unique() if not df.empty else []
-                    filtro_tipo = st.selectbox("📝 Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
-                
+                    tipos_unicos = df['Tipo_Operacao'].unique() if 'Tipo_Operacao' in df.columns else []
+                    filtro_tipo = st.selectbox("Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
                 with col3:
-                    pdvs_unicos = df["PDV"].unique() if not df.empty else []
-                    filtro_pdv = st.selectbox("🏪 Filtrar por PDV:", ["Todos"] + list(pdvs_unicos))
+                    filtro_operador = st.selectbox("Filtrar por operador:", 
+                                                 ["Todos"] + list(df['Operador'].unique()) if 'Operador' in df.columns else ["Todos"])
                 
                 # Aplicar filtros
                 df_filtrado = df.copy()
+                if 'Data' in df.columns:
+                    df_filtrado = df_filtrado[df_filtrado['Data'] == str(filtro_data)]
+                if filtro_tipo != "Todos" and 'Tipo_Operacao' in df.columns:
+                    df_filtrado = df_filtrado[df_filtrado['Tipo_Operacao'] == filtro_tipo]
+                if filtro_operador != "Todos" and 'Operador' in df.columns:
+                    df_filtrado = df_filtrado[df_filtrado['Operador'] == filtro_operador]
                 
-                if filtro_data:
-                    df_filtrado = df_filtrado[df_filtrado["Data"] == str(filtro_data)]
+                st.dataframe(df_filtrado, use_container_width=True)
                 
-                if filtro_tipo != "Todos":
-                    df_filtrado = df_filtrado[df_filtrado["Tipo"] == filtro_tipo]
-                
-                if filtro_pdv != "Todos":
-                    df_filtrado = df_filtrado[df_filtrado["PDV"] == filtro_pdv]
-                
-                # Mostrar dados filtrados
-                if not df_filtrado.empty:
-                    st.dataframe(df_filtrado, use_container_width=True)
+                # Totais
+                if not df_filtrado.empty and 'Valor_Bruto' in df_filtrado.columns:
+                    total_operacoes = len(df_filtrado)
+                    total_valor = df_filtrado['Valor_Bruto'].astype(float).sum()
+                    total_lucro = df_filtrado['Lucro'].astype(float).sum() if 'Lucro' in df_filtrado.columns else 0
                     
-                    # Resumo
-                    total_valor = df_filtrado["Valor"].astype(float).sum()
-                    st.markdown(f"**Total filtrado: R$ {total_valor:.2f}**")
-                else:
-                    st.info("📋 Nenhum lançamento encontrado com os filtros aplicados.")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total de Operações", total_operacoes)
+                    with col2:
+                        st.metric("Valor Total", f"R$ {total_valor:,.2f}")
+                    with col3:
+                        st.metric("Lucro Total", f"R$ {total_lucro:,.2f}")
             else:
-                st.info("📋 Nenhum lançamento registrado ainda.")
+                st.info("📋 Nenhuma operação registrada ainda.")
                 
-    except Exception as e:
-        mostrar_alerta("error", f"Erro ao processar lançamentos: {e}")
+        except Exception as e:
+            st.error(f"Erro ao carregar histórico: {e}")
 
 # ---------------------------
-# Outras funções melhoradas (simplificadas para o exemplo)
+# Outras funções (simplificadas para o exemplo)
 # ---------------------------
-def render_cofre_melhorado(spreadsheet):
-    st.markdown("## 🏦 Gestão do Cofre")
-    st.info("🚧 Interface melhorada em desenvolvimento...")
+def render_dashboard_loterica(spreadsheet):
+    st.subheader("🎰 Dashboard Lotérica")
+    st.info("🚧 Dashboard da lotérica será implementado na próxima versão.")
 
-def render_estoque_melhorado(spreadsheet):
-    st.markdown("## 📦 Gestão de Estoque")
-    st.info("🚧 Interface melhorada em desenvolvimento...")
+def render_lancamentos_loterica(spreadsheet):
+    st.subheader("💰 Lançamentos Lotérica")
+    st.info("🚧 Lançamentos da lotérica serão implementados na próxima versão.")
 
-def render_relatorios_melhorado(spreadsheet):
-    st.markdown("## 📊 Relatórios")
-    st.info("🚧 Interface melhorada em desenvolvimento...")
+def render_cofre(spreadsheet):
+    st.subheader("🏦 Gestão do Cofre")
+    st.info("🚧 Gestão do cofre será implementada na próxima versão.")
 
-def render_configuracoes_melhorado():
-    st.markdown("## ⚙️ Configurações")
-    st.info("🚧 Interface melhorada em desenvolvimento...")
+def render_estoque(spreadsheet):
+    st.subheader("📦 Gestão de Estoque")
+    st.info("🚧 Gestão de estoque será implementada na próxima versão.")
 
-# Função auxiliar para atualizar cofre (mantida igual)
-def atualizar_cofre(spreadsheet, valor, descricao):
-    """Atualiza saldo do cofre"""
-    try:
-        cofre_sheet = get_or_create_worksheet(
-            spreadsheet,
-            "Cofre", 
-            ["Data", "Hora", "Tipo", "Valor", "Saldo", "Descrição"]
-        )
+def render_relatorios_caixa(spreadsheet):
+    st.subheader("📊 Relatórios do Caixa")
+    st.info("🚧 Relatórios detalhados serão implementados na próxima versão.")
+
+def render_relatorios_gerenciais(spreadsheet):
+    st.subheader("📈 Relatórios Gerenciais")
+    st.info("🚧 Relatórios gerenciais serão implementados na próxima versão.")
+
+def render_configuracoes():
+    st.subheader("⚙️ Configurações")
+    st.info("🚧 Configurações serão implementadas na próxima versão.")
+
+def render_form_suprimento(spreadsheet):
+    st.markdown("### 💰 Suprimento do Caixa")
+    st.info("🚧 Formulário de suprimento será implementado na próxima versão.")
+
+def render_relatorio_rapido(operacoes_data):
+    st.markdown("### 📊 Relatório Rápido - Hoje")
+    
+    hoje_str = str(date.today())
+    ops_hoje = [op for op in operacoes_data if op.get("Data") == hoje_str]
+    
+    if ops_hoje:
+        df = pd.DataFrame(ops_hoje)
+        st.dataframe(df, use_container_width=True)
         
-        # Obter saldo atual
-        cofre_data = cofre_sheet.get_all_records()
-        saldo_atual = float(cofre_data[-1]["Saldo"]) if cofre_data else 1000.0
+        # Totais
+        total_ops = len(ops_hoje)
+        total_lucro = sum([float(op.get("Lucro", 0)) for op in ops_hoje])
         
-        # Calcular novo saldo
-        novo_saldo = saldo_atual + valor
-        
-        # Salvar movimentação
-        nova_linha = [
-            str(date.today()),
-            datetime.now().strftime("%H:%M:%S"),
-            "entrada",
-            valor,
-            novo_saldo,
-            descricao
-        ]
-        
-        cofre_sheet.append_row(nova_linha)
-        
-    except Exception as e:
-        mostrar_alerta("error", f"Erro ao atualizar cofre: {e}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Operações Hoje", total_ops)
+        with col2:
+            st.metric("Lucro Hoje", f"R$ {total_lucro:.2f}")
+    else:
+        st.info("📋 Nenhuma operação registrada hoje.")
 
 # ---------------------------
 # Função Principal
