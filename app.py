@@ -348,55 +348,40 @@ def render_dashboard_caixa(spreadsheet):
             spreadsheet,
             "Operacoes_Caixa",
             ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
-             "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
+             "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Observacoes"]
         )
         
-        # Obter dados
+        # Obter dados e converter para DataFrame
         operacoes_data = caixa_sheet.get_all_records()
+        df_operacoes = pd.DataFrame(operacoes_data)
+
+        if df_operacoes.empty:
+            st.info("Nenhuma operação registrada para exibir o dashboard.")
+            return
+
+        # Garantir que colunas numéricas sejam do tipo correto para evitar erros
+        for col in ['Valor_Bruto', 'Valor_Liquido']:
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+
+        # --- LÓGICA DE CÁLCULO DO SALDO CORRIGIDA ---
+        total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
         
-        # Métricas principais
-        col1, col2, col3, col4 = st.columns(4)
+        # Define quais operações são consideradas saídas de dinheiro
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque Taxa Manual"]
+        total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
+
+        saldo_caixa = total_suprimentos - total_saques_liquidos
         
-        # Calcular saldo atual considerando TODAS as operações
-        saldo_caixa = 0  # Valor inicial do caixa
-        valor_saque_hoje = 0
-        operacoes_hoje = 0
-        
+        # Métricas do dia
         hoje_str = str(date.today())
+        operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
         
-        # Calcular saldo considerando TODAS as operações
-        saldo_inicial = 0  # Valor inicial do caixa
-        total_suprimentos = 0
-        total_saques_liquidos = 0
-        
-        # Debug: vamos calcular separadamente para entender
-        for op in operacoes_data:
-            try:
-                if op["Tipo_Operacao"] == "Suprimento":
-                    valor = float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
-                    total_suprimentos += valor
-                elif op["Tipo_Operacao"] in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
-                    valor = float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
-                    total_saques_liquidos += valor
-                elif op["Tipo_Operacao"] == "Troca Cheque":
-                    valor = float(op["Valor_Liquido"]) if op["Valor_Liquido"] else 0
-                    total_saques_liquidos += valor
-            except (ValueError, TypeError):
-                continue  # Pular valores inválidos
-        
-        # Cálculo final do saldo
-        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
-        
-        # Contar operações de hoje para métricas
-        for op in operacoes_data:
-            if op["Data"] == hoje_str:
-                operacoes_hoje += 1
-                if op["Tipo_Operacao"] in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
-                    try:
-                        valor_saque_hoje += float(op["Valor_Bruto"]) if op["Valor_Bruto"] else 0
-                    except (ValueError, TypeError):
-                        continue
-        
+        operacoes_hoje_count = len(operacoes_de_hoje)
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Bruto'].sum()
+
+        # Renderizar Métricas
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
@@ -416,7 +401,7 @@ def render_dashboard_caixa(spreadsheet):
         with col3:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <h3>{operacoes_hoje}</h3>
+                <h3>{operacoes_hoje_count}</h3>
                 <p>📋 Operações Hoje</p>
             </div>
             """, unsafe_allow_html=True)
@@ -433,36 +418,29 @@ def render_dashboard_caixa(spreadsheet):
         
         st.markdown("---")
         
-        # Dentro da função render_dashboard_caixa(spreadsheet):
-
-        # Gráfico de operações
-        if operacoes_data:
-            st.subheader("📊 Operações dos Últimos 7 Dias")
-            
-            # Preparar dados para gráfico
-            df_ops = pd.DataFrame(operacoes_data)
-            if not df_ops.empty:
-                # Filtrar últimos 7 dias
-                df_ops['Data'] = pd.to_datetime(df_ops['Data'])
-                data_limite = datetime.now() - timedelta(days=7)
-                df_recente = df_ops[df_ops['Data'] >= data_limite]
-                
-                if not df_recente.empty:
-                    # Agrupar por tipo de operação
-                    ops_por_tipo = df_recente.groupby('Tipo_Operacao').size().reset_index(name='Quantidade')
-                    
-                    # ALTERAÇÃO AQUI: Trocado px.pie por px.bar
-                    fig = px.bar(
-                        ops_por_tipo, 
-                        x='Tipo_Operacao', 
-                        y='Quantidade', 
-                        title="Distribuição de Operações",
-                        labels={'Tipo_Operacao': 'Tipo de Operação', 'Quantidade': 'Número de Operações'},
-                        color='Tipo_Operacao'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+        # --- LÓGICA DO GRÁFICO CORRIGIDA ---
+        st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
-        # Alertas
+        df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'])
+        data_limite = datetime.now() - timedelta(days=7)
+        df_recente = df_operacoes[df_operacoes['Data'] >= data_limite]
+        
+        if not df_recente.empty:
+            # Agrupa por tipo e SOMA o Valor_Liquido
+            resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
+            
+            # Altera o gráfico para barras usando o Valor_Liquido
+            fig = px.bar(
+                resumo_por_tipo, 
+                x='Tipo_Operacao', 
+                y='Valor_Liquido', 
+                title="Valor Líquido por Tipo de Operação",
+                labels={'Tipo_Operacao': 'Tipo de Operação', 'Valor_Liquido': 'Valor Líquido Total (R$)'},
+                color='Tipo_Operacao'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Alertas de Saldo
         if saldo_caixa < 1000:
             st.markdown("""
             <div class="alert-warning">
