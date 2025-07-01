@@ -320,20 +320,16 @@ def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
     HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
     
-    # Busca dados e calcula saldo
     cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
     df_cofre = pd.DataFrame(cofre_data)
     saldo_cofre = Decimal('0')
 
-    # --- CORREÇÃO APLICADA AQUI ---
-    # Verifica se o DataFrame não está vazio E se as colunas necessárias existem
     if not df_cofre.empty and 'Tipo_Transacao' in df_cofre.columns and 'Valor' in df_cofre.columns:
         df_cofre['Valor'] = pd.to_numeric(df_cofre['Valor'], errors='coerce').fillna(0)
         df_cofre['Tipo_Transacao'] = df_cofre['Tipo_Transacao'].astype(str)
         
         entradas = df_cofre[df_cofre['Tipo_Transacao'] == 'Entrada no Cofre']['Valor'].sum()
-        # Ajuste para buscar por 'Saída' de forma mais segura
-        saidas = df_cofre[df_cofre['Tipo_Transacao'].str.contains("Saída", na=False)]['Valor'].sum()
+        saidas = df_cofre[df_cofre['Tipo_Transacao'].str.startswith("Saída do Cofre")]['Valor'].sum()
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
 
     st.markdown(f"""
@@ -371,12 +367,17 @@ def render_cofre(spreadsheet):
             if submitted:
                 cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
                 
-                # Simplificado para consistência
-                tipo_transacao_final = tipo_mov 
-                
+                # --- CORREÇÃO APLICADA AQUI ---
+                # A lista de nova movimentação foi corrigida para ter 7 itens,
+                # removendo o 'tipo_mov' extra que estava causando o erro.
                 nova_mov_cofre = [
-                    str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
-                    tipo_transacao_final, float(valor), destino_final, observacoes
+                    str(date.today()), 
+                    datetime.now().strftime("%H:%M:%S"), 
+                    st.session_state.nome_usuario,
+                    f"{tipo_mov} para {destino_final}" if tipo_mov == "Saída do Cofre" else tipo_mov,
+                    float(valor), 
+                    destino_final, 
+                    observacoes
                 ]
                 cofre_sheet.append_row(nova_mov_cofre)
 
