@@ -324,15 +324,16 @@ def render_cofre(spreadsheet):
     cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
     df_cofre = pd.DataFrame(cofre_data)
     saldo_cofre = Decimal('0')
-    if not df_cofre.empty:
+
+    # --- CORREÇÃO APLICADA AQUI ---
+    # Verifica se o DataFrame não está vazio E se as colunas necessárias existem
+    if not df_cofre.empty and 'Tipo_Transacao' in df_cofre.columns and 'Valor' in df_cofre.columns:
         df_cofre['Valor'] = pd.to_numeric(df_cofre['Valor'], errors='coerce').fillna(0)
-        
-        # --- LINHA DE CORREÇÃO ADICIONADA AQUI ---
-        # Garante que a coluna de tipo de transação seja tratada como texto
         df_cofre['Tipo_Transacao'] = df_cofre['Tipo_Transacao'].astype(str)
         
         entradas = df_cofre[df_cofre['Tipo_Transacao'] == 'Entrada no Cofre']['Valor'].sum()
-        saidas = df_cofre[df_cofre['Tipo_Transacao'].str.startswith("Saída do Cofre")]['Valor'].sum()
+        # Ajuste para buscar por 'Saída' de forma mais segura
+        saidas = df_cofre[df_cofre['Tipo_Transacao'].str.contains("Saída", na=False)]['Valor'].sum()
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
 
     st.markdown(f"""
@@ -370,7 +371,7 @@ def render_cofre(spreadsheet):
             if submitted:
                 cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
                 
-                # O tipo de transação agora é mais simples para facilitar a filtragem
+                # Simplificado para consistência
                 tipo_transacao_final = tipo_mov 
                 
                 nova_mov_cofre = [
@@ -396,12 +397,11 @@ def render_cofre(spreadsheet):
                 else:
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                 
-                st.cache_data.clear() # Limpa o cache para atualizar os saldos
+                st.cache_data.clear()
 
     with tab2:
         st.markdown("#### Histórico de Movimentações")
         if not df_cofre.empty:
-            # Garante que a coluna de data exista antes de tentar ordenar
             if 'Data' in df_cofre.columns and 'Hora' in df_cofre.columns:
                  df_cofre_sorted = df_cofre.sort_values(by=['Data', 'Hora'], ascending=False)
                  st.dataframe(df_cofre_sorted, use_container_width=True)
@@ -409,7 +409,6 @@ def render_cofre(spreadsheet):
                  st.dataframe(df_cofre, use_container_width=True)
         else:
             st.info("Nenhuma movimentação registrada no cofre.")
-
 def render_form_saque_cartao(spreadsheet, tipo_cartao):
     # ... (código do formulário sem alterações)...
 
