@@ -320,6 +320,7 @@ def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
     HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
     
+    # Busca dados e calcula saldo
     cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
     df_cofre = pd.DataFrame(cofre_data)
     saldo_cofre = Decimal('0')
@@ -329,7 +330,7 @@ def render_cofre(spreadsheet):
         df_cofre['Tipo_Transacao'] = df_cofre['Tipo_Transacao'].astype(str)
         
         entradas = df_cofre[df_cofre['Tipo_Transacao'] == 'Entrada no Cofre']['Valor'].sum()
-        saidas = df_cofre[df_cofre['Tipo_Transacao'].str.startswith("Saída do Cofre")]['Valor'].sum()
+        saidas = df_cofre[df_cofre['Tipo_Transacao'] == 'Saída do Cofre']['Valor'].sum()
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
 
     st.markdown(f"""
@@ -349,16 +350,17 @@ def render_cofre(spreadsheet):
             tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada no Cofre", "Saída do Cofre"])
             valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0)
             
-            destino_final = ""
+            # --- LÓGICA CORRIGIDA AQUI ---
+            # Exibe o campo correto (Destino ou Origem) de acordo com a seleção
             if tipo_mov == "Saída do Cofre":
-                destino_principal = st.selectbox("Destino Principal da Saída:", ["Caixa Interno", "Caixa Lotérica", "Outro (Despesa, etc.)"])
+                destino_principal = st.selectbox("Destino da Saída:", ["Caixa Interno", "Caixa Lotérica", "Outro (Despesa, etc.)"])
                 if destino_principal == "Caixa Lotérica":
                     destino_pdv = st.selectbox("Selecione o PDV:", ["PDV 1", "PDV 2"])
                     destino_final = f"{destino_principal} - {destino_pdv}"
                 else:
                     destino_final = destino_principal
-            else:
-                destino_final = st.text_input("Origem da Entrada")
+            else: # Se for "Entrada no Cofre"
+                destino_final = st.text_input("Origem da Entrada (Ex: Banco, Sócio)")
 
             observacoes = st.text_area("Observações")
             
@@ -395,6 +397,7 @@ def render_cofre(spreadsheet):
                 else:
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                 
+                # Limpa o cache para forçar a atualização dos saldos e históricos
                 st.cache_data.clear()
 
     with tab2:
