@@ -433,6 +433,8 @@ def render_dashboard_caixa(spreadsheet):
         
         st.markdown("---")
         
+        # Dentro da função render_dashboard_caixa(spreadsheet):
+
         # Gráfico de operações
         if operacoes_data:
             st.subheader("📊 Operações dos Últimos 7 Dias")
@@ -449,8 +451,15 @@ def render_dashboard_caixa(spreadsheet):
                     # Agrupar por tipo de operação
                     ops_por_tipo = df_recente.groupby('Tipo_Operacao').size().reset_index(name='Quantidade')
                     
-                    fig = px.pie(ops_por_tipo, values='Quantidade', names='Tipo_Operacao', 
-                               title="Distribuição de Operações")
+                    # ALTERAÇÃO AQUI: Trocado px.pie por px.bar
+                    fig = px.bar(
+                        ops_por_tipo, 
+                        x='Tipo_Operacao', 
+                        y='Quantidade', 
+                        title="Distribuição de Operações",
+                        labels={'Tipo_Operacao': 'Tipo de Operação', 'Quantidade': 'Número de Operações'},
+                        color='Tipo_Operacao'
+                    )
                     st.plotly_chart(fig, use_container_width=True)
         
         # Alertas
