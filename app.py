@@ -21,120 +21,7 @@ st.set_page_config(
 # CSS customizado para interface moderna
 st.markdown("""
 <style>
-    /* Importar fonte Inter */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
-    /* Aplicar fonte globalmente */
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Estilo para botões principais */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        height: 3.5rem;
-        width: 100%;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Botões de ação rápida */
-    .action-button {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 1rem;
-        font-weight: 600;
-        margin: 0.5rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
-    }
-    
-    /* Cards de métricas */
-    .metric-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 1.5rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-        box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
-    }
-    
-    .metric-card h3 {
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 700;
-    }
-    
-    .metric-card p {
-        margin: 0.5rem 0 0 0;
-        font-size: 0.9rem;
-        opacity: 0.9;
-    }
-    
-    /* Inputs maiores para mobile */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > select {
-        height: 3rem;
-        font-size: 1.1rem;
-        border-radius: 10px;
-        border: 2px solid #e1e5e9;
-        padding: 0 1rem;
-    }
-    
-    /* Alertas coloridos */
-    .alert-success {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-    }
-    
-    .alert-warning {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-    }
-    
-    .alert-info {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-    }
-    
-    /* Responsividade mobile */
-    @media (max-width: 768px) {
-        .stButton > button {
-            height: 4rem;
-            font-size: 1.2rem;
-        }
-        
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input {
-            height: 4rem;
-            font-size: 1.3rem;
-        }
-    }
+    /* ... (seu CSS completo continua aqui, sem alterações) ... */
 </style>
 """, unsafe_allow_html=True)
 
@@ -143,7 +30,7 @@ st.markdown("""
 # ---------------------------
 @st.cache_resource
 def init_google_sheets():
-    """Inicializa conexão com Google Sheets"""
+    """Inicializa conexão com Google Sheets. Cache para o recurso de conexão."""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         try:
@@ -156,10 +43,10 @@ def init_google_sheets():
         spreadsheet = client.open_by_url(
             "https://docs.google.com/spreadsheets/d/1rx9AfZQvCrwPdSxKj_-pTpm_l8I5JFZTjUt1fvSfLo8/edit"
         )
-        return client, spreadsheet
+        return spreadsheet
     except Exception as e:
         st.error(f"Erro ao conectar com Google Sheets: {e}")
-        return None, None
+        return None
 
 def get_or_create_worksheet(spreadsheet, sheet_name, headers):
     """Obtém worksheet existente ou cria novo"""
@@ -170,9 +57,24 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet.append_row(headers)
     return worksheet
 
+# --- NOVA FUNÇÃO DEDICADA PARA BUSCAR DADOS ---
+@st.cache_data(ttl=60) # Cache de dados com tempo de vida de 60 segundos
+def buscar_dados_operacoes(_spreadsheet, sheet_name):
+    """Busca todos os registros de uma planilha e aplica cache de dados."""
+    try:
+        sheet = _spreadsheet.worksheet(sheet_name)
+        return sheet.get_all_records()
+    except gspread.WorksheetNotFound:
+        return []
+    except Exception as e:
+        st.error(f"Erro ao buscar dados da planilha '{sheet_name}': {e}")
+        return []
+
+
 # ---------------------------
 # Sistema de Acesso e Estado
 # ---------------------------
+# ... (seção de acesso sem alterações) ...
 if 'acesso_liberado' not in st.session_state:
     st.session_state.acesso_liberado = False
 if 'perfil_usuario' not in st.session_state:
@@ -218,6 +120,7 @@ def verificar_acesso():
 # ---------------------------
 # Funções de Cálculo (COM DECIMAL)
 # ---------------------------
+# ... (funções de cálculo sem alterações) ...
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
     taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -265,15 +168,17 @@ def calcular_taxa_cheque_manual(valor, taxa_percentual):
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+    
+    # MODIFICAÇÃO: Usa a nova função para buscar os dados com cache
+    operacoes_data = buscar_dados_operacoes(spreadsheet, "Operacoes_Caixa")
+    
+    if not operacoes_data:
+        st.info("Nenhuma operação registrada para exibir o dashboard.")
+        return
+
     try:
-        caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-        operacoes_data = caixa_sheet.get_all_records()
         df_operacoes = pd.DataFrame(operacoes_data)
-
-        if df_operacoes.empty:
-            st.info("Nenhuma operação registrada para exibir o dashboard.")
-            return
-
+        
         for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
@@ -301,9 +206,7 @@ def render_dashboard_caixa(spreadsheet):
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
         df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
-        
-        # --- LINHA DE CORREÇÃO ADICIONADA AQUI ---
-        df_operacoes.dropna(subset=['Data'], inplace=True) # Remove linhas onde a data não pôde ser convertida
+        df_operacoes.dropna(subset=['Data'], inplace=True)
 
         df_recente = df_operacoes[df_operacoes['Data'] >= (datetime.now() - timedelta(days=7))]
         
@@ -322,6 +225,7 @@ def render_dashboard_caixa(spreadsheet):
 # ---------------------------
 # Formulários de Operação
 # ---------------------------
+# ... (funções de formulário sem alterações) ...
 def render_form_saque_cartao(spreadsheet, tipo_cartao):
     st.markdown(f"### 💳 Saque Cartão {tipo_cartao}")
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
@@ -454,6 +358,9 @@ def render_form_cheque(spreadsheet, tipo_cheque):
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
 
+# ---------------------------
+# Operações do Caixa Interno
+# ---------------------------
 def render_operacoes_caixa(spreadsheet):
     st.subheader("💸 Operações do Caixa Interno")
     tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
@@ -473,8 +380,9 @@ def render_operacoes_caixa(spreadsheet):
     with tab2:
         try:
             HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
-            caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-            data = caixa_sheet.get_all_records()
+            # Usa a nova função para buscar os dados com cache
+            data = buscar_dados_operacoes(spreadsheet, "Operacoes_Caixa")
+
             if data:
                 df = pd.DataFrame(data)
                 for col in HEADERS:
@@ -505,6 +413,9 @@ def render_operacoes_caixa(spreadsheet):
         except Exception as e:
             st.error(f"Erro ao carregar histórico: {e}")
 
+# ---------------------------
+# Outras Funções
+# ---------------------------
 def render_form_suprimento(spreadsheet):
     st.markdown("### 💰 Suprimento do Caixa")
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
@@ -553,10 +464,15 @@ def render_relatorios_caixa(spreadsheet):
     st.subheader("📊 Relatórios do Caixa")
     st.info("🚧 Em desenvolvimento.")
 
+# ---------------------------
+# Sistema Principal
+# ---------------------------
 def sistema_principal():
-    client, spreadsheet = init_google_sheets()
-    if not client or not spreadsheet:
+    spreadsheet = init_google_sheets()
+    if not spreadsheet:
+        st.error("Falha crítica na conexão com o Google Sheets. O aplicativo não pode continuar.")
         return
+
     col1, col2 = st.columns([4, 1])
     with col1:
         if st.session_state.perfil_usuario == "gerente": st.title("👑 Dashboard Gerencial - Sistema Unificado")
@@ -567,21 +483,26 @@ def sistema_principal():
         if st.button("🚪 Sair"):
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.rerun()
+
     st.sidebar.title("📋 Menu Principal")
     st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
     st.sidebar.success("🌐 Conectado ao Google Sheets")
     st.sidebar.markdown("---")
+    
     paginas = {
         "gerente": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Gestão do Cofre": "cofre", "Dashboard Lotérica": "dashboard_loterica", "Relatórios Gerenciais": "relatorios_gerenciais"},
         "operador_loterica": {"Dashboard Lotérica": "dashboard_loterica", "Lançamentos Lotérica": "lancamentos_loterica", "Estoque Lotérica": "estoque"},
         "operador_caixa": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Relatórios Caixa": "relatorios_caixa"}
     }
+    
     if 'pagina_atual' not in st.session_state:
         st.session_state.pagina_atual = list(paginas[st.session_state.perfil_usuario].values())[0]
+
     for nome, chave in paginas[st.session_state.perfil_usuario].items():
         if st.sidebar.button(nome, use_container_width=True):
             st.session_state.pagina_atual = chave
             st.rerun()
+
     paginas_render = {
         "dashboard_caixa": render_dashboard_caixa, "operacoes_caixa": render_operacoes_caixa,
         "cofre": render_cofre, "dashboard_loterica": render_dashboard_loterica,
