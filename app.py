@@ -476,7 +476,6 @@ def render_dashboard_caixa(spreadsheet):
 def render_form_saque_cartao(spreadsheet, tipo_cartao):
     st.markdown(f"### 💳 Saque Cartão {tipo_cartao}")
     
-    # Nova coluna para data de vencimento do cheque (não aplicável aqui)
     NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
 
     # Campos fora do form para permitir simulação
@@ -554,23 +553,34 @@ def render_form_saque_cartao(spreadsheet, tipo_cartao):
 # --- NOVOS FORMULÁRIOS PARA CHEQUES ---
 
 def render_form_cheque_a_vista(spreadsheet):
-    st.markdown("### 📄 Cheque à Vista (Taxa 2%)")
+    st.markdown("### 📄 Cheque à Vista")
     NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
 
-    with st.form("form_cheque_a_vista"):
-        col1, col2 = st.columns(2)
-        with col1:
-            cliente = st.text_input("Nome do Cliente:")
-            cpf = st.text_input("CPF do Cliente:")
-            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
-            data_cheque = st.date_input("Bom para (data do cheque):", value=date.today())
-        with col2:
-            banco = st.text_input("Banco Emissor:")
-            numero_cheque = st.text_input("Número do Cheque:")
-            observacoes = st.text_area("Observações Adicionais:")
+    # Campos de input fora do form para simulação
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente = st.text_input("Nome do Cliente:", key="cliente_ch_vista")
+        cpf = st.text_input("CPF do Cliente:", key="cpf_ch_vista")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_vista")
+        data_cheque = st.date_input("Bom para (data do cheque):", value=date.today(), key="data_ch_vista")
+    with col2:
+        banco = st.text_input("Banco Emissor:", key="banco_ch_vista")
+        numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_vista")
+        observacoes = st.text_area("Observações Adicionais:", key="obs_ch_vista")
 
+        if st.button("🧮 Simular Operação", use_container_width=True, key="simular_ch_vista"):
+            if valor > 0:
+                calc = calcular_taxa_cheque_a_vista(valor)
+                st.success("✅ **Simulação - Cheque à Vista**")
+                st.write(f"**Taxa Fixa (2%):** R$ {calc['taxa_total']:.2f}")
+                st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+
+    # Formulário para confirmação
+    with st.form("form_cheque_a_vista"):
+        st.markdown("#### 💾 Confirmar e Salvar Troca")
+        
         calc = calcular_taxa_cheque_a_vista(valor)
-        st.info(f"**Taxa Fixa (2%):** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+        st.info(f"**Resumo:** Taxa R$ {calc['taxa_total']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
 
         submitted = st.form_submit_button("💾 Confirmar Troca", use_container_width=True)
         if submitted:
@@ -593,24 +603,39 @@ def render_form_cheque_a_vista(spreadsheet):
             st.rerun()
 
 def render_form_cheque_predatado(spreadsheet):
-    st.markdown("### 📄 Cheque Pré-datado (2% + 0,33%/dia)")
+    st.markdown("### 📄 Cheque Pré-datado")
     NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
 
+    # Campos de input fora do form para simulação
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente = st.text_input("Nome do Cliente:", key="cliente_ch_pre")
+        cpf = st.text_input("CPF do Cliente:", key="cpf_ch_pre")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_pre")
+        data_cheque = st.date_input("Bom para (data do cheque):", min_value=date.today(), key="data_ch_pre")
+    with col2:
+        banco = st.text_input("Banco Emissor:", key="banco_ch_pre")
+        numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_pre")
+        observacoes = st.text_area("Observações Adicionais:", key="obs_ch_pre")
+
+        if st.button("🧮 Simular Operação", use_container_width=True, key="simular_ch_pre"):
+            if valor > 0:
+                calc = calcular_taxa_cheque_predatado(valor, data_cheque)
+                if calc:
+                    st.success("✅ **Simulação - Cheque Pré-datado**")
+                    st.write(f"**Prazo:** {calc['dias']} dias")
+                    st.write(f"**Taxa Total:** R$ {calc['taxa_total']:.2f}")
+                    st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+                else:
+                    st.error("Prazo máximo (180 dias) excedido.")
+
+    # Formulário para confirmação
     with st.form("form_cheque_predatado"):
-        col1, col2 = st.columns(2)
-        with col1:
-            cliente = st.text_input("Nome do Cliente:")
-            cpf = st.text_input("CPF do Cliente:")
-            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
-            data_cheque = st.date_input("Bom para (data do cheque):", min_value=date.today())
-        with col2:
-            banco = st.text_input("Banco Emissor:")
-            numero_cheque = st.text_input("Número do Cheque:")
-            observacoes = st.text_area("Observações Adicionais:")
-            
+        st.markdown("#### 💾 Confirmar e Salvar Troca")
+        
         calc = calcular_taxa_cheque_predatado(valor, data_cheque)
         if calc:
-            st.info(f"**Prazo:** {calc['dias']} dias | **Taxa Total:** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+            st.info(f"**Resumo:** Prazo {calc['dias']} dias | Taxa R$ {calc['taxa_total']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
         else:
             st.error("Prazo máximo (180 dias) excedido.")
 
@@ -638,23 +663,34 @@ def render_form_cheque_manual(spreadsheet):
     st.markdown("### 📄 Cheque com Taxa Manual")
     NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
 
+    # Campos de input fora do form para simulação
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente = st.text_input("Nome do Cliente:", key="cliente_ch_manual")
+        cpf = st.text_input("CPF do Cliente:", key="cpf_ch_manual")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_manual")
+        taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
+    with col2:
+        banco = st.text_input("Banco Emissor:", key="banco_ch_manual")
+        numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_manual")
+        data_cheque = st.date_input("Bom para (data do cheque):", key="data_ch_manual")
+        observacoes = st.text_area("Observações/Motivo da taxa:", key="obs_ch_manual")
+
+    if st.button("🧮 Simular Operação", use_container_width=True, key="simular_ch_manual"):
+        if valor > 0:
+            calc = calcular_taxa_cheque_manual(valor, taxa_manual)
+            if calc:
+                st.success("✅ **Simulação - Cheque com Taxa Manual**")
+                st.write(f"**Taxa Aplicada ({taxa_manual}%):** R$ {calc['taxa_total']:.2f}")
+                st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+    
+    # Formulário para confirmação
     with st.form("form_cheque_manual"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            cliente = st.text_input("Nome do Cliente:")
-            cpf = st.text_input("CPF do Cliente:")
-            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
-        with col2:
-            banco = st.text_input("Banco Emissor:")
-            numero_cheque = st.text_input("Número do Cheque:")
-            data_cheque = st.date_input("Bom para (data do cheque):")
-        with col3:
-            taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f")
-            observacoes = st.text_area("Observações/Motivo da taxa:")
-            
+        st.markdown("#### 💾 Confirmar e Salvar Troca")
+        
         calc = calcular_taxa_cheque_manual(valor, taxa_manual)
         if calc:
-            st.info(f"**Taxa Manual ({taxa_manual}%):** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+            st.info(f"**Resumo:** Taxa {taxa_manual}% - R$ {calc['taxa_total']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
 
         submitted = st.form_submit_button("💾 Confirmar Troca", use_container_width=True)
         if submitted and calc:
