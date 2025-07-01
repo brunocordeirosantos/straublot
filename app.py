@@ -269,11 +269,14 @@ def render_dashboard_caixa(spreadsheet):
         caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
         operacoes_data = caixa_sheet.get_all_records()
         df_operacoes = pd.DataFrame(operacoes_data)
+
         if df_operacoes.empty:
             st.info("Nenhuma operação registrada para exibir o dashboard.")
             return
+
         for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
-            if col in df_operacoes.columns: df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
         
         total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
@@ -298,6 +301,10 @@ def render_dashboard_caixa(spreadsheet):
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
         df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
+        
+        # --- LINHA DE CORREÇÃO ADICIONADA AQUI ---
+        df_operacoes.dropna(subset=['Data'], inplace=True) # Remove linhas onde a data não pôde ser convertida
+
         df_recente = df_operacoes[df_operacoes['Data'] >= (datetime.now() - timedelta(days=7))]
         
         if not df_recente.empty:
@@ -522,6 +529,30 @@ def render_form_suprimento(spreadsheet):
             caixa_sheet.append_row(nova_operacao)
             st.success("✅ Suprimento registrado com sucesso!")
 
+def render_dashboard_loterica(spreadsheet):
+    st.subheader("🎰 Dashboard Lotérica")
+    st.info("🚧 Em desenvolvimento.")
+
+def render_cofre(spreadsheet):
+    st.subheader("🏦 Gestão do Cofre")
+    st.info("🚧 Em desenvolvimento.")
+    
+def render_relatorios_gerenciais(spreadsheet):
+    st.subheader("📈 Relatórios Gerenciais")
+    st.info("🚧 Em desenvolvimento.")
+    
+def render_lancamentos_loterica(spreadsheet):
+    st.subheader("💰 Lançamentos Lotérica")
+    st.info("🚧 Em desenvolvimento.")
+    
+def render_estoque(spreadsheet):
+    st.subheader("📦 Gestão de Estoque")
+    st.info("🚧 Em desenvolvimento.")
+    
+def render_relatorios_caixa(spreadsheet):
+    st.subheader("📊 Relatórios do Caixa")
+    st.info("🚧 Em desenvolvimento.")
+
 def sistema_principal():
     client, spreadsheet = init_google_sheets()
     if not client or not spreadsheet:
@@ -553,12 +584,9 @@ def sistema_principal():
             st.rerun()
     paginas_render = {
         "dashboard_caixa": render_dashboard_caixa, "operacoes_caixa": render_operacoes_caixa,
-        "cofre": lambda s: st.info("🚧 Gestão do Cofre em desenvolvimento."),
-        "dashboard_loterica": lambda s: st.info("🚧 Dashboard da Lotérica em desenvolvimento."),
-        "relatorios_gerenciais": lambda s: st.info("🚧 Relatórios Gerenciais em desenvolvimento."),
-        "lancamentos_loterica": lambda s: st.info("🚧 Lançamentos da Lotérica em desenvolvimento."),
-        "estoque": lambda s: st.info("🚧 Estoque da Lotérica em desenvolvimento."),
-        "relatorios_caixa": lambda s: st.info("🚧 Relatórios do Caixa em desenvolvimento.")
+        "cofre": render_cofre, "dashboard_loterica": render_dashboard_loterica,
+        "relatorios_gerenciais": render_relatorios_gerenciais, "lancamentos_loterica": render_lancamentos_loterica,
+        "estoque": render_estoque, "relatorios_caixa": render_relatorios_caixa
     }
     paginas_render[st.session_state.pagina_atual](spreadsheet)
 
