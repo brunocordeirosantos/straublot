@@ -21,7 +21,120 @@ st.set_page_config(
 # CSS customizado para interface moderna
 st.markdown("""
 <style>
-    /* ... (seu CSS completo continua aqui, sem alterações) ... */
+    /* Importar fonte Inter */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Aplicar fonte globalmente */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Estilo para botões principais */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        height: 3.5rem;
+        width: 100%;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Botões de ação rápida */
+    .action-button {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 1rem;
+        font-weight: 600;
+        margin: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+    }
+    
+    /* Cards de métricas */
+    .metric-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
+    }
+    
+    .metric-card h3 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    .metric-card p {
+        margin: 0.5rem 0 0 0;
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    /* Inputs maiores para mobile */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div > select {
+        height: 3rem;
+        font-size: 1.1rem;
+        border-radius: 10px;
+        border: 2px solid #e1e5e9;
+        padding: 0 1rem;
+    }
+    
+    /* Alertas coloridos */
+    .alert-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    .alert-warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    .alert-info {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    /* Responsividade mobile */
+    @media (max-width: 768px) {
+        .stButton > button {
+            height: 4rem;
+            font-size: 1.2rem;
+        }
+        
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input {
+            height: 4rem;
+            font-size: 1.3rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -30,6 +143,7 @@ st.markdown("""
 # ---------------------------
 @st.cache_resource
 def init_google_sheets():
+    """Inicializa conexão com Google Sheets"""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         try:
@@ -48,6 +162,7 @@ def init_google_sheets():
         return None, None
 
 def get_or_create_worksheet(spreadsheet, sheet_name, headers):
+    """Obtém worksheet existente ou cria novo"""
     try:
         worksheet = spreadsheet.worksheet(sheet_name)
     except gspread.WorksheetNotFound:
@@ -65,7 +180,7 @@ if 'perfil_usuario' not in st.session_state:
 if 'nome_usuario' not in st.session_state:
     st.session_state.nome_usuario = None
 if 'simulacao_atual' not in st.session_state:
-    st.session_state.simulacao_atual = None # Variavel para guardar a simulação
+    st.session_state.simulacao_atual = None
 
 USUARIOS = {
     "gerente": {"senha": "gerente123", "perfil": "gerente", "nome": "Gerente", "modulos": ["loterica", "caixa_interno", "cofre", "relatorios", "configuracoes"]},
@@ -103,7 +218,6 @@ def verificar_acesso():
 # ---------------------------
 # Funções de Cálculo (COM DECIMAL)
 # ---------------------------
-# (As funções de cálculo com Decimal continuam aqui, sem alterações)
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
     taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -148,7 +262,6 @@ def calcular_taxa_cheque_manual(valor, taxa_percentual):
 # ---------------------------
 # Dashboard Caixa Interno
 # ---------------------------
-# (A função render_dashboard_caixa continua aqui, sem alterações)
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     try:
@@ -161,7 +274,7 @@ def render_dashboard_caixa(spreadsheet):
         for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
             if col in df_operacoes.columns: df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
         total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
-        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque Taxa Manual"]
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
         saldo_caixa = total_suprimentos - total_saques_liquidos
         hoje_str = str(date.today())
@@ -206,11 +319,12 @@ def render_form_saque_cartao(spreadsheet, tipo_cartao):
     if st.button("🧮 Simular Operação", use_container_width=True, key=f"simular_saque_{tipo_cartao}"):
         if valor > 0:
             calc = calcular_taxa_cartao_debito(valor) if tipo_cartao == "Débito" else calcular_taxa_cartao_credito(valor)
+            # Armazena o resultado da simulação na memória da sessão
             st.session_state.simulacao_atual = {
                 "tipo_operacao": f"Saque Cartão {tipo_cartao}", "valor_bruto": valor, "cliente": cliente, "cpf": cpf,
                 "taxa_cliente": calc['taxa_cliente'], "taxa_banco": calc['taxa_banco'],
                 "valor_liquido": calc['valor_liquido'], "lucro": calc['lucro'], "observacoes": observacoes,
-                "data_vencimento": ""
+                "data_vencimento": "" # Campo vazio para saques
             }
             st.success(f"✅ Simulação gerada! Valor a entregar: R$ {calc['valor_liquido']:.2f}. Clique em 'Confirmar' abaixo para salvar.")
         else:
@@ -237,7 +351,7 @@ def render_form_saque_cartao(spreadsheet, tipo_cartao):
                 caixa_sheet.append_row(nova_operacao)
                 st.success(f"✅ Operação registrada com sucesso!")
                 st.balloons()
-                st.session_state.simulacao_atual = None
+                st.session_state.simulacao_atual = None # Limpa a simulação após o uso
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
 
@@ -247,7 +361,7 @@ def render_form_cheque(spreadsheet, tipo_cheque):
     with col1:
         cliente = st.text_input("Nome do Cliente:", key=f"cliente_ch_{tipo_cheque}")
         cpf = st.text_input("CPF do Cliente:", key=f"cpf_ch_{tipo_cheque}")
-        valor = st.number_input("Valor do Cheque (R$):", min_value=0.01, step=50.0, key=f"valor_ch_{tipo_cheque}")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=0.01, value=1000.0, step=50.0, key=f"valor_ch_{tipo_cheque}")
     with col2:
         banco = st.text_input("Banco Emissor:", key=f"banco_ch_{tipo_cheque}")
         numero_cheque = st.text_input("Número do Cheque:", key=f"numero_ch_{tipo_cheque}")
@@ -257,7 +371,7 @@ def render_form_cheque(spreadsheet, tipo_cheque):
     if tipo_cheque == "Cheque com Taxa Manual":
         taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
     
-    observacoes = st.text_area("Observações Adicionais:", key=f"obs_ch_{tipo_cheque}")
+    observacoes = st.text_area("Observações Adicionais:", height=150, key=f"obs_ch_{tipo_cheque}")
 
     if st.button("🧮 Simular Operação", use_container_width=True, key=f"simular_ch_{tipo_cheque}"):
         if valor > 0:
@@ -300,21 +414,18 @@ def render_form_cheque(spreadsheet, tipo_cheque):
                 caixa_sheet.append_row(nova_operacao)
                 st.success(f"✅ Operação registrada com sucesso!")
                 st.balloons()
-                st.session_state.simulacao_atual = None
+                st.session_state.simulacao_atual = None # Limpa a simulação após o uso
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
 
-# ---------------------------
-# Operações do Caixa Interno
-# ---------------------------
 def render_operacoes_caixa(spreadsheet):
     st.subheader("💸 Operações do Caixa Interno")
     tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
     
     with tab1:
-        st.session_state.simulacao_atual = None # Limpa simulação ao trocar de aba
         tipo_operacao = st.selectbox("Selecione o Tipo de Operação:",
-            ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual", "Suprimento Caixa"])
+            ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual", "Suprimento Caixa"],
+            on_change=lambda: st.session_state.update(simulacao_atual=None)) # Limpa simulação ao trocar de operação
         
         if tipo_operacao == "Saque Cartão Débito": render_form_saque_cartao(spreadsheet, "Débito")
         elif tipo_operacao == "Saque Cartão Crédito": render_form_saque_cartao(spreadsheet, "Crédito")
@@ -325,19 +436,45 @@ def render_operacoes_caixa(spreadsheet):
     
     with tab2:
         try:
-            # (Código do histórico sem alterações)
-            pass # O código completo do histórico continua aqui
+            NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+            headers = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
+            caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", headers)
+            data = caixa_sheet.get_all_records()
+            if data:
+                df = pd.DataFrame(data)
+                for col in headers:
+                    if col not in df.columns: df[col] = ''
+                col1, col2, col3 = st.columns(3)
+                with col1: filtro_data = st.date_input("Filtrar por data:", value=None, key="filtro_data_hist")
+                with col2:
+                    tipos_unicos = df['Tipo_Operacao'].unique() if 'Tipo_Operacao' in df.columns else []
+                    filtro_tipo = st.selectbox("Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
+                with col3: filtro_operador = st.selectbox("Filtrar por operador:", ["Todos"] + list(df['Operador'].unique()) if 'Operador' in df.columns else ["Todos"])
+                df_filtrado = df.copy()
+                if filtro_data and 'Data' in df.columns: df_filtrado = df_filtrado[df_filtrado['Data'] == str(filtro_data)]
+                if filtro_tipo != "Todos" and 'Tipo_Operacao' in df.columns: df_filtrado = df_filtrado[df_filtrado['Tipo_Operacao'] == filtro_tipo]
+                if filtro_operador != "Todos" and 'Operador' in df.columns: df_filtrado = df_filtrado[df_filtrado['Operador'] == filtro_operador]
+                st.dataframe(df_filtrado, use_container_width=True)
+                if not df_filtrado.empty and 'Valor_Bruto' in df_filtrado.columns:
+                    df_filtrado['Valor_Bruto'] = pd.to_numeric(df_filtrado['Valor_Bruto'], errors='coerce').fillna(0)
+                    df_filtrado['Lucro'] = pd.to_numeric(df_filtrado['Lucro'], errors='coerce').fillna(0)
+                    total_operacoes = len(df_filtrado)
+                    total_valor = df_filtrado['Valor_Bruto'].sum()
+                    total_lucro = df_filtrado['Lucro'].sum()
+                    col1_total, col2_total, col3_total = st.columns(3)
+                    with col1_total: st.metric("Total de Operações (Filtro)", total_operacoes)
+                    with col2_total: st.metric("Valor Total (Filtro)", f"R$ {total_valor:,.2f}")
+                    with col3_total: st.metric("Lucro Total (Filtro)", f"R$ {total_lucro:,.2f}")
+            else:
+                st.info("📋 Nenhuma operação registrada ainda.")
         except Exception as e:
             st.error(f"Erro ao carregar histórico: {e}")
 
-# (Restante do código: outras funções de render, sistema_principal, main)
-# ... O código completo para as outras funções continua aqui, sem alterações ...
 def render_form_suprimento(spreadsheet):
     st.markdown("### 💰 Suprimento do Caixa")
     if st.session_state.perfil_usuario != "gerente":
         st.error("❌ Apenas o gerente pode realizar suprimentos do cofre!")
         return
-    
     with st.form("form_suprimento", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
@@ -345,7 +482,6 @@ def render_form_suprimento(spreadsheet):
             origem = st.selectbox("Origem do Suprimento:", ["Cofre Principal", "Depósito Bancário", "Outro"])
         with col2:
             observacoes = st.text_area("Observações:", height=100, placeholder="Motivo do suprimento, autorização, etc...")
-        
         submitted = st.form_submit_button("💾 Confirmar Suprimento", use_container_width=True)
         if submitted:
             caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Observacoes"])
@@ -357,12 +493,11 @@ def render_form_suprimento(spreadsheet):
             caixa_sheet.append_row(nova_operacao)
             st.success("✅ Suprimento registrado com sucesso!")
             st.balloons()
+
 def sistema_principal():
     client, spreadsheet = init_google_sheets()
     if not client or not spreadsheet:
-        st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
         return
-    
     col1, col2 = st.columns([4, 1])
     with col1:
         if st.session_state.perfil_usuario == "gerente": st.title("👑 Dashboard Gerencial - Sistema Unificado")
@@ -373,26 +508,21 @@ def sistema_principal():
         if st.button("🚪 Sair"):
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.rerun()
-    
     st.sidebar.title("📋 Menu Principal")
     st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
     st.sidebar.success("🌐 Conectado ao Google Sheets")
     st.sidebar.markdown("---")
-    
     paginas = {
         "gerente": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Gestão do Cofre": "cofre", "Dashboard Lotérica": "dashboard_loterica", "Relatórios Gerenciais": "relatorios_gerenciais"},
         "operador_loterica": {"Dashboard Lotérica": "dashboard_loterica", "Lançamentos Lotérica": "lancamentos_loterica", "Estoque Lotérica": "estoque"},
         "operador_caixa": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Relatórios Caixa": "relatorios_caixa"}
     }
-    
     if 'pagina_atual' not in st.session_state:
         st.session_state.pagina_atual = list(paginas[st.session_state.perfil_usuario].values())[0]
-
     for nome, chave in paginas[st.session_state.perfil_usuario].items():
         if st.sidebar.button(nome, use_container_width=True):
             st.session_state.pagina_atual = chave
             st.rerun()
-
     paginas_render = {
         "dashboard_caixa": render_dashboard_caixa, "operacoes_caixa": render_operacoes_caixa,
         "cofre": lambda s: st.info("🚧 Gestão do Cofre em desenvolvimento."),
