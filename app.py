@@ -141,6 +141,7 @@ st.markdown("""
 # ---------------------------
 # Configuração Google Sheets
 # ---------------------------
+@st.cache_resource
 def init_google_sheets():
     """Inicializa conexão com Google Sheets. Cache para o recurso de conexão."""
     try:
@@ -169,6 +170,7 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet.append_row(headers)
     return worksheet
 
+@st.cache_data(ttl=60)
 def buscar_dados_operacoes(_spreadsheet, sheet_name):
     """Busca todos os registros de uma planilha e aplica cache de dados."""
     try:
@@ -422,8 +424,6 @@ def render_form_cheque(spreadsheet, tipo_cheque):
                 calc = calcular_taxa_cheque_manual(valor, taxa_manual)
                 if calc: taxa_percentual_str = f"{taxa_manual:.2f}%"
             
-            # --- CORREÇÃO APLICADA AQUI ---
-            # Só executa o bloco se o cálculo foi bem-sucedido
             if calc:
                 st.session_state.simulacao_atual = {
                     "tipo_operacao": f"Troca {tipo_cheque}", "valor_bruto": valor, "cliente": cliente, "cpf": cpf,
@@ -464,9 +464,8 @@ def render_form_cheque(spreadsheet, tipo_cheque):
                 st.session_state.simulacao_atual = None
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
+
 def render_operacoes_caixa(spreadsheet):
-    if 'simulacao_atual' not in st.session_state or st.session_state.pagina_atual != 'operacoes_caixa':
-        st.session_state.simulacao_atual = None
     st.subheader("💸 Operações do Caixa Interno")
     tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
     
@@ -489,8 +488,6 @@ def render_operacoes_caixa(spreadsheet):
 
             if data:
                 df = pd.DataFrame(data)
-                for col in ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']:
-    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 for col in HEADERS:
                     if col not in df.columns: df[col] = ''
                 col1, col2, col3 = st.columns(3)
