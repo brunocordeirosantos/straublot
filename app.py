@@ -404,6 +404,8 @@ def render_form_cheque(spreadsheet, tipo_cheque):
     if tipo_cheque == "Cheque com Taxa Manual":
         taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
     
+    # A LINHA COM O SELECTBOX FOI REMOVIDA DAQUI
+    
     observacoes = st.text_area("Observações Adicionais:", height=150, key=f"obs_ch_{tipo_cheque}")
 
     if st.button("🧮 Simular Operação", use_container_width=True, key=f"simular_ch_{tipo_cheque}"):
@@ -462,7 +464,6 @@ def render_form_cheque(spreadsheet, tipo_cheque):
                 st.session_state.simulacao_atual = None
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
-
 def render_operacoes_caixa(spreadsheet):
     if 'simulacao_atual' not in st.session_state or st.session_state.pagina_atual != 'operacoes_caixa':
         st.session_state.simulacao_atual = None
