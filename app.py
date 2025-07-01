@@ -18,10 +18,123 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS customizado para interface moderna
+# CSS customizado para interface moderna (PRESERVADO)
 st.markdown("""
 <style>
-    /* ... (seu CSS completo continua aqui, sem alterações) ... */
+    /* Importar fonte Inter */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Aplicar fonte globalmente */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Estilo para botões principais */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        height: 3.5rem;
+        width: 100%;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Botões de ação rápida */
+    .action-button {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 1rem;
+        font-weight: 600;
+        margin: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+    }
+    
+    /* Cards de métricas */
+    .metric-card {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
+    }
+    
+    .metric-card h3 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    .metric-card p {
+        margin: 0.5rem 0 0 0;
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    /* Inputs maiores para mobile */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div > select {
+        height: 3rem;
+        font-size: 1.1rem;
+        border-radius: 10px;
+        border: 2px solid #e1e5e9;
+        padding: 0 1rem;
+    }
+    
+    /* Alertas coloridos */
+    .alert-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    .alert-warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    .alert-info {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    
+    /* Responsividade mobile */
+    @media (max-width: 768px) {
+        .stButton > button {
+            height: 4rem;
+            font-size: 1.2rem;
+        }
+        
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input {
+            height: 4rem;
+            font-size: 1.3rem;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,8 +170,7 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet.append_row(headers)
     return worksheet
 
-# --- NOVA FUNÇÃO DEDICADA PARA BUSCAR DADOS ---
-@st.cache_data(ttl=60) # Cache de dados com tempo de vida de 60 segundos
+@st.cache_data(ttl=60)
 def buscar_dados_operacoes(_spreadsheet, sheet_name):
     """Busca todos os registros de uma planilha e aplica cache de dados."""
     try:
@@ -70,11 +182,9 @@ def buscar_dados_operacoes(_spreadsheet, sheet_name):
         st.error(f"Erro ao buscar dados da planilha '{sheet_name}': {e}")
         return []
 
-
 # ---------------------------
 # Sistema de Acesso e Estado
 # ---------------------------
-# ... (seção de acesso sem alterações) ...
 if 'acesso_liberado' not in st.session_state:
     st.session_state.acesso_liberado = False
 if 'perfil_usuario' not in st.session_state:
@@ -120,7 +230,6 @@ def verificar_acesso():
 # ---------------------------
 # Funções de Cálculo (COM DECIMAL)
 # ---------------------------
-# ... (funções de cálculo sem alterações) ...
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
     taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -169,7 +278,6 @@ def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
     
-    # MODIFICAÇÃO: Usa a nova função para buscar os dados com cache
     operacoes_data = buscar_dados_operacoes(spreadsheet, "Operacoes_Caixa")
     
     if not operacoes_data:
@@ -225,7 +333,6 @@ def render_dashboard_caixa(spreadsheet):
 # ---------------------------
 # Formulários de Operação
 # ---------------------------
-# ... (funções de formulário sem alterações) ...
 def render_form_saque_cartao(spreadsheet, tipo_cartao):
     st.markdown(f"### 💳 Saque Cartão {tipo_cartao}")
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
@@ -295,7 +402,7 @@ def render_form_cheque(spreadsheet, tipo_cheque):
         numero_cheque = st.text_input("Número do Cheque:", key=f"numero_ch_{tipo_cheque}")
         data_cheque = st.date_input("Bom para (data do cheque):", value=date.today(), key=f"data_ch_{tipo_cheque}")
     
-    taxa_manual = 0
+    taxa_manual = 0.0
     if tipo_cheque == "Cheque com Taxa Manual":
         taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
     
@@ -358,9 +465,6 @@ def render_form_cheque(spreadsheet, tipo_cheque):
             else:
                 st.error("Nenhuma simulação válida encontrada. Por favor, clique em 'Simular Operação' primeiro.")
 
-# ---------------------------
-# Operações do Caixa Interno
-# ---------------------------
 def render_operacoes_caixa(spreadsheet):
     st.subheader("💸 Operações do Caixa Interno")
     tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
@@ -380,7 +484,6 @@ def render_operacoes_caixa(spreadsheet):
     with tab2:
         try:
             HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
-            # Usa a nova função para buscar os dados com cache
             data = buscar_dados_operacoes(spreadsheet, "Operacoes_Caixa")
 
             if data:
@@ -499,7 +602,7 @@ def sistema_principal():
         st.session_state.pagina_atual = list(paginas[st.session_state.perfil_usuario].values())[0]
 
     for nome, chave in paginas[st.session_state.perfil_usuario].items():
-        if st.sidebar.button(nome, use_container_width=True):
+        if st.sidebar.button(nome, use_container_width=True, key=f"btn_{chave}"):
             st.session_state.pagina_atual = chave
             st.rerun()
 
