@@ -293,23 +293,44 @@ def calcular_taxa_cartao_credito(valor):
         "tipo": "Crédito"
     }
 
-def calcular_taxa_cheque(valor, data_cheque):
-    """Calcula taxa para troca de cheque"""
-    hoje = date.today()
-    data_venc = datetime.strptime(data_cheque, "%Y-%m-%d").date()
+def calcular_taxa_cartao_credito(valor):
+    """Calcula taxa para saque de cartão crédito"""
+    taxa_cliente = valor * 0.0533  # 5,33% sobre o valor
+    taxa_banco = valor * 0.0433   # 4,33% sobre o valor
+    lucro = taxa_cliente - taxa_banco
+    valor_liquido = valor - taxa_cliente
     
-    # Taxa base de 2%
+    return {
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": max(0, lucro),
+        "valor_liquido": valor_liquido,
+        "tipo": "Crédito"
+    }
+
+def calcular_taxa_cheque_a_vista(valor):
+    """Calcula taxa para troca de cheque à vista (taxa fixa de 2%)"""
+    taxa_total = valor * 0.02
+    valor_liquido = valor - taxa_total
+    return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
+
+def calcular_taxa_cheque_predatado(valor, data_cheque):
+    """Calcula taxa para troca de cheque pré-datado (2% base + 0.33% ao dia)"""
+    hoje = date.today()
+    data_venc = data_cheque
+    
     taxa_base = valor * 0.02
     
-    # Se for pré-datado, adicionar taxa diária
     if data_venc > hoje:
         dias = (data_venc - hoje).days
-        if dias > 15:  # Limite máximo de 15 dias
-            return None
-        taxa_diaria = valor * 0.0033 * dias  # 0.33% por dia
+        # Adicionado um limite de 180 dias para evitar erros de cálculo muito longos
+        if dias > 180:
+            return None 
+        taxa_diaria = valor * 0.0033 * dias
     else:
+        dias = 0
         taxa_diaria = 0
-    
+
     taxa_total = taxa_base + taxa_diaria
     valor_liquido = valor - taxa_total
     
@@ -318,30 +339,18 @@ def calcular_taxa_cheque(valor, data_cheque):
         "taxa_diaria": taxa_diaria,
         "taxa_total": taxa_total,
         "valor_liquido": valor_liquido,
-        "dias": (data_venc - hoje).days if data_venc > hoje else 0
+        "dias": dias
     }
 
-# ---------------------------
-# Sistema Principal
-# ---------------------------
-def sistema_principal():
-    # Inicializar Google Sheets
-    client, spreadsheet = init_google_sheets()
+def calcular_taxa_cheque_manual(valor, taxa_percentual):
+    """Calcula taxa para troca de cheque com taxa manual"""
+    if taxa_percentual < 0:
+        return None
     
-    if not client or not spreadsheet:
-        st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
-        return
-    
-    # Header personalizado por perfil
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        if st.session_state.perfil_usuario == "gerente":
-            st.title("👑 Dashboard Gerencial - Sistema Unificado")
-        elif st.session_state.perfil_usuario == "operador_loterica":
-            st.title("🎰 Sistema Lotérica")
-        else:
-            st.title("💳 Sistema Caixa Interno")
-    
+    taxa_total = valor * (taxa_percentual / 100)
+    valor_liquido = valor - taxa_total
+    return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
+   
     with col2:
         st.write(f"**{st.session_state.nome_usuario}**")
         if st.button("🚪 Sair"):
@@ -567,23 +576,25 @@ def render_dashboard_caixa(spreadsheet):
 # ---------------------------
 # Formulários de Operação
 # ---------------------------
-def render_form_saque_cartao(spreadsheet):
-    st.markdown("### 💳 Saque Cartão")
+def render_form_saque_cartao(spreadsheet, tipo_cartao):
+    st.markdown(f"### 💳 Saque Cartão {tipo_cartao}")
     
+    # Nova coluna para data de vencimento do cheque (não aplicável aqui)
+    NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+
     # Campos fora do form para permitir simulação
     col1, col2 = st.columns(2)
     
     with col1:
-        cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
-        cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
-        valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0)
-        tipo_cartao = st.selectbox("Tipo de Cartão:", ["Débito", "Crédito"])
+        cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo", key=f"cliente_saque_{tipo_cartao}")
+        cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00", key=f"cpf_saque_{tipo_cartao}")
+        valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0, key=f"valor_saque_{tipo_cartao}")
     
     with col2:
-        observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...")
+        observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...", key=f"obs_saque_{tipo_cartao}")
         
         # Botão de simulação
-        if st.button("🧮 Simular Operação", use_container_width=True):
+        if st.button("🧮 Simular Operação", use_container_width=True, key=f"simular_saque_{tipo_cartao}"):
             if valor > 0:
                 if tipo_cartao == "Débito":
                     calc = calcular_taxa_cartao_debito(valor)
@@ -598,7 +609,7 @@ def render_form_saque_cartao(spreadsheet):
                 st.write(f"**💰 Taxa que fica no caixa:** R$ {calc['taxa_cliente']:.2f}")
     
     # Formulário para confirmação
-    with st.form("form_saque_cartao"):
+    with st.form(f"form_saque_cartao_{tipo_cartao}"):
         st.markdown("#### 💾 Confirmar e Salvar Operação")
         
         # Mostrar resumo novamente
@@ -623,128 +634,150 @@ def render_form_saque_cartao(spreadsheet):
                 spreadsheet,
                 "Operacoes_Caixa",
                 ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
-                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
+                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
             )
             
-            # Data e hora automáticas
             data_atual = str(date.today())
             hora_atual = datetime.now().strftime("%H:%M:%S")
             
             nova_operacao = [
-                data_atual,
-                hora_atual,
-                st.session_state.nome_usuario,
-                f"Saque Cartão {tipo_cartao}",
-                cliente if cliente else "Não informado",
-                cpf if cpf else "Não informado",
-                valor,
-                calc['taxa_cliente'],
-                calc['taxa_banco'],
-                calc['valor_liquido'],
-                calc['lucro'],
-                "Concluído",
+                data_atual, hora_atual, st.session_state.nome_usuario,
+                f"Saque Cartão {tipo_cartao}", cliente if cliente else "Não informado",
+                cpf if cpf else "Não informado", valor, calc['taxa_cliente'],
+                calc['taxa_banco'], calc['valor_liquido'], calc['lucro'],
+                "Concluído", "",  # Campo Data_Vencimento_Cheque vazio
                 observacoes
             ]
             
             caixa_sheet.append_row(nova_operacao)
-            
             st.success("✅ Operação registrada com sucesso!")
             st.balloons()
-            
-            # Limpar ação rápida
-            if hasattr(st.session_state, 'acao_rapida'):
-                del st.session_state.acao_rapida
-            
             st.rerun()
 
-def render_form_troca_cheque(spreadsheet):
-    st.markdown("### 📄 Troca de Cheque")
-    
-    # Campos fora do form para permitir simulação
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo")
-        cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00")
-        valor = st.number_input("Valor do Cheque (R$):", min_value=50.0, max_value=50000.0, value=1000.0, step=50.0)
-        data_cheque = st.date_input("Data do Cheque:", value=date.today())
-    
-    with col2:
-        banco = st.text_input("Banco:", placeholder="Nome do banco")
-        numero_cheque = st.text_input("Número do Cheque:", placeholder="000000")
-        observacoes = st.text_area("Observações:", height=100)
-        
-        # Botão de simulação
-        if st.button("🧮 Simular Operação", use_container_width=True):
-            if valor > 0:
-                calc = calcular_taxa_cheque(valor, str(data_cheque))
-                if calc:
-                    st.success("✅ **Simulação - Troca de Cheque**")
-                    st.write(f"**Taxa Total:** R$ {calc['taxa_total']:.2f}")
-                    if calc['dias'] > 0:
-                        st.write(f"**Dias até vencimento:** {calc['dias']}")
-                    st.write(f"**💵 Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
-                    st.write(f"**💰 Taxa que fica no caixa:** R$ {calc['taxa_total']:.2f}")
-                else:
-                    st.error("❌ Prazo máximo de 15 dias excedido!")
-    
-    # Formulário para confirmação
-    with st.form("form_troca_cheque"):
-        st.markdown("#### 💾 Confirmar e Salvar Operação")
-        
-        # Mostrar resumo novamente
-        if valor > 0:
-            calc = calcular_taxa_cheque(valor, str(data_cheque))
-            if calc:
-                st.info(f"**Resumo:** Taxa R$ {calc['taxa_total']:.2f} | Entregar R$ {calc['valor_liquido']:.2f}")
-            else:
-                st.error("❌ Prazo máximo de 15 dias excedido!")
-        
-        submitted = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
-        
+# --- NOVOS FORMULÁRIOS PARA CHEQUES ---
+
+def render_form_cheque_a_vista(spreadsheet):
+    st.markdown("### 📄 Cheque à Vista (Taxa 2%)")
+    NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+
+    with st.form("form_cheque_a_vista"):
+        col1, col2 = st.columns(2)
+        with col1:
+            cliente = st.text_input("Nome do Cliente:")
+            cpf = st.text_input("CPF do Cliente:")
+            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
+            data_cheque = st.date_input("Bom para (data do cheque):", value=date.today())
+        with col2:
+            banco = st.text_input("Banco Emissor:")
+            numero_cheque = st.text_input("Número do Cheque:")
+            observacoes = st.text_area("Observações Adicionais:")
+
+        calc = calcular_taxa_cheque_a_vista(valor)
+        st.info(f"**Taxa Fixa (2%):** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+
+        submitted = st.form_submit_button("💾 Confirmar Troca", use_container_width=True)
         if submitted:
-            calc = calcular_taxa_cheque(valor, str(data_cheque))
-            if not calc:
-                st.error("❌ Prazo máximo de 15 dias excedido!")
-            else:
-                # Salvar operação
-                caixa_sheet = get_or_create_worksheet(
-                    spreadsheet,
-                    "Operacoes_Caixa",
-                    ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
-                     "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
-                )
-                
-                # Data e hora automáticas
-                data_atual = str(date.today())
-                hora_atual = datetime.now().strftime("%H:%M:%S")
-                
-                nova_operacao = [
-                    data_atual,
-                    hora_atual,
-                    st.session_state.nome_usuario,
-                    "Troca Cheque",
-                    cliente if cliente else "Não informado",
-                    cpf if cpf else "Não informado",
-                    valor,
-                    calc['taxa_total'],
-                    0,  # Sem taxa banco para cheques
-                    calc['valor_liquido'],
-                    calc['taxa_total'],  # Todo valor da taxa é lucro
-                    "Concluído",
-                    f"Banco: {banco}, Cheque: {numero_cheque}, Data: {data_cheque}. {observacoes}"
-                ]
-                
-                caixa_sheet.append_row(nova_operacao)
-                
-                st.success("✅ Operação registrada com sucesso!")
-                st.balloons()
-                
-                # Limpar ação rápida
-                if hasattr(st.session_state, 'acao_rapida'):
-                    del st.session_state.acao_rapida
-                
-                st.rerun()
+            caixa_sheet = get_or_create_worksheet(
+                spreadsheet, "Operacoes_Caixa",
+                ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
+            )
+            data_atual = str(date.today())
+            hora_atual = datetime.now().strftime("%H:%M:%S")
+            obs_final = f"Banco: {banco}, Cheque: {numero_cheque}. {observacoes}"
+
+            nova_operacao = [
+                data_atual, hora_atual, st.session_state.nome_usuario, "Troca Cheque à Vista",
+                cliente, cpf, valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
+                "Concluído", str(data_cheque), obs_final
+            ]
+            caixa_sheet.append_row(nova_operacao)
+            st.success("✅ Troca de cheque à vista registrada!")
+            st.rerun()
+
+def render_form_cheque_predatado(spreadsheet):
+    st.markdown("### 📄 Cheque Pré-datado (2% + 0,33%/dia)")
+    NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+
+    with st.form("form_cheque_predatado"):
+        col1, col2 = st.columns(2)
+        with col1:
+            cliente = st.text_input("Nome do Cliente:")
+            cpf = st.text_input("CPF do Cliente:")
+            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
+            data_cheque = st.date_input("Bom para (data do cheque):", min_value=date.today())
+        with col2:
+            banco = st.text_input("Banco Emissor:")
+            numero_cheque = st.text_input("Número do Cheque:")
+            observacoes = st.text_area("Observações Adicionais:")
+            
+        calc = calcular_taxa_cheque_predatado(valor, data_cheque)
+        if calc:
+            st.info(f"**Prazo:** {calc['dias']} dias | **Taxa Total:** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+        else:
+            st.error("Prazo máximo (180 dias) excedido.")
+
+        submitted = st.form_submit_button("💾 Confirmar Troca", use_container_width=True)
+        if submitted and calc:
+            caixa_sheet = get_or_create_worksheet(
+                spreadsheet, "Operacoes_Caixa",
+                ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
+            )
+            data_atual = str(date.today())
+            hora_atual = datetime.now().strftime("%H:%M:%S")
+            obs_final = f"Banco: {banco}, Cheque: {numero_cheque}. {observacoes}"
+
+            nova_operacao = [
+                data_atual, hora_atual, st.session_state.nome_usuario, "Troca Cheque Pré-datado",
+                cliente, cpf, valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
+                "Concluído", str(data_cheque), obs_final
+            ]
+            caixa_sheet.append_row(nova_operacao)
+            st.success("✅ Troca de cheque pré-datado registrada!")
+            st.rerun()
+
+def render_form_cheque_manual(spreadsheet):
+    st.markdown("### 📄 Cheque com Taxa Manual")
+    NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+
+    with st.form("form_cheque_manual"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cliente = st.text_input("Nome do Cliente:")
+            cpf = st.text_input("CPF do Cliente:")
+            valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0)
+        with col2:
+            banco = st.text_input("Banco Emissor:")
+            numero_cheque = st.text_input("Número do Cheque:")
+            data_cheque = st.date_input("Bom para (data do cheque):")
+        with col3:
+            taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f")
+            observacoes = st.text_area("Observações/Motivo da taxa:")
+            
+        calc = calcular_taxa_cheque_manual(valor, taxa_manual)
+        if calc:
+            st.info(f"**Taxa Manual ({taxa_manual}%):** R$ {calc['taxa_total']:.2f} | **Valor a Entregar:** R$ {calc['valor_liquido']:.2f}")
+
+        submitted = st.form_submit_button("💾 Confirmar Troca", use_container_width=True)
+        if submitted and calc:
+            caixa_sheet = get_or_create_worksheet(
+                spreadsheet, "Operacoes_Caixa",
+                ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
+            )
+            data_atual = str(date.today())
+            hora_atual = datetime.now().strftime("%H:%M:%S")
+            obs_final = f"Taxa manual de {taxa_manual}%. Banco: {banco}, Cheque: {numero_cheque}. {observacoes}"
+
+            nova_operacao = [
+                data_atual, hora_atual, st.session_state.nome_usuario, "Troca Cheque Taxa Manual",
+                cliente, cpf, valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
+                "Concluído", str(data_cheque), obs_final
+            ]
+            caixa_sheet.append_row(nova_operacao)
+            st.success("✅ Troca de cheque com taxa manual registrada!")
+            st.rerun()
 
 # ---------------------------
 # Operações do Caixa Interno
@@ -756,29 +789,52 @@ def render_operacoes_caixa(spreadsheet):
     
     with tab1:
         tipo_operacao = st.selectbox(
-            "Tipo de Operação:",
-            ["Saque Cartão (Débito/Crédito)", "Troca Cheque", "Suprimento Caixa"]
+            "Selecione o Tipo de Operação:",
+            [
+                "Saque Cartão Débito", 
+                "Saque Cartão Crédito", 
+                "Cheque à Vista",
+                "Cheque Pré-datado",
+                "Cheque com Taxa Manual",
+                "Suprimento Caixa"
+            ]
         )
         
-        if tipo_operacao == "Saque Cartão (Débito/Crédito)":
-            render_form_saque_cartao(spreadsheet)
-        elif tipo_operacao == "Troca Cheque":
-            render_form_troca_cheque(spreadsheet)
+        if tipo_operacao == "Saque Cartão Débito":
+            render_form_saque_cartao(spreadsheet, "Débito")
+        elif tipo_operacao == "Saque Cartão Crédito":
+            render_form_saque_cartao(spreadsheet, "Crédito")
+        elif tipo_operacao == "Cheque à Vista":
+            render_form_cheque_a_vista(spreadsheet)
+        elif tipo_operacao == "Cheque Pré-datado":
+            render_form_cheque_predatado(spreadsheet)
+        elif tipo_operacao == "Cheque com Taxa Manual":
+            render_form_cheque_manual(spreadsheet)
         elif tipo_operacao == "Suprimento Caixa":
             render_form_suprimento(spreadsheet)
     
     with tab2:
         try:
-            caixa_sheet = spreadsheet.worksheet("Operacoes_Caixa")
+            # Adicionada a nova coluna no cabeçalho para leitura correta
+            NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
+            headers = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
+                       "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
+            
+            caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", headers)
             data = caixa_sheet.get_all_records()
             
             if data:
                 df = pd.DataFrame(data)
                 
+                # Garante que todas as colunas existam no DataFrame para evitar erros
+                for col in headers:
+                    if col not in df.columns:
+                        df[col] = ''
+                
                 # Filtros
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    filtro_data = st.date_input("Filtrar por data:", value=date.today())
+                    filtro_data = st.date_input("Filtrar por data:", value=None, key="filtro_data_hist")
                 with col2:
                     tipos_unicos = df['Tipo_Operacao'].unique() if 'Tipo_Operacao' in df.columns else []
                     filtro_tipo = st.selectbox("Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
@@ -788,7 +844,7 @@ def render_operacoes_caixa(spreadsheet):
                 
                 # Aplicar filtros
                 df_filtrado = df.copy()
-                if 'Data' in df.columns:
+                if filtro_data and 'Data' in df.columns:
                     df_filtrado = df_filtrado[df_filtrado['Data'] == str(filtro_data)]
                 if filtro_tipo != "Todos" and 'Tipo_Operacao' in df.columns:
                     df_filtrado = df_filtrado[df_filtrado['Tipo_Operacao'] == filtro_tipo]
@@ -799,22 +855,28 @@ def render_operacoes_caixa(spreadsheet):
                 
                 # Totais
                 if not df_filtrado.empty and 'Valor_Bruto' in df_filtrado.columns:
+                    # Converter colunas para numérico, tratando erros
+                    df_filtrado['Valor_Bruto'] = pd.to_numeric(df_filtrado['Valor_Bruto'], errors='coerce').fillna(0)
+                    df_filtrado['Lucro'] = pd.to_numeric(df_filtrado['Lucro'], errors='coerce').fillna(0)
+
                     total_operacoes = len(df_filtrado)
-                    total_valor = df_filtrado['Valor_Bruto'].astype(float).sum()
-                    total_lucro = df_filtrado['Lucro'].astype(float).sum() if 'Lucro' in df_filtrado.columns else 0
+                    total_valor = df_filtrado['Valor_Bruto'].sum()
+                    total_lucro = df_filtrado['Lucro'].sum()
                     
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Total de Operações", total_operacoes)
+                        st.metric("Total de Operações (Filtro)", total_operacoes)
                     with col2:
-                        st.metric("Valor Total", f"R$ {total_valor:,.2f}")
+                        st.metric("Valor Total (Filtro)", f"R$ {total_valor:,.2f}")
                     with col3:
-                        st.metric("Lucro Total", f"R$ {total_lucro:,.2f}")
+                        st.metric("Lucro Total (Filtro)", f"R$ {total_lucro:,.2f}")
             else:
                 st.info("📋 Nenhuma operação registrada ainda.")
                 
         except Exception as e:
             st.error(f"Erro ao carregar histórico: {e}")
+
+
 
 # ---------------------------
 # Outras funções (simplificadas para o exemplo)
@@ -849,6 +911,7 @@ def render_configuracoes():
 
 def render_form_suprimento(spreadsheet):
     st.markdown("### 💰 Suprimento do Caixa")
+    NOVA_COLUNA_HEADER = "Data_Vencimento_Cheque"
     
     # Verificar se é gerente
     if st.session_state.perfil_usuario != "gerente":
@@ -879,7 +942,7 @@ def render_form_suprimento(spreadsheet):
                 spreadsheet,
                 "Operacoes_Caixa",
                 ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", 
-                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Observacoes"]
+                 "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", NOVA_COLUNA_HEADER, "Observacoes"]
             )
             
             # Data e hora automáticas
@@ -887,18 +950,9 @@ def render_form_suprimento(spreadsheet):
             hora_atual = datetime.now().strftime("%H:%M:%S")
             
             nova_operacao = [
-                data_atual,
-                hora_atual,
-                st.session_state.nome_usuario,
-                "Suprimento",
-                "Sistema",
-                "N/A",
-                valor_suprimento,
-                0,  # Sem taxa cliente
-                0,  # Sem taxa banco
-                valor_suprimento,  # Valor líquido = valor bruto
-                0,  # Sem lucro em suprimento
-                "Concluído",
+                data_atual, hora_atual, st.session_state.nome_usuario, "Suprimento",
+                "Sistema", "N/A", valor_suprimento, 0, 0, valor_suprimento, 0,
+                "Concluído", "",  # Campo Data_Vencimento_Cheque vazio
                 f"Origem: {origem}. {observacoes}"
             ]
             
@@ -906,34 +960,7 @@ def render_form_suprimento(spreadsheet):
             
             st.success("✅ Suprimento registrado com sucesso!")
             st.balloons()
-            
-            # Limpar ação rápida
-            if hasattr(st.session_state, 'acao_rapida'):
-                del st.session_state.acao_rapida
-            
             st.rerun()
-
-def render_relatorio_rapido(operacoes_data):
-    st.markdown("### 📊 Relatório Rápido - Hoje")
-    
-    hoje_str = str(date.today())
-    ops_hoje = [op for op in operacoes_data if op.get("Data") == hoje_str]
-    
-    if ops_hoje:
-        df = pd.DataFrame(ops_hoje)
-        st.dataframe(df, use_container_width=True)
-        
-        # Totais
-        total_ops = len(ops_hoje)
-        total_lucro = sum([float(op.get("Lucro", 0)) for op in ops_hoje])
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Operações Hoje", total_ops)
-        with col2:
-            st.metric("Lucro Hoje", f"R$ {total_lucro:.2f}")
-    else:
-        st.info("📋 Nenhuma operação registrada hoje.")
 
 # ---------------------------
 # Função Principal
