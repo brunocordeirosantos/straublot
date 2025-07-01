@@ -293,21 +293,6 @@ def calcular_taxa_cartao_credito(valor):
         "tipo": "Crédito"
     }
 
-def calcular_taxa_cartao_credito(valor):
-    """Calcula taxa para saque de cartão crédito"""
-    taxa_cliente = valor * 0.0533  # 5,33% sobre o valor
-    taxa_banco = valor * 0.0433   # 4,33% sobre o valor
-    lucro = taxa_cliente - taxa_banco
-    valor_liquido = valor - taxa_cliente
-    
-    return {
-        "taxa_cliente": taxa_cliente,
-        "taxa_banco": taxa_banco,
-        "lucro": max(0, lucro),
-        "valor_liquido": valor_liquido,
-        "tipo": "Crédito"
-    }
-
 def calcular_taxa_cheque_a_vista(valor):
     """Calcula taxa para troca de cheque à vista (taxa fixa de 2%)"""
     taxa_total = valor * 0.02
@@ -350,94 +335,6 @@ def calcular_taxa_cheque_manual(valor, taxa_percentual):
     taxa_total = valor * (taxa_percentual / 100)
     valor_liquido = valor - taxa_total
     return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
-   
-    with col2:
-        st.write(f"**{st.session_state.nome_usuario}**")
-        if st.button("🚪 Sair"):
-            st.session_state.acesso_liberado = False
-            st.session_state.perfil_usuario = None
-            st.session_state.nome_usuario = None
-            st.rerun()
-    
-    # Sidebar com menu baseado no perfil
-    st.sidebar.title("📋 Menu Principal")
-    st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
-    st.sidebar.success("🌐 Conectado ao Google Sheets")
-    st.sidebar.markdown("---")
-    
-    # Menu dinâmico baseado no perfil - botões diretos
-    if st.session_state.perfil_usuario == "gerente":
-        st.sidebar.subheader("🏠 Dashboards")
-        if st.sidebar.button("🎰 Dashboard Lotérica", use_container_width=True):
-            st.session_state.pagina_atual = "dashboard_loterica"
-            st.rerun()
-        if st.sidebar.button("💳 Dashboard Caixa", use_container_width=True):
-            st.session_state.pagina_atual = "dashboard_caixa"
-            st.rerun()
-        
-        st.sidebar.subheader("💰 Operações")
-        if st.sidebar.button("💸 Operações Caixa", use_container_width=True):
-            st.session_state.pagina_atual = "operacoes_caixa"
-            st.rerun()
-        if st.sidebar.button("🏦 Gestão do Cofre", use_container_width=True):
-            st.session_state.pagina_atual = "cofre"
-            st.rerun()
-        
-        st.sidebar.subheader("📊 Relatórios")
-        if st.sidebar.button("📈 Relatórios Gerenciais", use_container_width=True):
-            st.session_state.pagina_atual = "relatorios_gerenciais"
-            st.rerun()
-            
-    elif st.session_state.perfil_usuario == "operador_loterica":
-        if st.sidebar.button("🎰 Dashboard Lotérica", use_container_width=True):
-            st.session_state.pagina_atual = "dashboard_loterica"
-            st.rerun()
-        if st.sidebar.button("💰 Lançamentos Lotérica", use_container_width=True):
-            st.session_state.pagina_atual = "lancamentos_loterica"
-            st.rerun()
-        if st.sidebar.button("📦 Estoque Lotérica", use_container_width=True):
-            st.session_state.pagina_atual = "estoque"
-            st.rerun()
-            
-    elif st.session_state.perfil_usuario == "operador_caixa":
-        if st.sidebar.button("💳 Dashboard Caixa", use_container_width=True):
-            st.session_state.pagina_atual = "dashboard_caixa"
-            st.rerun()
-        if st.sidebar.button("💸 Operações Caixa", use_container_width=True):
-            st.session_state.pagina_atual = "operacoes_caixa"
-            st.rerun()
-        if st.sidebar.button("📊 Relatórios Caixa", use_container_width=True):
-            st.session_state.pagina_atual = "relatorios_caixa"
-            st.rerun()
-    
-    # Definir página padrão se não existir
-    if 'pagina_atual' not in st.session_state:
-        if st.session_state.perfil_usuario == "operador_caixa":
-            st.session_state.pagina_atual = "dashboard_caixa"
-        elif st.session_state.perfil_usuario == "operador_loterica":
-            st.session_state.pagina_atual = "dashboard_loterica"
-        else:
-            st.session_state.pagina_atual = "dashboard_caixa"
-    
-    # Renderizar página baseada na seleção
-    if st.session_state.pagina_atual == "dashboard_loterica":
-        render_dashboard_loterica(spreadsheet)
-    elif st.session_state.pagina_atual == "dashboard_caixa":
-        render_dashboard_caixa(spreadsheet)
-    elif st.session_state.pagina_atual == "lancamentos_loterica":
-        render_lancamentos_loterica(spreadsheet)
-    elif st.session_state.pagina_atual == "operacoes_caixa":
-        render_operacoes_caixa(spreadsheet)
-    elif st.session_state.pagina_atual == "cofre":
-        render_cofre(spreadsheet)
-    elif st.session_state.pagina_atual == "estoque":
-        render_estoque(spreadsheet)
-    elif st.session_state.pagina_atual == "relatorios_caixa":
-        render_relatorios_caixa(spreadsheet)
-    elif st.session_state.pagina_atual == "relatorios_gerenciais":
-        render_relatorios_gerenciais(spreadsheet)
-    elif st.session_state.pagina_atual == "configuracoes":
-        render_configuracoes()
 
 # ---------------------------
 # Dashboard Caixa Interno
@@ -876,8 +773,6 @@ def render_operacoes_caixa(spreadsheet):
         except Exception as e:
             st.error(f"Erro ao carregar histórico: {e}")
 
-
-
 # ---------------------------
 # Outras funções (simplificadas para o exemplo)
 # ---------------------------
@@ -961,6 +856,137 @@ def render_form_suprimento(spreadsheet):
             st.success("✅ Suprimento registrado com sucesso!")
             st.balloons()
             st.rerun()
+            
+def render_relatorio_rapido(operacoes_data):
+    st.markdown("### 📊 Relatório Rápido - Hoje")
+    
+    hoje_str = str(date.today())
+    ops_hoje = [op for op in operacoes_data if op.get("Data") == hoje_str]
+    
+    if ops_hoje:
+        df = pd.DataFrame(ops_hoje)
+        st.dataframe(df, use_container_width=True)
+        
+        # Totais
+        total_ops = len(ops_hoje)
+        total_lucro = sum([float(op.get("Lucro", 0)) for op in ops_hoje])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Operações Hoje", total_ops)
+        with col2:
+            st.metric("Lucro Hoje", f"R$ {total_lucro:.2f}")
+    else:
+        st.info("📋 Nenhuma operação registrada hoje.")
+
+# ---------------------------
+# Sistema Principal
+# ---------------------------
+def sistema_principal():
+    # Inicializar Google Sheets
+    client, spreadsheet = init_google_sheets()
+    
+    if not client or not spreadsheet:
+        st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
+        return
+    
+    # Header personalizado por perfil
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        if st.session_state.perfil_usuario == "gerente":
+            st.title("👑 Dashboard Gerencial - Sistema Unificado")
+        elif st.session_state.perfil_usuario == "operador_loterica":
+            st.title("🎰 Sistema Lotérica")
+        else:
+            st.title("💳 Sistema Caixa Interno")
+    
+    with col2:
+        st.write(f"**{st.session_state.nome_usuario}**")
+        if st.button("🚪 Sair"):
+            st.session_state.acesso_liberado = False
+            st.session_state.perfil_usuario = None
+            st.session_state.nome_usuario = None
+            st.rerun()
+    
+    # Sidebar com menu baseado no perfil
+    st.sidebar.title("📋 Menu Principal")
+    st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
+    st.sidebar.success("🌐 Conectado ao Google Sheets")
+    st.sidebar.markdown("---")
+    
+    # Menu dinâmico baseado no perfil - botões diretos
+    if st.session_state.perfil_usuario == "gerente":
+        st.sidebar.subheader("🏠 Dashboards")
+        if st.sidebar.button("🎰 Dashboard Lotérica", use_container_width=True):
+            st.session_state.pagina_atual = "dashboard_loterica"
+            st.rerun()
+        if st.sidebar.button("💳 Dashboard Caixa", use_container_width=True):
+            st.session_state.pagina_atual = "dashboard_caixa"
+            st.rerun()
+        
+        st.sidebar.subheader("💰 Operações")
+        if st.sidebar.button("💸 Operações Caixa", use_container_width=True):
+            st.session_state.pagina_atual = "operacoes_caixa"
+            st.rerun()
+        if st.sidebar.button("🏦 Gestão do Cofre", use_container_width=True):
+            st.session_state.pagina_atual = "cofre"
+            st.rerun()
+        
+        st.sidebar.subheader("📊 Relatórios")
+        if st.sidebar.button("📈 Relatórios Gerenciais", use_container_width=True):
+            st.session_state.pagina_atual = "relatorios_gerenciais"
+            st.rerun()
+            
+    elif st.session_state.perfil_usuario == "operador_loterica":
+        if st.sidebar.button("🎰 Dashboard Lotérica", use_container_width=True):
+            st.session_state.pagina_atual = "dashboard_loterica"
+            st.rerun()
+        if st.sidebar.button("💰 Lançamentos Lotérica", use_container_width=True):
+            st.session_state.pagina_atual = "lancamentos_loterica"
+            st.rerun()
+        if st.sidebar.button("📦 Estoque Lotérica", use_container_width=True):
+            st.session_state.pagina_atual = "estoque"
+            st.rerun()
+            
+    elif st.session_state.perfil_usuario == "operador_caixa":
+        if st.sidebar.button("💳 Dashboard Caixa", use_container_width=True):
+            st.session_state.pagina_atual = "dashboard_caixa"
+            st.rerun()
+        if st.sidebar.button("💸 Operações Caixa", use_container_width=True):
+            st.session_state.pagina_atual = "operacoes_caixa"
+            st.rerun()
+        if st.sidebar.button("📊 Relatórios Caixa", use_container_width=True):
+            st.session_state.pagina_atual = "relatorios_caixa"
+            st.rerun()
+    
+    # Definir página padrão se não existir
+    if 'pagina_atual' not in st.session_state:
+        if st.session_state.perfil_usuario == "operador_caixa":
+            st.session_state.pagina_atual = "dashboard_caixa"
+        elif st.session_state.perfil_usuario == "operador_loterica":
+            st.session_state.pagina_atual = "dashboard_loterica"
+        else:
+            st.session_state.pagina_atual = "dashboard_caixa"
+    
+    # Renderizar página baseada na seleção
+    if st.session_state.pagina_atual == "dashboard_loterica":
+        render_dashboard_loterica(spreadsheet)
+    elif st.session_state.pagina_atual == "dashboard_caixa":
+        render_dashboard_caixa(spreadsheet)
+    elif st.session_state.pagina_atual == "lancamentos_loterica":
+        render_lancamentos_loterica(spreadsheet)
+    elif st.session_state.pagina_atual == "operacoes_caixa":
+        render_operacoes_caixa(spreadsheet)
+    elif st.session_state.pagina_atual == "cofre":
+        render_cofre(spreadsheet)
+    elif st.session_state.pagina_atual == "estoque":
+        render_estoque(spreadsheet)
+    elif st.session_state.pagina_atual == "relatorios_caixa":
+        render_relatorios_caixa(spreadsheet)
+    elif st.session_state.pagina_atual == "relatorios_gerenciais":
+        render_relatorios_gerenciais(spreadsheet)
+    elif st.session_state.pagina_atual == "configuracoes":
+        render_configuracoes()
 
 # ---------------------------
 # Função Principal
@@ -973,4 +999,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
