@@ -489,7 +489,7 @@ def render_operacoes_caixa(spreadsheet):
             if data:
                 df = pd.DataFrame(data)
                 for col in ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
                 for col in HEADERS:
                     if col not in df.columns: df[col] = ''
                 col1, col2, col3 = st.columns(3)
