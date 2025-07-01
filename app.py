@@ -404,8 +404,6 @@ def render_form_cheque(spreadsheet, tipo_cheque):
     if tipo_cheque == "Cheque com Taxa Manual":
         taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
     
-    # A LINHA COM O SELECTBOX FOI REMOVIDA DAQUI
-    
     observacoes = st.text_area("Observações Adicionais:", height=150, key=f"obs_ch_{tipo_cheque}")
 
     if st.button("🧮 Simular Operação", use_container_width=True, key=f"simular_ch_{tipo_cheque}"):
@@ -414,7 +412,7 @@ def render_form_cheque(spreadsheet, tipo_cheque):
             taxa_percentual_str = ""
             if tipo_cheque == "Cheque à Vista":
                 calc = calcular_taxa_cheque_a_vista(valor)
-                taxa_percentual_str = "2.00%"
+                if calc: taxa_percentual_str = "2.00%"
             elif tipo_cheque == "Cheque Pré-datado":
                 calc = calcular_taxa_cheque_predatado(valor, data_cheque)
                 if calc:
@@ -422,8 +420,10 @@ def render_form_cheque(spreadsheet, tipo_cheque):
                     taxa_percentual_str = f"{taxa_efetiva:.2f}%"
             elif tipo_cheque == "Cheque com Taxa Manual":
                 calc = calcular_taxa_cheque_manual(valor, taxa_manual)
-                taxa_percentual_str = f"{taxa_manual:.2f}%"
+                if calc: taxa_percentual_str = f"{taxa_manual:.2f}%"
             
+            # --- CORREÇÃO APLICADA AQUI ---
+            # Só executa o bloco se o cálculo foi bem-sucedido
             if calc:
                 st.session_state.simulacao_atual = {
                     "tipo_operacao": f"Troca {tipo_cheque}", "valor_bruto": valor, "cliente": cliente, "cpf": cpf,
