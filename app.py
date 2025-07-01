@@ -320,7 +320,6 @@ def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
     HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
     
-    # Busca dados e calcula saldo
     cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
     df_cofre = pd.DataFrame(cofre_data)
     saldo_cofre = Decimal('0')
@@ -350,19 +349,25 @@ def render_cofre(spreadsheet):
             tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada no Cofre", "Saída do Cofre"])
             valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0)
             
-            # --- LÓGICA CORRIGIDA AQUI ---
-            # Exibe o campo correto (Destino ou Origem) de acordo com a seleção
+            destino_final = ""
+            # --- NOVA LÓGICA DE INTERFACE APLICADA AQUI ---
             if tipo_mov == "Saída do Cofre":
-                destino_principal = st.selectbox("Destino da Saída:", ["Caixa Interno", "Caixa Lotérica", "Outro (Despesa, etc.)"])
-                if destino_principal == "Caixa Lotérica":
-                    destino_pdv = st.selectbox("Selecione o PDV:", ["PDV 1", "PDV 2"])
-                    destino_final = f"{destino_principal} - {destino_pdv}"
-                else:
-                    destino_final = destino_principal
+                tipo_saida = st.selectbox("Tipo de Saída:", ["Transferência para Caixa", "Pagamento de Despesa"])
+                
+                if tipo_saida == "Transferência para Caixa":
+                    destino_caixa = st.selectbox("Transferir para:", ["Caixa Interno", "Caixa Lotérica"])
+                    if destino_caixa == "Caixa Lotérica":
+                        destino_pdv = st.selectbox("Selecione o PDV:", ["PDV 1", "PDV 2"])
+                        destino_final = f"{destino_caixa} - {destino_pdv}"
+                    else: # Se for Caixa Interno
+                        destino_final = destino_caixa
+                else: # Se for Pagamento de Despesa
+                    destino_final = st.text_input("Descrição da Despesa (Ex: Aluguel, Fornecedor X)")
+
             else: # Se for "Entrada no Cofre"
                 destino_final = st.text_input("Origem da Entrada (Ex: Banco, Sócio)")
 
-            observacoes = st.text_area("Observações")
+            observacoes = st.text_area("Observações Adicionais")
             
             submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
 
@@ -380,24 +385,25 @@ def render_cofre(spreadsheet):
                 ]
                 cofre_sheet.append_row(nova_mov_cofre)
 
+                # Lógica de integração com o Caixa Interno
                 if tipo_mov == "Saída do Cofre" and destino_final == "Caixa Interno":
                     HEADERS_CAIXA = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
                     caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
                     nova_operacao_caixa = [
                         str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
-                        "Suprimento", "Sistema", "N/A", float(valor), 0, 0, float(valor), 0, "Concluído", "", "0.00%", f"Transferência do Cofre para o {destino_final}"
+                        "Suprimento", "Sistema", "N/A", float(valor), 0, 0, float(valor), 0, "Concluído", "", "0.00%", f"Transferência do Cofre para: {destino_final}"
                     ]
                     caixa_sheet.append_row(nova_operacao_caixa)
                     st.success(f"✅ Saída de R$ {valor:,.2f} do cofre registrada e suprimento criado no Caixa Interno!")
                 
+                # Placeholder para futura integração com Caixa da Lotérica
                 elif tipo_mov == "Saída do Cofre" and "Caixa Lotérica" in destino_final:
-                    st.info(f"Saída para {destino_final} registrada. A integração com o caixa da lotérica será implementada futuramente.")
+                    st.info(f"Saída para {destino_final} registrada. A integração de suprimento com o caixa da lotérica será implementada futuramente.")
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                 
                 else:
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                 
-                # Limpa o cache para forçar a atualização dos saldos e históricos
                 st.cache_data.clear()
 
     with tab2:
