@@ -7,7 +7,7 @@ import os
 from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from decimal import Decimal, ROUND_HALF_UP # Importação já existia, agora será usada
+from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 
 # Configuração da página
@@ -232,11 +232,13 @@ def verificar_acesso():
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 if st.button("🚀 Acessar Sistema", use_container_width=True):
+                    # Mapear seleção para chave do usuário
                     mapa_perfil = {
                         "👑 Gerente": "gerente",
                         "🎰 Operador Lotérica": "loterica", 
                         "💳 Operador Caixa": "caixa"
                     }
+                    
                     chave_usuario = mapa_perfil.get(perfil_selecionado)
                     
                     if chave_usuario and senha == USUARIOS[chave_usuario]["senha"]:
@@ -259,64 +261,60 @@ def verificar_acesso():
                     """)
 
 # ---------------------------
-# Funções de Cálculo do Caixa Interno (COM DECIMAL)
+# Funções de Cálculo do Caixa Interno
 # ---------------------------
 def calcular_taxa_cartao_debito(valor):
-    """Calcula taxa para saque de cartão débito com precisão."""
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal('1.00')
+    """Calcula taxa para saque de cartão débito"""
+    taxa_cliente = valor * 0.01  # 1% sobre o valor
+    taxa_banco = 1.00  # R$ 1,00 fixo por operação
     lucro = taxa_cliente - taxa_banco
-    valor_liquido = valor_dec - taxa_cliente
+    valor_liquido = valor - taxa_cliente
     
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal('0'), lucro),
+        "lucro": max(0, lucro),
         "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cartao_credito(valor):
-    """Calcula taxa para saque de cartão crédito com precisão."""
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.0533')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = (valor_dec * Decimal('0.0433')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    """Calcula taxa para saque de cartão crédito"""
+    taxa_cliente = valor * 0.0533  # 5,33% sobre o valor
+    taxa_banco = valor * 0.0433   # 4,33% sobre o valor
     lucro = taxa_cliente - taxa_banco
-    valor_liquido = valor_dec - taxa_cliente
+    valor_liquido = valor - taxa_cliente
     
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal('0'), lucro),
+        "lucro": max(0, lucro),
         "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_a_vista(valor):
-    """Calcula taxa para troca de cheque à vista com precisão."""
-    valor_dec = Decimal(str(valor))
-    taxa_total = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    valor_liquido = valor_dec - taxa_total
+    """Calcula taxa para troca de cheque à vista (taxa fixa de 2%)"""
+    taxa_total = valor * 0.02
+    valor_liquido = valor - taxa_total
     return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
 
 def calcular_taxa_cheque_predatado(valor, data_cheque):
-    """Calcula taxa para troca de cheque pré-datado com precisão."""
-    valor_dec = Decimal(str(valor))
+    """Calcula taxa para troca de cheque pré-datado (2% base + 0.33% ao dia)"""
     hoje = date.today()
     data_venc = data_cheque
     
-    taxa_base = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    taxa_base = valor * 0.02
     
     if data_venc > hoje:
         dias = (data_venc - hoje).days
         if dias > 180:
             return None 
-        taxa_diaria = (valor_dec * Decimal('0.0033') * Decimal(dias)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        taxa_diaria = valor * 0.0033 * dias
     else:
         dias = 0
-        taxa_diaria = Decimal('0')
+        taxa_diaria = 0
 
     taxa_total = taxa_base + taxa_diaria
-    valor_liquido = valor_dec - taxa_total
+    valor_liquido = valor - taxa_total
     
     return {
         "taxa_total": taxa_total,
@@ -325,15 +323,12 @@ def calcular_taxa_cheque_predatado(valor, data_cheque):
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    """Calcula taxa para troca de cheque com taxa manual com precisão."""
+    """Calcula taxa para troca de cheque com taxa manual"""
     if taxa_percentual < 0:
         return None
     
-    valor_dec = Decimal(str(valor))
-    taxa_dec = Decimal(str(taxa_percentual))
-    
-    taxa_total = (valor_dec * (taxa_dec / Decimal('100'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    valor_liquido = valor_dec - taxa_total
+    taxa_total = valor * (taxa_percentual / 100)
+    valor_liquido = valor - taxa_total
     return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
 
 # ---------------------------
@@ -343,6 +338,7 @@ def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     
     try:
+        # Carregar dados das operações do caixa
         caixa_sheet = get_or_create_worksheet(
             spreadsheet,
             "Operacoes_Caixa",
@@ -350,6 +346,7 @@ def render_dashboard_caixa(spreadsheet):
              "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Observacoes"]
         )
         
+        # Obter dados e converter para DataFrame
         operacoes_data = caixa_sheet.get_all_records()
         df_operacoes = pd.DataFrame(operacoes_data)
 
@@ -357,52 +354,100 @@ def render_dashboard_caixa(spreadsheet):
             st.info("Nenhuma operação registrada para exibir o dashboard.")
             return
 
+        # Garantir que colunas numéricas sejam do tipo correto para evitar erros
         for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
 
+        # --- LÓGICA DE CÁLCULO DO SALDO CORRIGIDA ---
         total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
+        
+        # Define quais operações são consideradas saídas de dinheiro
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
+
         saldo_caixa = total_suprimentos - total_saques_liquidos
         
+        # Métricas do dia
         hoje_str = str(date.today())
         operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
+        
         operacoes_hoje_count = len(operacoes_de_hoje)
         valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Bruto'].sum()
 
+        # Renderizar Métricas
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);"><h3>R$ {saldo_caixa:,.2f}</h3><p>💰 Saldo do Caixa</p></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <p>💰 Saldo do Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col2:
-            st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"><h3>R$ {valor_saque_hoje:,.2f}</h3><p>💳 Valor Saque Hoje</p></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <p>💳 Valor Saque Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col3:
-            st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"><h3>{operacoes_hoje_count}</h3><p>📋 Operações Hoje</p></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{operacoes_hoje_count}</h3>
+                <p>📋 Operações Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col4:
             status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
             status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
-            st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);"><h3>{status_texto}</h3><p>🚦 Status Caixa</p></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
+                <h3>{status_texto}</h3>
+                <p>🚦 Status Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
+        # --- LÓGICA DO GRÁFICO CORRIGIDA ---
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
         df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
         df_recente = df_operacoes[df_operacoes['Data'] >= (datetime.now() - timedelta(days=7))]
         
         if not df_recente.empty:
+            # Agrupa por tipo e SOMA o Valor_Liquido
             resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
+            
+            # Altera o gráfico para barras usando o Valor_Liquido
             fig = px.bar(
-                resumo_por_tipo, x='Tipo_Operacao', y='Valor_Liquido', title="Valor Líquido por Tipo de Operação",
+                resumo_por_tipo, 
+                x='Tipo_Operacao', 
+                y='Valor_Liquido', 
+                title="Valor Líquido por Tipo de Operação",
                 labels={'Tipo_Operacao': 'Tipo de Operação', 'Valor_Liquido': 'Valor Líquido Total (R$)'},
-                color='Tipo_Operacao', text_auto='.2f'
+                color='Tipo_Operacao',
+                text_auto='.2f'
             )
             st.plotly_chart(fig, use_container_width=True)
         
+        # Alertas de Saldo
         if saldo_caixa < 1000:
-            st.markdown("""<div class="alert-warning">🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.</div>""", unsafe_allow_html=True)
+            st.markdown("""
+            <div class="alert-warning">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """, unsafe_allow_html=True)
         elif saldo_caixa < 2000:
-            st.markdown("""<div class="alert-info">⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.</div>""", unsafe_allow_html=True)
+            st.markdown("""
+            <div class="alert-info">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """, unsafe_allow_html=True)
         
     except Exception as e:
         st.error(f"Erro ao carregar dashboard: {e}")
@@ -419,7 +464,7 @@ def render_form_saque_cartao(spreadsheet, tipo_cartao):
     with col1:
         cliente = st.text_input("Nome do Cliente (opcional):", placeholder="Digite o nome completo", key=f"cliente_saque_{tipo_cartao}")
         cpf = st.text_input("CPF (opcional):", placeholder="000.000.000-00", key=f"cpf_saque_{tipo_cartao}")
-        valor = st.number_input("Valor do Saque (R$):", min_value=0.01, value=100.0, step=10.0, key=f"valor_saque_{tipo_cartao}")
+        valor = st.number_input("Valor do Saque (R$):", min_value=10.0, max_value=5000.0, value=100.0, step=10.0, key=f"valor_saque_{tipo_cartao}")
     with col2:
         observacoes = st.text_area("Observações:", height=100, placeholder="Informações adicionais...", key=f"obs_saque_{tipo_cartao}")
 
@@ -445,7 +490,7 @@ def render_form_saque_cartao(spreadsheet, tipo_cartao):
                 nova_operacao = [
                     str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
                     f"Saque Cartão {tipo_cartao}", cliente or "Não informado", cpf or "Não informado",
-                    float(valor), float(calc['taxa_cliente']), float(calc['taxa_banco']), float(calc['valor_liquido']), float(calc['lucro']),
+                    valor, calc['taxa_cliente'], calc['taxa_banco'], calc['valor_liquido'], calc['lucro'],
                     "Concluído", "", observacoes
                 ]
                 caixa_sheet.append_row(nova_operacao)
@@ -462,7 +507,7 @@ def render_form_cheque_a_vista(spreadsheet):
     with col1:
         cliente = st.text_input("Nome do Cliente:", key="cliente_ch_vista")
         cpf = st.text_input("CPF do Cliente:", key="cpf_ch_vista")
-        valor = st.number_input("Valor do Cheque (R$):", min_value=0.01, step=50.0, key="valor_ch_vista")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_vista")
     with col2:
         banco = st.text_input("Banco Emissor:", key="banco_ch_vista")
         numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_vista")
@@ -491,7 +536,7 @@ def render_form_cheque_a_vista(spreadsheet):
                 nova_operacao = [
                     str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
                     "Troca Cheque à Vista", cliente or "Não informado", cpf or "Não informado",
-                    float(valor), float(calc['taxa_total']), 0, float(calc['valor_liquido']), float(calc['taxa_total']),
+                    valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
                     "Concluído", str(data_cheque), obs_final
                 ]
                 caixa_sheet.append_row(nova_operacao)
@@ -507,7 +552,7 @@ def render_form_cheque_predatado(spreadsheet):
     with col1:
         cliente = st.text_input("Nome do Cliente:", key="cliente_ch_pre")
         cpf = st.text_input("CPF do Cliente:", key="cpf_ch_pre")
-        valor = st.number_input("Valor do Cheque (R$):", min_value=0.01, step=50.0, key="valor_ch_pre")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_pre")
     with col2:
         banco = st.text_input("Banco Emissor:", key="banco_ch_pre")
         numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_pre")
@@ -541,7 +586,7 @@ def render_form_cheque_predatado(spreadsheet):
                     nova_operacao = [
                         str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
                         "Troca Cheque Pré-datado", cliente or "Não informado", cpf or "Não informado",
-                        float(valor), float(calc['taxa_total']), 0, float(calc['valor_liquido']), float(calc['taxa_total']),
+                        valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
                         "Concluído", str(data_cheque), obs_final
                     ]
                     caixa_sheet.append_row(nova_operacao)
@@ -559,12 +604,12 @@ def render_form_cheque_manual(spreadsheet):
     with col1:
         cliente = st.text_input("Nome do Cliente:", key="cliente_ch_manual")
         cpf = st.text_input("CPF do Cliente:", key="cpf_ch_manual")
-        valor = st.number_input("Valor do Cheque (R$):", min_value=0.01, step=50.0, key="valor_ch_manual")
+        valor = st.number_input("Valor do Cheque (R$):", min_value=1.0, step=50.0, key="valor_ch_manual")
+        taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
     with col2:
         banco = st.text_input("Banco Emissor:", key="banco_ch_manual")
         numero_cheque = st.text_input("Número do Cheque:", key="numero_ch_manual")
         data_cheque = st.date_input("Bom para (data do cheque):", key="data_ch_manual")
-        taxa_manual = st.number_input("Taxa a ser cobrada (%):", min_value=0.1, value=5.0, step=0.1, format="%.2f", key="taxa_ch_manual")
         observacoes = st.text_area("Observações/Motivo da taxa:", key="obs_ch_manual")
 
     if st.button("🧮 Simular Operação", use_container_width=True, key="simular_ch_manual"):
@@ -591,7 +636,7 @@ def render_form_cheque_manual(spreadsheet):
                     nova_operacao = [
                         str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario,
                         "Troca Cheque Taxa Manual", cliente or "Não informado", cpf or "Não informado",
-                        float(valor), float(calc['taxa_total']), 0, float(calc['valor_liquido']), float(calc['taxa_total']),
+                        valor, calc['taxa_total'], 0, calc['valor_liquido'], calc['taxa_total'],
                         "Concluído", str(data_cheque), obs_final
                     ]
                     caixa_sheet.append_row(nova_operacao)
