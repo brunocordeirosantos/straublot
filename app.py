@@ -589,28 +589,7 @@ def render_dashboard_caixa(spreadsheet):
                 ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
             </div>
             """, unsafe_allow_html=True)
-        
-        # Estatísticas adicionais
-        st.markdown("---")
-        st.subheader("📈 Estatísticas Detalhadas")
-        
-        col_stat1, col_stat2, col_stat3 = st.columns(3)
-        
-        with col_stat1:
-            total_taxas_hoje = operacoes_de_hoje['Taxa_Cliente'].sum()
-            st.metric("💰 Total Taxas Hoje", f"R$ {total_taxas_hoje:,.2f}")
-        
-        with col_stat2:
-            total_lucro_hoje = operacoes_de_hoje['Lucro'].sum()
-            st.metric("📈 Lucro Hoje", f"R$ {total_lucro_hoje:,.2f}")
-        
-        with col_stat3:
-            if not df_recente.empty:
-                media_operacao = df_recente['Valor_Bruto'].mean()
-                st.metric("📊 Média por Operação", f"R$ {media_operacao:,.2f}")
-            else:
-                st.metric("📊 Média por Operação", "R$ 0,00")
-        
+               
     except Exception as e:
         st.error(f"Erro ao carregar dashboard: {e}")
         st.exception(e)
