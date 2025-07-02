@@ -1020,6 +1020,7 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["valor_bruto"],
                                 sim_data["dados"]["taxa_cliente"],
                                 sim_data["dados"]["taxa_banco"],
+                                sim_data["dados"]["valor_liquido"],
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 "",
@@ -1274,9 +1275,6 @@ def render_operacoes_caixa(spreadsheet):
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
         
-        with tab5:
-            render_fechamento_caixa(spreadsheet)
-
 # Função para fechamento da lotérica
 def render_fechamento_loterica(spreadsheet):
     st.subheader("📋 Fechamento de Caixa Lotérica")
@@ -1446,6 +1444,82 @@ def render_fechamento_loterica(spreadsheet):
         st.error(f"❌ Erro ao carregar fechamento da lotérica: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
+# Função principal do sistema
+def main():
+    try:
+        if not verificar_login():
+            return
+        
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_google_sheets()
+        if not spreadsheet:
+            st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
+            return
+        
+        # Interface principal baseada no tipo de usuário
+        st.sidebar.title("📋 Menu Principal")
+        st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
+        st.sidebar.markdown("---")
+        
+        # Menu baseado no perfil
+        if st.session_state.tipo_usuario == "👑 Gerente":
+            st.title("👑 Dashboard Gerencial - Sistema Unificado")
+            
+            opcoes_menu = {
+                "📊 Dashboard Caixa": "dashboard_caixa",
+                "💳 Operações Caixa": "operacoes_caixa", 
+                "🏦 Gestão do Cofre": "cofre",
+                "📋 Fechamento Lotérica": "fechamento_loterica"
+            }
+            
+        elif st.session_state.tipo_usuario == "💳 Operador Caixa":
+            st.title("💳 Sistema Caixa Interno")
+            
+            opcoes_menu = {
+                "📊 Dashboard Caixa": "dashboard_caixa",
+                "💳 Operações Caixa": "operacoes_caixa"
+            }
+            
+        else:  # Operador Lotérica
+            st.title("🎰 Sistema Lotérica")
+            
+            opcoes_menu = {
+                "📋 Fechamento Lotérica": "fechamento_loterica"
+            }
+        
+        # Navegação
+        if "pagina_atual" not in st.session_state:
+            st.session_state.pagina_atual = list(opcoes_menu.values())[0]
+        
+        for nome_opcao, chave_opcao in opcoes_menu.items():
+            if st.sidebar.button(nome_opcao, use_container_width=True):
+                st.session_state.pagina_atual = chave_opcao
+                st.rerun()
+        
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+        
+        # Renderizar página atual
+        if st.session_state.pagina_atual == "dashboard_caixa":
+            render_dashboard_caixa(spreadsheet)
+        elif st.session_state.pagina_atual == "operacoes_caixa":
+            render_operacoes_caixa(spreadsheet)
+        elif st.session_state.pagina_atual == "cofre":
+            render_cofre(spreadsheet)
+        elif st.session_state.pagina_atual == "fechamento_loterica":
+            render_fechamento_loterica(spreadsheet)
+    
+    except Exception as e:
+        st.error(f"❌ Erro crítico no sistema: {str(e)}")
+        st.info("🔄 Recarregue a página para tentar novamente.")
+        st.exception(e)
+
+if __name__ == "__main__":
+    main()
+
 # Função para fechamento diário do caixa interno
 def render_fechamento_caixa(spreadsheet):
     st.subheader("🗓️ Fechamento Diário do Caixa Interno")
@@ -1466,7 +1540,7 @@ def render_fechamento_caixa(spreadsheet):
         operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
         
         if not operacoes_data:
-            st.info("📊 Nenhuma operação registrada na planilha 'Operacoes_Caixa'.")
+            st.info("📊 Nenhuma operação registrada na planilha \'Operacoes_Caixa\'.")
             # Se não há dados, ainda podemos tentar buscar o saldo do dia anterior
             saldo_dia_anterior = 0.0
             try:
@@ -1525,9 +1599,9 @@ def render_fechamento_caixa(spreadsheet):
         # Converter colunas para o tipo correto
         for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
             if col in df_operacoes.columns:
-                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors=\'coerce\').fillna(0)
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
-        df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors=\'coerce\').dt.date
+        df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce").dt.date
         df_operacoes.dropna(subset=["Data"], inplace=True)
 
         # Obter data de hoje e de ontem
@@ -1621,81 +1695,5 @@ def render_fechamento_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar fechamento de caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
-
-# Função principal do sistema
-def main():
-    try:
-        if not verificar_login():
-            return
-        
-        # Conectar ao Google Sheets
-        spreadsheet = conectar_google_sheets()
-        if not spreadsheet:
-            st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
-            return
-        
-        # Interface principal baseada no tipo de usuário
-        st.sidebar.title("📋 Menu Principal")
-        st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
-        st.sidebar.markdown("---")
-        
-        # Menu baseado no perfil
-        if st.session_state.tipo_usuario == "👑 Gerente":
-            st.title("👑 Dashboard Gerencial - Sistema Unificado")
-            
-            opcoes_menu = {
-                "📊 Dashboard Caixa": "dashboard_caixa",
-                "💳 Operações Caixa": "operacoes_caixa", 
-                "🏦 Gestão do Cofre": "cofre",
-                "📋 Fechamento Lotérica": "fechamento_loterica"
-            }
-            
-        elif st.session_state.tipo_usuario == "💳 Operador Caixa":
-            st.title("💳 Sistema Caixa Interno")
-            
-            opcoes_menu = {
-                "📊 Dashboard Caixa": "dashboard_caixa",
-                "💳 Operações Caixa": "operacoes_caixa"
-            }
-            
-        else:  # Operador Lotérica
-            st.title("🎰 Sistema Lotérica")
-            
-            opcoes_menu = {
-                "📋 Fechamento Lotérica": "fechamento_loterica"
-            }
-        
-        # Navegação
-        if "pagina_atual" not in st.session_state:
-            st.session_state.pagina_atual = list(opcoes_menu.values())[0]
-        
-        for nome_opcao, chave_opcao in opcoes_menu.items():
-            if st.sidebar.button(nome_opcao, use_container_width=True):
-                st.session_state.pagina_atual = chave_opcao
-                st.rerun()
-        
-        st.sidebar.markdown("---")
-        if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-        
-        # Renderizar página atual
-        if st.session_state.pagina_atual == "dashboard_caixa":
-            render_dashboard_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "operacoes_caixa":
-            render_operacoes_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "cofre":
-            render_cofre(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_loterica":
-            render_fechamento_loterica(spreadsheet)
-    
-    except Exception as e:
-        st.error(f"❌ Erro crítico no sistema: {str(e)}")
-        st.info("🔄 Recarregue a página para tentar novamente.")
-        st.exception(e)
-
-if __name__ == "__main__":
-    main()
 
 
