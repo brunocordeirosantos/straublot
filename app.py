@@ -816,40 +816,41 @@ def render_cofre(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
                 
-                if tipo_mov == "Saída do Cofre":
+                        if tipo_mov == "Saída do Cofre":
                     tipo_saida = st.selectbox(
                         "Tipo de Saída:", 
                         ["Transferência para Caixa", "Pagamento de Despesa"],
-                        key="tipo_saida_cofre"
+                        key=f"tipo_saida_cofre_{tipo_mov}" # Chave dinâmica
                     )
                     
                     if tipo_saida == "Transferência para Caixa":
-                                               destino_caixa = st.selectbox(
+                        destino_caixa = st.selectbox(
                             "Transferir para:", 
                             ["Caixa Interno", "Caixa Lotérica"],
                             key=f"destino_caixa_cofre_{tipo_saida}" # Chave dinâmica
                         )
-
                         
-                    if destino_caixa == "Caixa Lotérica":
+                        # --- CORREÇÃO DE INDENTAÇÃO AQUI ---
+                        if destino_caixa == "Caixa Lotérica":
                             destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
-                                key="destino_pdv_cofre"
+                                key=f"destino_pdv_cofre_{destino_caixa}" # Chave dinâmica
                             )
                             destino_final = f"{destino_caixa} - {destino_pdv}"
-                        else:
+                        else: # Este else corresponde ao if da linha 834
                             destino_final = destino_caixa
-                    else:
-                           destino_final = st.text_input(
+                    else: # Este else corresponde ao if da linha 826 (tipo_saida == "Transferência para Caixa")
+                        destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
-                else:
+                else: # Este else corresponde ao if da linha 819 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key="origem_entrada_cofre"
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
+
                 
                 # Observações
                 observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
