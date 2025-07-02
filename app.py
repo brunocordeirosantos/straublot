@@ -149,23 +149,32 @@ if 'simulacao_atual' not in st.session_state:
 # Conexão com Google Sheets
 # ---------------------------
 @st.cache_resource
-def conectar_google_sheets():
+def init_google_sheets():
+    """Inicializa conexão com Google Sheets. Cache para o recurso de conexão."""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        
+        # Lógica para funcionar tanto online (deploy) quanto no seu computador (local)
+        try:
+            # Tenta carregar do Streamlit secrets (deploy)
+            creds_dict = dict(st.secrets["gcp_service_account"])
+        except:
+            # Se falhar, tenta abrir o arquivo local (desenvolvimento)
+            with open("credentials.json") as f:
+                creds_dict = json.load(f)
+        
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        return client.open("Lotericabasededados")
+        
+        # Abre a planilha
+        spreadsheet = client.open_by_url(
+            "https://docs.google.com/spreadsheets/d/1rx9AfZQvCrwPdSxKj_-pTpm_l8I5JFZTjUt1fvSfLo8/edit"
+        )
+        
+        return spreadsheet
     except Exception as e:
         st.error(f"Erro ao conectar com Google Sheets: {e}")
         return None
-
-@st.cache_data(ttl=30)
-def buscar_dados(spreadsheet, sheet_name):
-    try:
-        sheet = spreadsheet.worksheet(sheet_name)
-        return sheet.get_all_records()
-    except:
-        return []
 
 def get_or_create_worksheet(spreadsheet, sheet_name, headers):
     try:
