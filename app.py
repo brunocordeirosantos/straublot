@@ -1274,10 +1274,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
-        with tab5:
-    render_fechamento_caixa(spreadsheet)
-
-
+        
 # Função para fechamento da lotérica
 def render_fechamento_loterica(spreadsheet):
     st.subheader("📋 Fechamento de Caixa Lotérica")
