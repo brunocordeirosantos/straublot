@@ -294,6 +294,20 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
         worksheet.append_row(headers)
         return worksheet
+# Função para buscar dados do Google Sheets
+@st.cache_data(ttl=60)
+def buscar_dados(_spreadsheet, sheet_name):
+    try:
+        if _spreadsheet is None:
+            st.warning("⚠️ Sem conexão com Google Sheets")
+            return []
+        
+        worksheet = _spreadsheet.worksheet(sheet_name)
+        data = worksheet.get_all_records()
+        return data
+    except Exception as e:
+        st.warning(f"⚠️ Erro ao buscar dados de {sheet_name}: {str(e)}")
+        return []
 
 # Função para normalizar dados com detecção inteligente
 def normalizar_dados_inteligente(dados):
