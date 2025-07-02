@@ -816,7 +816,7 @@ def render_cofre(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
                 
-                        if tipo_mov == "Saída do Cofre":
+                if tipo_mov == "Saída do Cofre":
                     tipo_saida = st.selectbox(
                         "Tipo de Saída:", 
                         ["Transferência para Caixa", "Pagamento de Despesa"],
