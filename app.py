@@ -177,58 +177,98 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet.append_row(headers)
     return worksheet
 
-# CORREÇÃO: Função buscar_dados com correção forçada de valores
+# CORREÇÃO: Função buscar_dados com correção específica para cada tipo de operação
 @st.cache_data(ttl=60)
 def buscar_dados(_spreadsheet, sheet_name):
-    """Busca todos os registros de uma planilha e aplica correção forçada nos valores."""
+    """Busca todos os registros de uma planilha e aplica correção específica por tipo de operação."""
     try:
         sheet = _spreadsheet.worksheet(sheet_name)
         dados = sheet.get_all_records()
         
-        # CORREÇÃO FORÇADA: Dividir valores por 100 se estiverem multiplicados
+        # CORREÇÃO ESPECÍFICA: Tratar cada tipo de operação diferentemente
         if dados and sheet_name == "Operacoes_Caixa":
             for registro in dados:
-                # Corrigir Taxa_Cliente se estiver multiplicada por 100
-                if 'Taxa_Cliente' in registro and registro['Taxa_Cliente']:
-                    try:
-                        valor = float(registro['Taxa_Cliente'])
-                        if valor > 50:  # Se taxa for maior que 50, provavelmente está multiplicada
-                            registro['Taxa_Cliente'] = valor / 100
-                    except (ValueError, TypeError):
-                        pass
+                tipo_operacao = registro.get('Tipo_Operacao', '')
                 
-                # Corrigir Taxa_Banco se estiver multiplicada por 100
-                if 'Taxa_Banco' in registro and registro['Taxa_Banco']:
-                    try:
-                        valor = float(registro['Taxa_Banco'])
-                        if valor > 50:  # Se taxa for maior que 50, provavelmente está multiplicada
-                            registro['Taxa_Banco'] = valor / 100
-                    except (ValueError, TypeError):
-                        pass
+                # CARTÃO DE CRÉDITO/DÉBITO: Dividir por 100 se valores estiverem multiplicados
+                if 'Cartão' in tipo_operacao:
+                    # Corrigir Taxa_Cliente se estiver multiplicada por 100
+                    if 'Taxa_Cliente' in registro and registro['Taxa_Cliente']:
+                        try:
+                            valor = float(registro['Taxa_Cliente'])
+                            if valor > 50:  # Se taxa for maior que 50, está multiplicada
+                                registro['Taxa_Cliente'] = valor / 100
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Corrigir Taxa_Banco se estiver multiplicada por 100
+                    if 'Taxa_Banco' in registro and registro['Taxa_Banco']:
+                        try:
+                            valor = float(registro['Taxa_Banco'])
+                            if valor > 50:  # Se taxa for maior que 50, está multiplicada
+                                registro['Taxa_Banco'] = valor / 100
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Corrigir Valor_Liquido se estiver multiplicado por 100
+                    if 'Valor_Liquido' in registro and registro['Valor_Liquido']:
+                        try:
+                            valor_liquido = float(registro['Valor_Liquido'])
+                            valor_bruto = float(registro.get('Valor_Bruto', 0))
+                            
+                            # Se valor líquido for muito maior que o bruto, está multiplicado
+                            if valor_bruto > 0 and valor_liquido > (valor_bruto * 5):
+                                registro['Valor_Liquido'] = valor_liquido / 100
+                        except (ValueError, TypeError):
+                            pass
                 
-                # Corrigir Valor_Liquido se estiver multiplicado por 100
-                if 'Valor_Liquido' in registro and registro['Valor_Liquido']:
-                    try:
-                        valor_liquido = float(registro['Valor_Liquido'])
-                        valor_bruto = float(registro.get('Valor_Bruto', 0))
-                        
-                        # Se valor líquido for muito maior que o bruto, está multiplicado
-                        if valor_bruto > 0 and valor_liquido > (valor_bruto * 5):
-                            registro['Valor_Liquido'] = valor_liquido / 100
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Corrigir Lucro se estiver multiplicado por 100
-                if 'Lucro' in registro and registro['Lucro']:
-                    try:
-                        lucro = float(registro['Lucro'])
-                        valor_bruto = float(registro.get('Valor_Bruto', 0))
-                        
-                        # Se lucro for muito maior que esperado, está multiplicado
-                        if valor_bruto > 0 and lucro > (valor_bruto * 0.2):
-                            registro['Lucro'] = lucro / 100
-                    except (ValueError, TypeError):
-                        pass
+                # CHEQUES: Problema inverso - valores podem estar divididos por 100
+                elif 'Cheque' in tipo_operacao:
+                    # Para cheques, verificar se valores estão muito pequenos
+                    if 'Taxa_Cliente' in registro and registro['Taxa_Cliente']:
+                        try:
+                            taxa = float(registro['Taxa_Cliente'])
+                            valor_bruto = float(registro.get('Valor_Bruto', 0))
+                            
+                            # Se a taxa for muito pequena comparada ao valor bruto, pode estar dividida por 100
+                            if valor_bruto > 0 and taxa < (valor_bruto * 0.01):  # Taxa menor que 1% do valor
+                                # Verificar se multiplicando por 100 fica mais razoável
+                                taxa_corrigida = taxa * 100
+                                if taxa_corrigida <= (valor_bruto * 0.15):  # Taxa até 15% é razoável para cheques
+                                    registro['Taxa_Cliente'] = taxa_corrigida
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Corrigir Valor_Liquido para cheques
+                    if 'Valor_Liquido' in registro and registro['Valor_Liquido']:
+                        try:
+                            valor_liquido = float(registro['Valor_Liquido'])
+                            valor_bruto = float(registro.get('Valor_Bruto', 0))
+                            taxa_cliente = float(registro.get('Taxa_Cliente', 0))
+                            
+                            # Se valor líquido for muito pequeno, pode estar dividido por 100
+                            if valor_bruto > 0 and valor_liquido < (valor_bruto * 0.5):
+                                # Recalcular valor líquido baseado no valor bruto e taxa
+                                if taxa_cliente > 0:
+                                    valor_liquido_esperado = valor_bruto - taxa_cliente
+                                    if abs(valor_liquido_esperado - (valor_liquido * 100)) < abs(valor_liquido_esperado - valor_liquido):
+                                        registro['Valor_Liquido'] = valor_liquido * 100
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Corrigir Lucro para cheques
+                    if 'Lucro' in registro and registro['Lucro']:
+                        try:
+                            lucro = float(registro['Lucro'])
+                            taxa_cliente = float(registro.get('Taxa_Cliente', 0))
+                            
+                            # Para cheques, lucro geralmente é igual à taxa cliente
+                            if taxa_cliente > 0 and lucro < (taxa_cliente * 0.5):
+                                # Se lucro for muito menor que a taxa, pode estar dividido por 100
+                                if abs(taxa_cliente - (lucro * 100)) < abs(taxa_cliente - lucro):
+                                    registro['Lucro'] = lucro * 100
+                        except (ValueError, TypeError):
+                            pass
         
         return dados
     except gspread.WorksheetNotFound:
