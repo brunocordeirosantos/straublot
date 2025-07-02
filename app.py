@@ -738,22 +738,22 @@ def render_cofre(spreadsheet):
                         )
                         
                         if destino_caixa == "Caixa Lotérica":
-                                                       destino_pdv = st.selectbox(
+                        destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
                                 key=f"destino_pdv_cofre_{destino_caixa}" # Chave dinâmica
                             )
 
-                            destino_final = f"{destino_caixa} - {destino_pdv}"
-                        else:
-                            destino_final = destino_caixa
-                    else:
+                        destino_final = f"{destino_caixa} - {destino_pdv}"
+                       else:
+                               destino_final = destino_caixa
+                 else:
                             destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
-                        else: # Entrada no Cofre
-                    destino_final = st.text_input(
+                      else: # Entrada no Cofre
+              destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
                         key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
