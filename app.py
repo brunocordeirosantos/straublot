@@ -831,7 +831,7 @@ def render_cofre(spreadsheet):
                         )
 
                         
-                        if destino_caixa == "Caixa Lotérica":
+                     if destino_caixa == "Caixa Lotérica":
                             destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
@@ -841,7 +841,7 @@ def render_cofre(spreadsheet):
                         else:
                             destino_final = destino_caixa
                     else:
-                        destino_final = st.text_input(
+                           destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
