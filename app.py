@@ -1549,7 +1549,7 @@ def render_fechamento_caixa(spreadsheet):
                     df_fechamentos = pd.DataFrame(fechamentos_data)
                     df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
 
-                    df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors=\'coerce\').fillna(0)
+                    df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors='coerce').fillna(0)
                     
                     ontem_date = obter_date_brasilia() - timedelta(days=1)
                     registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem_date]
