@@ -747,8 +747,8 @@ def render_cofre(spreadsheet):
                         destino_final = f"{destino_caixa} - {destino_pdv}"
                     else:
                                destino_final = destino_caixa
-                     else:
-                            destino_final = st.text_input(
+                    else:
+                    destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
