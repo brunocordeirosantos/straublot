@@ -1658,7 +1658,7 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             if st.form_submit_button("💾 Salvar Fechamento"):
                 try:
                     # Simular st.session_state.nome_usuario para teste
-                    if \'nome_usuario\' not in st.session_state:
+                    if 'nome_usuario' not in st.session_state:
                         st.session_state.nome_usuario = "TESTE_USUARIO"
 
                     fechamento_sheet = get_or_create_worksheet(spreadsheet, "Fechamento_Caixa", HEADERS_FECHAMENTO_CAIXA)
