@@ -706,6 +706,143 @@ def render_operacoes_caixa(spreadsheet):
         elif tipo_operacao == "Cheque Pré-datado": render_form_cheque(spreadsheet, "Cheque Pré-datado")
         elif tipo_operacao == "Cheque com Taxa Manual": render_form_cheque(spreadsheet, "Cheque com Taxa Manual")
         elif tipo_operacao == "Suprimento Caixa": render_form_suprimento(spreadsheet)
+        def render_fechamento_loterica(spreadsheet):
+    st.subheader("📋 Fechamento de Caixa Lotérica")
+    
+    HEADERS_FECHAMENTO = [
+        "Data_Fechamento", "PDV", "Operador",
+        "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
+        "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha",
+        "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal",
+        "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
+        "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
+        "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
+        "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas",
+        "Retirada_Cofre", "Retirada_CaixaInterno",
+        "Dinheiro_Gaveta_Final", "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
+    ]
+    
+    with st.form("form_fechamento_pdv", clear_on_submit=False):
+        st.markdown("#### Lançar Fechamento Diário do PDV")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            pdv_selecionado = st.selectbox("Selecione o PDV", ["PDV 1", "PDV 2"])
+        with col2:
+            data_fechamento = st.date_input("Data do Fechamento", date.today())
+
+        # Buscar saldo anterior
+        sheet_name = f"Fechamentos_{pdv_selecionado.replace(' ', '')}"
+        fechamentos_data = buscar_dados(spreadsheet, sheet_name)
+        df_fechamentos = pd.DataFrame(fechamentos_data)
+        saldo_anterior = Decimal('0')
+        
+        if not df_fechamentos.empty:
+            df_fechamentos['Data_Fechamento'] = pd.to_datetime(df_fechamentos['Data_Fechamento']).dt.date
+            df_fechamentos['Saldo_Final_Calculado'] = pd.to_numeric(df_fechamentos['Saldo_Final_Calculado'], errors='coerce').fillna(0)
+            
+            data_anterior = data_fechamento - timedelta(days=1)
+            registro_anterior = df_fechamentos[df_fechamentos['Data_Fechamento'] == data_anterior]
+            
+            if not registro_anterior.empty:
+                saldo_anterior = Decimal(str(registro_anterior.iloc[0]['Saldo_Final_Calculado']))
+        
+        st.metric("Saldo Anterior (Fechamento de Ontem)", f"R$ {saldo_anterior:,.2f}")
+        st.markdown("---")
+
+        with st.expander("Lançamentos de Compras de Produtos (Custo)"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.write("**Bolão**")
+                qtd_compra_bolao = st.number_input("Qtd Compra", min_value=0, key="qtd_c_bolao")
+                custo_bolao = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_bolao")
+                total_compra_bolao = qtd_compra_bolao * custo_bolao
+            with c2:
+                st.write("**Raspadinha**")
+                qtd_compra_raspa = st.number_input("Qtd Compra", min_value=0, key="qtd_c_raspa")
+                custo_raspa = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_raspa")
+                total_compra_raspa = qtd_compra_raspa * custo_raspa
+            with c3:
+                st.write("**Loteria Federal**")
+                qtd_compra_federal = st.number_input("Qtd Compra", min_value=0, key="qtd_c_federal")
+                custo_federal = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_federal")
+                total_compra_federal = qtd_compra_federal * custo_federal
+            
+        with st.expander("Lançamentos de Vendas de Produtos (Receita)"):
+            v1, v2, v3 = st.columns(3)
+            with v1:
+                st.write("**Bolão**")
+                qtd_venda_bolao = st.number_input("Qtd Venda", min_value=0, key="qtd_v_bolao")
+                preco_bolao = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_bolao")
+                total_venda_bolao = qtd_venda_bolao * preco_bolao
+            with v2:
+                st.write("**Raspadinha**")
+                qtd_venda_raspa = st.number_input("Qtd Venda", min_value=0, key="qtd_v_raspa")
+                preco_raspa = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_raspa")
+                total_venda_raspa = qtd_venda_raspa * preco_raspa
+            with v3:
+                st.write("**Loteria Federal**")
+                qtd_venda_federal = st.number_input("Qtd Venda", min_value=0, key="qtd_v_federal")
+                preco_federal = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_federal")
+                total_venda_federal = qtd_venda_federal * preco_federal
+
+        with st.expander("Outras Movimentações e Retiradas"):
+            o1, o2, o3 = st.columns(3)
+            with o1:
+                mov_cielo = st.number_input("Total Cielo (R$)", min_value=0.0, format="%.2f")
+            with o2:
+                pag_premios = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, format="%.2f")
+            with o3:
+                vales_despesas = st.number_input("Vales e Despesas (R$)", min_value=0.0, format="%.2f")
+            
+            r1, r2 = st.columns(2)
+            with r1:
+                retirada_cofre = st.number_input("Retirada para o Cofre (R$)", min_value=0.0, format="%.2f")
+            with r2:
+                retirada_caixa_interno = st.number_input("Retirada para o Caixa Interno (R$)", min_value=0.0, format="%.2f")
+        
+        st.markdown("---")
+        st.markdown("##### Conferência Final")
+        dinheiro_gaveta = st.number_input("Valor Final Contado na Gaveta (R$)", min_value=0.0, format="%.2f")
+
+        submitted = st.form_submit_button("Lançar Fechamento de Caixa", use_container_width=True)
+
+        if submitted:
+            total_compras = Decimal(str(total_compra_bolao)) + Decimal(str(total_compra_raspa)) + Decimal(str(total_compra_federal))
+            total_vendas = Decimal(str(total_venda_bolao)) + Decimal(str(total_venda_raspa)) + Decimal(str(total_venda_federal))
+            saldo_final_calculado = saldo_anterior + total_vendas + Decimal(str(mov_cielo)) - total_compras - Decimal(str(pag_premios)) - Decimal(str(vales_despesas)) - Decimal(str(retirada_cofre)) - Decimal(str(retirada_caixa_interno))
+            diferenca = Decimal(str(dinheiro_gaveta)) - saldo_final_calculado
+
+            fechamento_sheet = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
+            nova_linha = [
+                str(data_fechamento), pdv_selecionado, st.session_state.nome_usuario,
+                qtd_compra_bolao, custo_bolao, total_compra_bolao, qtd_compra_raspa, custo_raspa, total_compra_raspa,
+                qtd_compra_federal, custo_federal, total_compra_federal, qtd_venda_bolao, preco_bolao, total_venda_bolao,
+                qtd_venda_raspa, preco_raspa, total_venda_raspa, qtd_venda_federal, preco_federal, total_venda_federal,
+                mov_cielo, pag_premios, vales_despesas, retirada_cofre, retirada_caixa_interno,
+                dinheiro_gaveta, float(saldo_anterior), float(saldo_final_calculado), float(diferenca)
+            ]
+            fechamento_sheet.append_row(nova_linha)
+
+            if retirada_cofre > 0:
+                cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"])
+                mov_cofre = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, "Entrada no Cofre", float(retirada_cofre), f"Sangria do {pdv_selecionado}", f"Fechamento do dia {data_fechamento}"]
+                cofre_sheet.append_row(mov_cofre)
+                st.success(f"✅ Entrada de R$ {retirada_cofre:,.2f} registrada no Cofre.")
+            
+            if retirada_caixa_interno > 0:
+                caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"])
+                op_caixa = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, "Suprimento", "Sistema", "N/A", float(retirada_caixa_interno), 0, 0, float(retirada_caixa_interno), 0, "Concluído", "", "0.00%", f"Sangria do {pdv_selecionado} no dia {data_fechamento}"]
+                caixa_sheet.append_row(op_caixa)
+                st.success(f"✅ Suprimento de R$ {retirada_caixa_interno:,.2f} registrado no Caixa Interno.")
+
+            st.success(f"Fechamento do {pdv_selecionado} para o dia {data_fechamento} salvo!")
+            if diferenca == 0:
+                st.success("🎉 Caixa bateu perfeitamente!")
+            else:
+                st.warning(f"⚠️ Atenção: Diferença de caixa de R$ {diferenca:,.2f}")
+            
+            st.cache_data.clear()
     
     with tab2:
         try:
@@ -817,8 +954,7 @@ def sistema_principal():
    paginas = {
     "gerente": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Gestão do Cofre": "cofre", "Fechamento Lotérica": "fechamento_loterica", "Dashboard Lotérica": "dashboard_loterica", "Relatórios Gerenciais": "relatorios_gerenciais"},
     # ... outros perfis
-}
-    
+}  
     if 'pagina_atual' not in st.session_state:
         st.session_state.pagina_atual = list(paginas[st.session_state.perfil_usuario].values())[0]
 
