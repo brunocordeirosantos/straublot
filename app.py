@@ -9,12 +9,31 @@ import plotly.express as px
 import plotly.graph_objects as go
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
-import pytz # <-- CORREÇÃO 1: IMPORTAÇÃO ADICIONADA
+import pytz
 
-# Função para obter a data e hora de Brasília
-def obter_date_brasilia():
+# Funções para horário de Brasília
+def obter_horario_brasilia():
+    """Retorna hora atual no fuso horário de Brasília"""
     tz_brasilia = pytz.timezone('America/Sao_Paulo')
-    return datetime.now(tz_brasilia).date()
+    agora = datetime.now(tz_brasilia)
+    return agora.strftime("%H:%M:%S")
+
+def obter_data_brasilia():
+    """Retorna data atual no fuso horário de Brasília"""
+    tz_brasilia = pytz.timezone('America/Sao_Paulo')
+    agora = datetime.now(tz_brasilia)
+    return agora.strftime("%Y-%m-%d")
+
+def obter_datetime_brasilia():
+    """Retorna datetime atual no fuso horário de Brasília"""
+    tz_brasilia = pytz.timezone('America/Sao_Paulo')
+    return datetime.now(tz_brasilia)
+
+def obter_date_brasilia():
+    """Retorna date atual no fuso horário de Brasília"""
+    tz_brasilia = pytz.timezone('America/Sao_Paulo')
+    agora = datetime.now(tz_brasilia)
+    return agora.date()
 
 # Configuração da página
 st.set_page_config(
@@ -55,194 +74,310 @@ st.markdown("""
         box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
     }
     
-    /* Botões de ação rápida */
-    .action-button {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    /* Estilo para botões de sucesso */
+    .success-button > button {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
         color: white;
         border: none;
-        border-radius: 10px;
-        padding: 1rem;
-        font-weight: 600;
-        margin: 0.5rem;
-        cursor: pointer;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+    }
+    
+    /* Estilo para botões de simulação */
+    .simulate-button > button {
+        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
     }
     
     /* Cards de métricas */
     .metric-card {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        background: white;
         padding: 1.5rem;
-        border-radius: 15px;
-        color: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         text-align: center;
-        margin: 0.5rem 0;
-        box-shadow: 0 8px 25px rgba(240, 147, 251, 0.3);
+        margin: 1rem 0;
+        border: 1px solid #f0f0f0;
     }
     
     .metric-card h3 {
         margin: 0;
         font-size: 2rem;
         font-weight: 700;
+        color: white;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     }
     
     .metric-card p {
         margin: 0.5rem 0 0 0;
         font-size: 0.9rem;
-        opacity: 0.9;
+        color: white;
+        font-weight: 500;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     }
     
-    /* Inputs maiores para mobile */
-    .stTextInput > div > div > input,
+    /* Estilo para selectbox */
+    .stSelectbox > div > div {
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+        transition: all 0.3s ease;
+    }
+    
+    .stSelectbox > div > div:focus-within {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Estilo para inputs */
     .stNumberInput > div > div > input,
-    .stSelectbox > div > div > select {
-        height: 3rem;
-        font-size: 1.1rem;
-        border-radius: 10px;
-        border: 2px solid #e1e5e9;
-        padding: 0 1rem;
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+        transition: all 0.3s ease;
     }
     
-    /* Alertas coloridos */
+    .stNumberInput > div > div > input:focus,
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-left: 20px;
+        padding-right: 20px;
+        border-radius: 10px;
+        background-color: #f8f9fa;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: #667eea;
+    }
+    
+    /* Alertas customizados */
     .alert-success {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        color: white;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border: 1px solid #c3e6cb;
+        border-radius: 8px;
         padding: 1rem;
-        border-radius: 10px;
         margin: 1rem 0;
-    }
-    
-    .alert-warning {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
+        color: #155724;
     }
     
     .alert-info {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+        border: 1px solid #bee5eb;
+        border-radius: 8px;
         padding: 1rem;
-        border-radius: 10px;
         margin: 1rem 0;
+        color: #0c5460;
     }
     
-    /* Responsividade mobile */
+    /* Responsividade */
     @media (max-width: 768px) {
-        .stButton > button {
-            height: 4rem;
-            font-size: 1.2rem;
+        .metric-card h3 {
+            font-size: 1.5rem;
         }
         
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input {
-            height: 4rem;
-            font-size: 1.3rem;
+        .stButton > button {
+            height: 3rem;
+            font-size: 0.9rem;
         }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------
-# Configuração Google Sheets
-# ---------------------------
+# Função para conectar ao Google Sheets
 @st.cache_resource
-def init_google_sheets():
-    """Inicializa conexão com Google Sheets. Cache para o recurso de conexão."""
+def conectar_google_sheets():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        
+        # Primeiro tenta usar Streamlit Secrets (para deploy)
         try:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-        except:
-            with open("credentials.json") as f:
-                creds_dict = json.load(f)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            credentials_dict = {
+                "type": st.secrets["gcp_service_account"]["type"],
+                "project_id": st.secrets["gcp_service_account"]["project_id"],
+                "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
+                "private_key": st.secrets["gcp_service_account"]["private_key"],
+                "client_email": st.secrets["gcp_service_account"]["client_email"],
+                "client_id": st.secrets["gcp_service_account"]["client_id"],
+                "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
+                "token_uri": st.secrets["gcp_service_account"]["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
+            }
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+            st.success("🌐 Conectado via Streamlit Secrets (Deploy)")
+            
+        except (KeyError, FileNotFoundError):
+            # Fallback para arquivo local
+            try:
+                creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+                st.success("💻 Conectado via arquivo local")
+            except FileNotFoundError:
+                st.error("❌ Arquivo credentials.json não encontrado")
+                st.info("📋 Para usar localmente, adicione o arquivo credentials.json na pasta do projeto")
+                return None
+        
         client = gspread.authorize(creds)
-        spreadsheet = client.open_by_url(
-            "https://docs.google.com/spreadsheets/d/1rx9AfZQvCrwPdSxKj_-pTpm_l8I5JFZTjUt1fvSfLo8/edit"
-        )
-        return spreadsheet
+        return client.open("Lotericabasededados")
     except Exception as e:
-        st.error(f"Erro ao conectar com Google Sheets: {e}")
+        st.error(f"Erro ao conectar com Google Sheets: {str(e)}")
         return None
 
-def get_or_create_worksheet(spreadsheet, sheet_name, headers):
-    """Obtém worksheet existente ou cria novo"""
-    try:
-        worksheet = spreadsheet.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="40")
-        worksheet.append_row(headers)
-    return worksheet
-
+# Função para buscar dados com cache otimizado
 @st.cache_data(ttl=60)
 def buscar_dados(_spreadsheet, sheet_name):
-    """Busca todos os registros de uma planilha e aplica cache de dados."""
     try:
-        sheet = _spreadsheet.worksheet(sheet_name)
-        return sheet.get_all_records()
-    except gspread.WorksheetNotFound:
-        return []
+        worksheet = _spreadsheet.worksheet(sheet_name)
+        data = worksheet.get_all_records()
+        return data
     except Exception as e:
-        st.error(f"Erro ao buscar dados da planilha '{sheet_name}': {e}")
+        st.warning(f"Planilha '{sheet_name}' não encontrada. Será criada automaticamente.")
         return []
 
-# ---------------------------
-# Sistema de Acesso e Estado
-# ---------------------------
-if 'acesso_liberado' not in st.session_state:
-    st.session_state.acesso_liberado = False
-if 'perfil_usuario' not in st.session_state:
-    st.session_state.perfil_usuario = None
-if 'nome_usuario' not in st.session_state:
-    st.session_state.nome_usuario = None
-if 'simulacao_atual' not in st.session_state:
-    st.session_state.simulacao_atual = None
+# Função para criar ou obter worksheet
+def get_or_create_worksheet(spreadsheet, sheet_name, headers):
+    try:
+        worksheet = spreadsheet.worksheet(sheet_name)
+        return worksheet
+    except:
+        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
+        worksheet.append_row(headers)
+        return worksheet
 
-USUARIOS = {
-    "gerente": {"senha": "gerente123", "perfil": "gerente", "nome": "Gerente", "modulos": ["loterica", "caixa_interno", "cofre", "relatorios", "configuracoes"]},
-    "loterica": {"senha": "loterica123", "perfil": "operador_loterica", "nome": "Operador Lotérica", "modulos": ["loterica", "relatorios_loterica"]},
-    "caixa": {"senha": "caixa123", "perfil": "operador_caixa", "nome": "Operador Caixa", "modulos": ["caixa_interno", "relatorios_caixa"]}
-}
+# Função para normalizar dados com detecção inteligente
+def normalizar_dados_inteligente(dados):
+    """
+    Função inteligente que detecta automaticamente padrões de erro nos dados
+    e aplica a correção mais adequada baseada em validação matemática
+    """
+    dados_corrigidos = []
+    
+    for registro in dados:
+        registro_corrigido = registro.copy()
+        
+        # Verificar se tem os campos necessários
+        if not all(campo in registro for campo in ['Valor_Bruto', 'Taxa_Cliente', 'Valor_Liquido']):
+            dados_corrigidos.append(registro_corrigido)
+            continue
+            
+        try:
+            valor_bruto = float(registro['Valor_Bruto'])
+            taxa_cliente = float(registro['Taxa_Cliente'])
+            valor_liquido = float(registro['Valor_Liquido'])
+            
+            # Se valor bruto é 0, pular validação
+            if valor_bruto == 0:
+                dados_corrigidos.append(registro_corrigido)
+                continue
+            
+            # Testar diferentes fatores de correção
+            fatores_teste = [1, 0.01, 0.1, 10, 100]
+            melhor_fator_taxa = 1
+            melhor_fator_liquido = 1
+            menor_erro = float('inf')
+            
+            for fator_taxa in fatores_teste:
+                for fator_liquido in fatores_teste:
+                    taxa_teste = taxa_cliente * fator_taxa
+                    liquido_teste = valor_liquido * fator_liquido
+                    
+                    # Validações básicas
+                    if taxa_teste > valor_bruto * 0.5:  # Taxa não pode ser maior que 50%
+                        continue
+                    if liquido_teste > valor_bruto:  # Líquido não pode ser maior que bruto
+                        continue
+                    if liquido_teste <= 0:  # Líquido deve ser positivo
+                        continue
+                    
+                    # Calcular erro matemático: Valor_Liquido deveria ser Valor_Bruto - Taxa_Cliente
+                    valor_esperado = valor_bruto - taxa_teste
+                    erro = abs(liquido_teste - valor_esperado)
+                    
+                    if erro < menor_erro:
+                        menor_erro = erro
+                        melhor_fator_taxa = fator_taxa
+                        melhor_fator_liquido = fator_liquido
+            
+            # Aplicar correções se necessário
+            if melhor_fator_taxa != 1:
+                registro_corrigido['Taxa_Cliente'] = taxa_cliente * melhor_fator_taxa
+                
+            if melhor_fator_liquido != 1:
+                registro_corrigido['Valor_Liquido'] = valor_liquido * melhor_fator_liquido
+            
+            # Corrigir outros campos relacionados se existirem
+            if 'Taxa_Banco' in registro and melhor_fator_taxa != 1:
+                taxa_banco = float(registro.get('Taxa_Banco', 0))
+                registro_corrigido['Taxa_Banco'] = taxa_banco * melhor_fator_taxa
+                
+            if 'Lucro' in registro and melhor_fator_taxa != 1:
+                lucro = float(registro.get('Lucro', 0))
+                registro_corrigido['Lucro'] = lucro * melhor_fator_taxa
+                
+        except (ValueError, TypeError):
+            # Se houver erro na conversão, manter dados originais
+            pass
+            
+        dados_corrigidos.append(registro_corrigido)
+    
+    return dados_corrigidos
 
-def verificar_acesso():
-    st.title("🏪 Sistema Unificado - Lotérica & Caixa Interno")
-    st.markdown("### 🔐 Acesso ao Sistema")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("#### Selecione seu perfil:")
-        perfil_selecionado = st.selectbox("Tipo de usuário:", ["Selecione...", "👑 Gerente", "🎰 Operador Lotérica", "💳 Operador Caixa"], key="perfil_select")
-        if perfil_selecionado != "Selecione...":
-            senha = st.text_input("Digite a senha:", type="password", key="senha_acesso")
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button("🚀 Acessar Sistema", use_container_width=True):
-                    mapa_perfil = {"👑 Gerente": "gerente", "🎰 Operador Lotérica": "loterica", "💳 Operador Caixa": "caixa"}
-                    chave_usuario = mapa_perfil.get(perfil_selecionado)
-                    if chave_usuario and senha == USUARIOS[chave_usuario]["senha"]:
-                        st.session_state.acesso_liberado = True
-                        st.session_state.perfil_usuario = USUARIOS[chave_usuario]["perfil"]
-                        st.session_state.nome_usuario = USUARIOS[chave_usuario]["nome"]
-                        st.session_state.modulos_permitidos = USUARIOS[chave_usuario]["modulos"]
-                        st.success(f"✅ Acesso liberado! Bem-vindo, {USUARIOS[chave_usuario]['nome']}!")
-                        st.rerun()
-                    else:
-                        st.error("❌ Senha incorreta!")
-            with col_btn2:
-                if st.button("ℹ️ Ajuda", use_container_width=True):
-                    st.info("""💡 **Senhas de Teste:**\n- **Gerente**: gerente123\n- **Operador Lotérica**: loterica123\n- **Operador Caixa**: caixa123""")
+# Função para limpar cache forçadamente
+def limpar_cache_forcado():
+    st.cache_data.clear()
+    if 'simulacao_atual' in st.session_state:
+        del st.session_state.simulacao_atual
 
-# ---------------------------
-# Funções de Cálculo (COM DECIMAL)
-# ---------------------------
+# Função de debug para valores
+def debug_valores(dados, titulo="Debug"):
+    if st.checkbox(f"🔍 Debug - {titulo}"):
+        st.write("**Dados brutos:**")
+        for i, registro in enumerate(dados[:3]):  # Mostrar apenas 3 primeiros
+            st.write(f"Registro {i+1}:")
+            for campo in ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']:
+                if campo in registro:
+                    st.write(f"  {campo}: {registro[campo]} (tipo: {type(registro[campo])})")
+
+# Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal('1.00')
-    lucro = taxa_cliente - taxa_banco
+    taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)  # 1% sobre o valor
+    taxa_banco = Decimal('1.00')   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
+    lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
     valor_liquido = valor_dec - taxa_cliente
-    return {"taxa_cliente": taxa_cliente, "taxa_banco": taxa_banco, "lucro": max(Decimal('0'), lucro), "valor_liquido": valor_liquido}
+    
+    return {
+        "taxa_cliente": float(taxa_cliente),
+        "taxa_banco": float(taxa_banco),
+        "lucro": float(max(Decimal('0'), lucro)),  # Lucro não pode ser negativo
+        "valor_liquido": float(valor_liquido)
+    }
 
 def calcular_taxa_cartao_credito(valor):
     valor_dec = Decimal(str(valor))
@@ -250,315 +385,931 @@ def calcular_taxa_cartao_credito(valor):
     taxa_banco = (valor_dec * Decimal('0.0433')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
     valor_liquido = valor_dec - taxa_cliente
-    return {"taxa_cliente": taxa_cliente, "taxa_banco": taxa_banco, "lucro": max(Decimal('0'), lucro), "valor_liquido": valor_liquido}
+    
+    return {
+        "taxa_cliente": float(taxa_cliente),
+        "taxa_banco": float(taxa_banco), 
+        "lucro": float(max(Decimal('0'), lucro)), 
+        "valor_liquido": float(valor_liquido)
+    }
 
-def calcular_taxa_cheque_a_vista(valor):
+def calcular_taxa_cheque_vista(valor):
     valor_dec = Decimal(str(valor))
-    taxa_total = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    valor_liquido = valor_dec - taxa_total
-    return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
+    taxa_cliente = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal('0.00')
+    lucro = taxa_cliente
+    valor_liquido = valor_dec - taxa_cliente
+    
+    return {
+        "taxa_cliente": float(taxa_cliente),
+        "taxa_banco": float(taxa_banco),
+        "lucro": float(lucro),
+        "valor_liquido": float(valor_liquido)
+    }
 
-def calcular_taxa_cheque_predatado(valor, data_cheque):
+def calcular_taxa_cheque_pre_datado(valor, dias):
     valor_dec = Decimal(str(valor))
-    hoje = obter_date_brasilia()
-    dias = (data_cheque - hoje).days
-    if dias < 0 or dias > 180: return None
-    taxa_base = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_diaria = (valor_dec * Decimal('0.0033') * Decimal(dias)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_total = taxa_base + taxa_diaria
-    valor_liquido = valor_dec - taxa_total
-    return {"taxa_total": taxa_total, "valor_liquido": valor_liquido, "dias": dias}
+    taxa_base = valor_dec * Decimal('0.02')  # 2% base
+    taxa_adicional = valor_dec * Decimal('0.0033') * Decimal(str(dias))  # 0.33% por dia
+    taxa_cliente = (taxa_base + taxa_adicional).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal('0.00')
+    lucro = taxa_cliente
+    valor_liquido = valor_dec - taxa_cliente
+    
+    return {
+        "taxa_cliente": float(taxa_cliente),
+        "taxa_banco": float(taxa_banco),
+        "lucro": float(lucro),
+        "valor_liquido": float(valor_liquido)
+    }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    if taxa_percentual < 0: return None
     valor_dec = Decimal(str(valor))
-    taxa_dec = Decimal(str(taxa_percentual))
-    taxa_total = (valor_dec * (taxa_dec / Decimal('100'))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    valor_liquido = valor_dec - taxa_total
-    return {"taxa_total": taxa_total, "valor_liquido": valor_liquido}
+    taxa_perc_dec = Decimal(str(taxa_percentual)) / Decimal('100')
+    taxa_cliente = (valor_dec * taxa_perc_dec).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal('0.00')
+    lucro = taxa_cliente
+    valor_liquido = valor_dec - taxa_cliente
+    
+    return {
+        "taxa_cliente": float(taxa_cliente),
+        "taxa_banco": float(taxa_banco),
+        "lucro": float(lucro),
+        "valor_liquido": float(valor_liquido)
+    }
 
-# ---------------------------
-# Módulos de Renderização
-# ---------------------------
+# Sistema de autenticação
+def verificar_login():
+    if 'logado' not in st.session_state:
+        st.session_state.logado = False
+    
+    if not st.session_state.logado:
+        st.markdown("""
+        <div style="text-align: center; padding: 2rem;">
+            <h1 style="color: #667eea; margin-bottom: 2rem;">🏪 Sistema Unificado</h1>
+            <h3 style="color: #666; margin-bottom: 3rem;">Lotérica & Caixa Interno</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            with st.form("login_form"):
+                st.markdown("### 🔐 Acesso ao Sistema")
+                
+                tipo_usuario = st.selectbox(
+                    "👤 Tipo de Usuário",
+                    ["👑 Gerente", "🎰 Operador Lotérica", "💳 Operador Caixa"]
+                )
+                
+                senha = st.text_input("🔑 Senha", type="password")
+                
+                col_login1, col_login2 = st.columns(2)
+                with col_login1:
+                    login_button = st.form_submit_button("🚀 Acessar Sistema", use_container_width=True)
+                with col_login2:
+                    help_button = st.form_submit_button("ℹ️ Ajuda", use_container_width=True)
+                
+                if help_button:
+                    st.info("""
+                    **Credenciais de Acesso:**
+                    - 👑 Gerente: gerente123
+                    - 🎰 Operador Lotérica: loterica123  
+                    - 💳 Operador Caixa: caixa123
+                    """)
+                
+                if login_button:
+                    senhas = {
+                        "👑 Gerente": "gerente123",
+                        "🎰 Operador Lotérica": "loterica123",
+                        "💳 Operador Caixa": "caixa123"
+                    }
+                    
+                    if senha == senhas.get(tipo_usuario):
+                        st.session_state.logado = True
+                        st.session_state.tipo_usuario = tipo_usuario
+                        st.session_state.nome_usuario = tipo_usuario.split(" ", 1)[1]
+                        st.success(f"✅ Login realizado com sucesso! Bem-vindo, {st.session_state.nome_usuario}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Senha incorreta!")
+        return False
+    return True
+
+# Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
+    
     HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
     operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+    
     if not operacoes_data:
-        st.info("Nenhuma operação registrada para exibir o dashboard.")
+        st.info("📊 Nenhuma operação registrada para exibir o dashboard.")
         return
+    
     try:
-        df_operacoes = pd.DataFrame(operacoes_data)
+        # Normalizar dados
+        operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+        df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        
+        # Converter colunas numéricas
         for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
-            if col in df_operacoes.columns: df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+        
+        # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
-        saldo_caixa = total_suprimentos - total_saques_liquidos
-        hoje_str = str(obter_date_brasilia())
+        
+        # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
+        saldo_inicial = 5000.00  # Saldo inicial configurado
+        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+        
+        # Operações de hoje
+        hoje_str = obter_data_brasilia()
         operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
         valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Bruto'].sum()
+        
+        # Exibir métricas em cards
         col1, col2, col3, col4 = st.columns(4)
-        with col1: st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);"><h3>R$ {saldo_caixa:,.2f}</h3><p>💰 Saldo do Caixa</p></div>""", unsafe_allow_html=True)
-        with col2: st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"><h3>R$ {valor_saque_hoje:,.2f}</h3><p>💳 Valor Saque Hoje</p></div>""", unsafe_allow_html=True)
-        with col3: st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"><h3>{operacoes_hoje_count}</h3><p>📋 Operações Hoje</p></div>""", unsafe_allow_html=True)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <p>💰 Saldo do Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <p>💳 Valor Saque Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{operacoes_hoje_count}</h3>
+                <p>📋 Operações Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col4:
             status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
             status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
-            st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);"><h3>{status_texto}</h3><p>🚦 Status Caixa</p></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
+                <h3>{status_texto}</h3>
+                <p>🚦 Status Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         st.markdown("---")
+        
+        # Gráfico de resumo de operações
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
+        
         df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
         df_operacoes.dropna(subset=['Data'], inplace=True)
-        df_recente = df_operacoes[df_operacoes['Data'] >= (datetime.now() - timedelta(days=7))]
+        df_recente = df_operacoes[df_operacoes['Data'] >= (obter_datetime_brasilia() - timedelta(days=7))]
+        
         if not df_recente.empty:
             resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
-            fig = px.bar(resumo_por_tipo, x='Tipo_Operacao', y='Valor_Liquido', title="Valor Líquido por Tipo de Operação", labels={'Tipo_Operacao': 'Tipo de Operação', 'Valor_Liquido': 'Valor Líquido Total (R$)'}, color='Tipo_Operacao', text_auto='.2f')
+            
+            fig = px.bar(
+                resumo_por_tipo, 
+                x='Tipo_Operacao', 
+                y='Valor_Liquido',
+                title="Valor Líquido por Tipo de Operação",
+                labels={
+                    'Tipo_Operacao': 'Tipo de Operação', 
+                    'Valor_Liquido': 'Valor Líquido Total (R$)'
+                },
+                color='Tipo_Operacao',
+                text_auto='.2f'
+            )
+            fig.update_layout(
+                showlegend=False,
+                height=400,
+                font=dict(family="Inter, sans-serif")
+            )
             st.plotly_chart(fig, use_container_width=True)
-        if saldo_caixa < 1000: st.markdown("""<div class="alert-warning">🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.</div>""", unsafe_allow_html=True)
-        elif saldo_caixa < 2000: st.markdown("""<div class="alert-info">⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.</div>""", unsafe_allow_html=True)
+        else:
+            st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
+        
+        # Alertas de saldo
+        if saldo_caixa < 1000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """, unsafe_allow_html=True)
+        elif saldo_caixa < 2000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """, unsafe_allow_html=True)
+        
     except Exception as e:
         st.error(f"Erro ao carregar dashboard: {e}")
         st.exception(e)
 
+# Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
+    
+    # Headers para o cofre
     HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
+    
+    # Buscar dados do cofre
     cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
     df_cofre = pd.DataFrame(cofre_data)
+    
+    # Calcular saldo do cofre
     saldo_cofre = Decimal('0')
     if not df_cofre.empty and 'Tipo_Transacao' in df_cofre.columns and 'Valor' in df_cofre.columns:
         df_cofre['Valor'] = pd.to_numeric(df_cofre['Valor'], errors='coerce').fillna(0)
         df_cofre['Tipo_Transacao'] = df_cofre['Tipo_Transacao'].astype(str)
+        
         entradas = df_cofre[df_cofre['Tipo_Transacao'] == 'Entrada no Cofre']['Valor'].sum()
         saidas = df_cofre[df_cofre['Tipo_Transacao'] == 'Saída do Cofre']['Valor'].sum()
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
-    st.markdown(f"""<div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);"><h3>R$ {saldo_cofre:,.2f}</h3><p>🔒 Saldo Atual do Cofre</p></div>""", unsafe_allow_html=True)
+    
+    # Exibir saldo do cofre
+    st.markdown(f"""
+    <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);">
+        <h3>R$ {saldo_cofre:,.2f}</h3>
+        <p>🔒 Saldo Atual do Cofre</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("---")
+    
+    # Tabs para organizar a interface
     tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
+    
     with tab1:
         with st.form("form_mov_cofre", clear_on_submit=True):
             st.markdown("#### Nova Movimentação no Cofre")
-            tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada no Cofre", "Saída do Cofre"])
-            valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0)
+            
+            # Tipo de movimentação com key única
+            tipo_mov = st.selectbox(
+                "Tipo de Movimentação", 
+                ["Entrada no Cofre", "Saída do Cofre"],
+                key="tipo_mov_cofre"
+            )
+            
+            # Valor da movimentação
+            valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key="valor_cofre")
+            
+            # Campo dinâmico baseado no tipo de movimentação
             destino_final = ""
+            
             if tipo_mov == "Saída do Cofre":
-                tipo_saida = st.selectbox("Tipo de Saída:", ["Transferência para Caixa", "Pagamento de Despesa"])
+                tipo_saida = st.selectbox(
+                    "Tipo de Saída:", 
+                    ["Transferência para Caixa", "Pagamento de Despesa"],
+                    key="tipo_saida_cofre"
+                )
+                
                 if tipo_saida == "Transferência para Caixa":
-                    destino_caixa = st.selectbox("Transferir para:", ["Caixa Interno", "Caixa Lotérica"])
+                    destino_caixa = st.selectbox(
+                        "Transferir para:", 
+                        ["Caixa Interno", "Caixa Lotérica"],
+                        key="destino_caixa_cofre"
+                    )
+                    
                     if destino_caixa == "Caixa Lotérica":
-                        destino_pdv = st.selectbox("Selecione o PDV:", ["PDV 1", "PDV 2"])
+                        destino_pdv = st.selectbox(
+                            "Selecione o PDV:", 
+                            ["PDV 1", "PDV 2"],
+                            key="destino_pdv_cofre"
+                        )
                         destino_final = f"{destino_caixa} - {destino_pdv}"
                     else:
                         destino_final = destino_caixa
                 else:
-                    destino_final = st.text_input("Descrição da Despesa (Ex: Aluguel, Fornecedor X)")
+                    destino_final = st.text_input(
+                        "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
+                        key="descricao_despesa_cofre"
+                    )
             else:
-                destino_final = st.text_input("Origem da Entrada (Ex: Banco, Sócio)")
-            observacoes = st.text_area("Observações Adicionais")
+                destino_final = st.text_input(
+                    "Origem da Entrada (Ex: Banco, Sócio)",
+                    key="origem_entrada_cofre"
+                )
+            
+            # Observações
+            observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
+            
+            # Botão de submissão
             submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
+            
             if submitted:
+                # Salvar no Google Sheets
                 cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
-                nova_mov_cofre = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, tipo_mov, float(valor), destino_final, observacoes]
+                
+                nova_mov_cofre = [
+                    obter_data_brasilia(), 
+                    obter_horario_brasilia(), 
+                    st.session_state.nome_usuario, 
+                    tipo_mov, 
+                    float(valor), 
+                    destino_final, 
+                    observacoes
+                ]
+                
                 cofre_sheet.append_row(nova_mov_cofre)
+                
+                # Se for saída para caixa interno, criar suprimento automaticamente
                 if tipo_mov == "Saída do Cofre" and destino_final == "Caixa Interno":
                     HEADERS_CAIXA = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
                     caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
-                    nova_operacao_caixa = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, "Suprimento", "Sistema", "N/A", float(valor), 0, 0, float(valor), 0, "Concluído", "", "0.00%", f"Transferência do Cofre para: {destino_final}"]
+                    
+                    nova_operacao_caixa = [
+                        obter_data_brasilia(), 
+                        obter_horario_brasilia(), 
+                        st.session_state.nome_usuario, 
+                        "Suprimento", 
+                        "Sistema", 
+                        "N/A", 
+                        float(valor), 
+                        0, 
+                        0, 
+                        float(valor), 
+                        0, 
+                        "Concluído", 
+                        "", 
+                        "0.00%", 
+                        f"Transferência do Cofre para: {destino_final}"
+                    ]
+                    
                     caixa_sheet.append_row(nova_operacao_caixa)
                     st.success(f"✅ Saída de R$ {valor:,.2f} do cofre registrada e suprimento criado no Caixa Interno!")
+                
                 elif tipo_mov == "Saída do Cofre" and "Caixa Lotérica" in destino_final:
                     st.info(f"Saída para {destino_final} registrada. A integração de suprimento com o caixa da lotérica será implementada futuramente.")
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                 else:
                     st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
+                
+                # Limpar cache para atualizar dados
                 st.cache_data.clear()
+    
     with tab2:
         st.markdown("#### Histórico de Movimentações")
+        
         if not df_cofre.empty:
+            # Ordenar por data e hora (mais recente primeiro)
             if 'Data' in df_cofre.columns and 'Hora' in df_cofre.columns:
-                 df_cofre_sorted = df_cofre.sort_values(by=['Data', 'Hora'], ascending=False)
-                 st.dataframe(df_cofre_sorted, use_container_width=True)
+                df_cofre_sorted = df_cofre.sort_values(by=['Data', 'Hora'], ascending=False)
+                st.dataframe(df_cofre_sorted, use_container_width=True)
             else:
-                 st.dataframe(df_cofre, use_container_width=True)
+                st.dataframe(df_cofre, use_container_width=True)
         else:
             st.info("Nenhuma movimentação registrada no cofre.")
 
+# Função para operações do caixa interno
+def render_operacoes_caixa(spreadsheet):
+    st.subheader("💳 Operações do Caixa Interno")
+    
+    # Headers para operações do caixa
+    HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+    
+    # Tabs para organizar as operações
+    tab1, tab2, tab3, tab4 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico"])
+    
+    with tab1:
+        st.markdown("### 💳 Saque com Cartão")
+        
+        with st.form("form_saque_cartao", clear_on_submit=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                tipo_cartao = st.selectbox("Tipo de Cartão", ["Débito", "Crédito"])
+                valor = st.number_input("Valor do Saque (R$)", min_value=0.01, step=50.0)
+                nome = st.text_input("Nome do Cliente (Opcional)")
+            
+            with col2:
+                cpf = st.text_input("CPF do Cliente (Opcional)")
+                observacoes = st.text_area("Observações")
+            
+            col_sim, col_conf = st.columns([1, 1])
+            
+            with col_sim:
+                simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
+            
+            if simular and valor > 0:
+                if tipo_cartao == "Débito":
+                    calc = calcular_taxa_cartao_debito(valor)
+                else:
+                    calc = calcular_taxa_cartao_credito(valor)
+                
+                st.markdown("---")
+                st.markdown(f"### ✅ Simulação - Cartão {tipo_cartao}")
+                
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
+                    st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                
+                with col_res2:
+                    st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                    if tipo_cartao == "Débito":
+                        st.info("💡 Taxa de 1% sobre o valor do saque")
+                    else:
+                        st.info("💡 Taxa de 5,33% sobre o valor do saque")
+                
+                st.session_state.simulacao_atual = {
+                    'tipo': f'Saque Cartão {tipo_cartao}',
+                    'dados': calc,
+                    'valor_bruto': valor,
+                    'nome': nome or "Não informado",
+                    'cpf': cpf or "Não informado",
+                    'observacoes': observacoes
+                }
+            
+            with col_conf:
+                confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
+            
+            if confirmar:
+                if 'simulacao_atual' not in st.session_state:
+                    st.error("❌ Faça a simulação antes de confirmar!")
+                else:
+                    sim_data = st.session_state.simulacao_atual
+                    
+                    # Salvar no Google Sheets
+                    worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
+                    
+                    nova_operacao = [
+                        obter_data_brasilia(),
+                        obter_horario_brasilia(),
+                        st.session_state.nome_usuario,
+                        sim_data['tipo'],
+                        sim_data['nome'],
+                        sim_data['cpf'],
+                        sim_data['valor_bruto'],
+                        sim_data['dados']['taxa_cliente'],
+                        sim_data['dados']['taxa_banco'],
+                        sim_data['dados']['valor_liquido'],
+                        sim_data['dados']['lucro'],
+                        "Concluído",
+                        "",
+                        f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
+                        sim_data['observacoes']
+                    ]
+                    
+                    worksheet.append_row(nova_operacao)
+                    st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
+                    
+                    # Limpar simulação
+                    del st.session_state.simulacao_atual
+                    st.cache_data.clear()
+    
+    with tab2:
+        st.markdown("### 📄 Troca de Cheques")
+        
+        with st.form("form_troca_cheque", clear_on_submit=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                tipo_cheque = st.selectbox("Tipo de Cheque", ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"])
+                valor = st.number_input("Valor do Cheque (R$)", min_value=0.01, step=100.0, key="valor_cheque")
+                nome = st.text_input("Nome do Cliente (Opcional)", key="nome_cheque")
+            
+            with col2:
+                cpf = st.text_input("CPF do Cliente (Opcional)", key="cpf_cheque")
+                observacoes = st.text_area("Observações", key="obs_cheque")
+            
+            # Campos específicos por tipo de cheque
+            dias = 0
+            taxa_manual = 0
+            data_venc = ""
+            
+            if tipo_cheque == "Cheque Pré-datado":
+                data_vencimento = st.date_input("Data de Vencimento", min_value=obter_date_brasilia())
+                dias = (data_vencimento - obter_date_brasilia()).days
+                st.info(f"📅 Dias até vencimento: {dias}")
+                data_venc = str(data_vencimento)
+            elif tipo_cheque == "Cheque com Taxa Manual":
+                taxa_manual = st.number_input("Taxa Percentual (%)", min_value=0.1, max_value=50.0, step=0.1)
+            
+            col_sim, col_conf = st.columns([1, 1])
+            
+            with col_sim:
+                simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True, key="sim_cheque")
+            
+            if simular and valor > 0:
+                if tipo_cheque == "Cheque à Vista":
+                    calc = calcular_taxa_cheque_vista(valor)
+                    data_venc = obter_data_brasilia()
+                elif tipo_cheque == "Cheque Pré-datado":
+                    calc = calcular_taxa_cheque_pre_datado(valor, dias)
+                else:
+                    calc = calcular_taxa_cheque_manual(valor, taxa_manual)
+                    data_venc = obter_data_brasilia()
+                
+                st.markdown("---")
+                st.markdown(f"### ✅ Simulação - {tipo_cheque}")
+                
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
+                    st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                
+                with col_res2:
+                    st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                    if tipo_cheque == "Cheque à Vista":
+                        st.info("💡 Taxa de 2% sobre o valor do cheque")
+                    elif tipo_cheque == "Cheque Pré-datado":
+                        st.info(f"💡 Taxa de 2% + 0,33% por dia ({dias} dias)")
+                    else:
+                        st.info(f"💡 Taxa manual de {taxa_manual}%")
+                
+                st.session_state.simulacao_atual = {
+                    'tipo': tipo_cheque,
+                    'dados': calc,
+                    'valor_bruto': valor,
+                    'nome': nome or "Não informado",
+                    'cpf': cpf or "Não informado",
+                    'observacoes': observacoes,
+                    'data_vencimento': data_venc
+                }
+            
+            with col_conf:
+                confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True, key="conf_cheque")
+            
+            if confirmar:
+                if 'simulacao_atual' not in st.session_state:
+                    st.error("❌ Faça a simulação antes de confirmar!")
+                else:
+                    sim_data = st.session_state.simulacao_atual
+                    
+                    # Salvar no Google Sheets
+                    worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
+                    
+                    nova_operacao = [
+                        obter_data_brasilia(),
+                        obter_horario_brasilia(),
+                        st.session_state.nome_usuario,
+                        sim_data['tipo'],
+                        sim_data['nome'],
+                        sim_data['cpf'],
+                        sim_data['valor_bruto'],
+                        sim_data['dados']['taxa_cliente'],
+                        sim_data['dados']['taxa_banco'],
+                        sim_data['dados']['valor_liquido'],
+                        sim_data['dados']['lucro'],
+                        "Concluído",
+                        sim_data['data_vencimento'],
+                        f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
+                        sim_data['observacoes']
+                    ]
+                    
+                    worksheet.append_row(nova_operacao)
+                    st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
+                    
+                    # Limpar simulação
+                    del st.session_state.simulacao_atual
+                    st.cache_data.clear()
+    
+    with tab3:
+        st.markdown("### 🔄 Suprimento do Caixa")
+        
+        with st.form("form_suprimento", clear_on_submit=True):
+            valor_suprimento = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0)
+            origem_suprimento = st.selectbox("Origem do Suprimento", ["Cofre Principal", "Banco", "Outro"])
+            observacoes_sup = st.text_area("Observações do Suprimento")
+            
+            if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
+                # Salvar no Google Sheets
+                worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
+                
+                nova_operacao = [
+                    obter_data_brasilia(),
+                    obter_horario_brasilia(),
+                    st.session_state.nome_usuario,
+                    "Suprimento",
+                    "Sistema",
+                    "N/A",
+                    float(valor_suprimento),
+                    0,
+                    0,
+                    float(valor_suprimento),
+                    0,
+                    "Concluído",
+                    "",
+                    "0.00%",
+                    f"Origem: {origem_suprimento}. {observacoes_sup}"
+                ]
+                
+                worksheet.append_row(nova_operacao)
+                st.success(f"✅ Suprimento de R$ {valor_suprimento:,.2f} registrado com sucesso!")
+                st.cache_data.clear()
+    
+    with tab4:
+        st.markdown("### 📊 Histórico de Operações")
+        
+        # Filtros
+        col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
+        
+        with col_filtro1:
+            if st.button("📅 Filtrar por Data"):
+                st.session_state.mostrar_filtro_data = not st.session_state.get('mostrar_filtro_data', False)
+        
+        if st.session_state.get('mostrar_filtro_data', False):
+            col_data1, col_data2 = st.columns(2)
+            with col_data1:
+                data_inicio = st.date_input("Data Início", value=obter_date_brasilia() - timedelta(days=7))
+            with col_data2:
+                if 'data_inicio' in locals():
+                    data_fim = st.date_input("Data Fim", value=obter_date_brasilia())
+                else:
+                    data_fim = obter_date_brasilia()
+        
+        with col_filtro2:
+            tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Suprimento"])
+        
+        # Buscar e exibir dados
+        operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+        
+        if operacoes_data:
+            # Normalizar dados
+            operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+            df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+            
+            # Aplicar filtros
+            if tipo_operacao_filtro != "Todos":
+                df_operacoes = df_operacoes[df_operacoes['Tipo_Operacao'] == tipo_operacao_filtro]
+            
+            if st.session_state.get('mostrar_filtro_data', False) and 'data_inicio' in locals():
+                df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'])
+                df_operacoes = df_operacoes[
+                    (df_operacoes['Data'] >= pd.to_datetime(data_inicio)) & 
+                    (df_operacoes['Data'] <= pd.to_datetime(data_fim))
+                ]
+            
+            # Ordenar por data e hora (mais recente primeiro)
+            if not df_operacoes.empty:
+                if 'Data' in df_operacoes.columns and 'Hora' in df_operacoes.columns:
+                    df_operacoes = df_operacoes.sort_values(by=['Data', 'Hora'], ascending=False)
+                
+                st.dataframe(df_operacoes, use_container_width=True)
+                
+                # Estatísticas do período
+                st.markdown("---")
+                st.markdown("### 📈 Estatísticas do Período")
+                
+                col_stat1, col_stat2, col_stat3 = st.columns(3)
+                
+                with col_stat1:
+                    total_operacoes = len(df_operacoes)
+                    st.metric("Total de Operações", total_operacoes)
+                
+                with col_stat2:
+                    if 'Valor_Bruto' in df_operacoes.columns:
+                        total_movimentado = df_operacoes['Valor_Bruto'].sum()
+                        st.metric("Total Movimentado", f"R$ {total_movimentado:,.2f}")
+                
+                with col_stat3:
+                    if 'Taxa_Cliente' in df_operacoes.columns:
+                        total_taxas = df_operacoes['Taxa_Cliente'].sum()
+                        st.metric("Total em Taxas", f"R$ {total_taxas:,.2f}")
+            else:
+                st.info("Nenhuma operação encontrada com os filtros aplicados.")
+        else:
+            st.info("Nenhuma operação registrada ainda.")
+
+# Função para fechamento da lotérica
 def render_fechamento_loterica(spreadsheet):
     st.subheader("📋 Fechamento de Caixa Lotérica")
-    HEADERS_FECHAMENTO = ["Data_Fechamento", "PDV", "Operador", "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao", "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha", "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal", "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao", "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha", "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal", "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final", "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"]
+    
+    HEADERS_FECHAMENTO = [
+        "Data_Fechamento", "PDV", "Operador", 
+        "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
+        "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha",
+        "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal",
+        "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
+        "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
+        "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
+        "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", 
+        "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
+        "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
+    ]
+    
     with st.form("form_fechamento_pdv", clear_on_submit=False):
         st.markdown("#### Lançar Fechamento Diário do PDV")
+        
         col1, col2 = st.columns(2)
         with col1:
             pdv_selecionado = st.selectbox("Selecione o PDV", ["PDV 1", "PDV 2"])
         with col2:
             data_fechamento = st.date_input("Data do Fechamento", obter_date_brasilia())
+        
+        # Buscar saldo anterior
         sheet_name = f"Fechamentos_{pdv_selecionado.replace(' ', '')}"
         fechamentos_data = buscar_dados(spreadsheet, sheet_name)
         df_fechamentos = pd.DataFrame(fechamentos_data)
+        
         saldo_anterior = Decimal('0')
-        if not df_fechamentos.empty and 'Data_Fechamento' in df_fechamentos.columns and 'Saldo_Final_Calculado' in df_fechamentos.columns:
+        if not df_fechamentos.empty:
             df_fechamentos['Data_Fechamento'] = pd.to_datetime(df_fechamentos['Data_Fechamento'], errors='coerce').dt.date
             df_fechamentos['Saldo_Final_Calculado'] = pd.to_numeric(df_fechamentos['Saldo_Final_Calculado'], errors='coerce').fillna(0)
+            
             data_anterior = data_fechamento - timedelta(days=1)
             registro_anterior = df_fechamentos[df_fechamentos['Data_Fechamento'] == data_anterior]
+            
             if not registro_anterior.empty:
                 saldo_anterior = Decimal(str(registro_anterior.iloc[0]['Saldo_Final_Calculado']))
-        st.metric("Saldo Anterior (Fechamento de Ontem)", f"R$ {saldo_anterior:,.2f}")
-        st.markdown("---")
-        with st.expander("Lançamentos de Compras de Produtos (Custo)"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.write("**Bolão**"); qtd_compra_bolao = st.number_input("Qtd Compra", min_value=0, key="qtd_c_bolao"); custo_bolao = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_bolao"); total_compra_bolao = qtd_compra_bolao * custo_bolao
-            with c2:
-                st.write("**Raspadinha**"); qtd_compra_raspa = st.number_input("Qtd Compra", min_value=0, key="qtd_c_raspa"); custo_raspa = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_raspa"); total_compra_raspa = qtd_compra_raspa * custo_raspa
-            with c3:
-                st.write("**Loteria Federal**"); qtd_compra_federal = st.number_input("Qtd Compra", min_value=0, key="qtd_c_federal"); custo_federal = st.number_input("Custo Unit. (R$)", min_value=0.0, format="%.2f", key="custo_federal"); total_compra_federal = qtd_compra_federal * custo_federal
-        with st.expander("Lançamentos de Vendas de Produtos (Receita)"):
-            v1, v2, v3 = st.columns(3)
-            with v1:
-                st.write("**Bolão**"); qtd_venda_bolao = st.number_input("Qtd Venda", min_value=0, key="qtd_v_bolao"); preco_bolao = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_bolao"); total_venda_bolao = qtd_venda_bolao * preco_bolao
-            with v2:
-                st.write("**Raspadinha**"); qtd_venda_raspa = st.number_input("Qtd Venda", min_value=0, key="qtd_v_raspa"); preco_raspa = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_raspa"); total_venda_raspa = qtd_venda_raspa * preco_raspa
-            with v3:
-                st.write("**Loteria Federal**"); qtd_venda_federal = st.number_input("Qtd Venda", min_value=0, key="qtd_v_federal"); preco_federal = st.number_input("Preço Unit. (R$)", min_value=0.0, format="%.2f", key="preco_federal"); total_venda_federal = qtd_venda_federal * preco_federal
-        with st.expander("Outras Movimentações e Retiradas"):
-            o1, o2, o3 = st.columns(3)
-            with o1: mov_cielo = st.number_input("Total Cielo (R$)", min_value=0.0, format="%.2f")
-            with o2: pag_premios = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, format="%.2f")
-            with o3: vales_despesas = st.number_input("Vales e Despesas (R$)", min_value=0.0, format="%.2f")
-            r1, r2 = st.columns(2)
-            with r1: retirada_cofre = st.number_input("Retirada para o Cofre (R$)", min_value=0.0, format="%.2f")
-            with r2: retirada_caixa_interno = st.number_input("Retirada para o Caixa Interno (R$)", min_value=0.0, format="%.2f")
-        st.markdown("---")
-        st.markdown("##### Conferência Final")
-        dinheiro_gaveta = st.number_input("Valor Final Contado na Gaveta (R$)", min_value=0.0, format="%.2f")
-        submitted = st.form_submit_button("Lançar Fechamento de Caixa", use_container_width=True)
-        if submitted:
-            total_compras = Decimal(str(total_compra_bolao)) + Decimal(str(total_compra_raspa)) + Decimal(str(total_compra_federal))
-            total_vendas = Decimal(str(total_venda_bolao)) + Decimal(str(total_venda_raspa)) + Decimal(str(total_venda_federal))
-            saldo_final_calculado = saldo_anterior + total_vendas + Decimal(str(mov_cielo)) - total_compras - Decimal(str(pag_premios)) - Decimal(str(vales_despesas)) - Decimal(str(retirada_cofre)) - Decimal(str(retirada_caixa_interno))
-            diferenca = Decimal(str(dinheiro_gaveta)) - saldo_final_calculado
-            fechamento_sheet = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
-            nova_linha = [str(data_fechamento), pdv_selecionado, st.session_state.nome_usuario, qtd_compra_bolao, custo_bolao, total_compra_bolao, qtd_compra_raspa, custo_raspa, total_compra_raspa, qtd_compra_federal, custo_federal, total_compra_federal, qtd_venda_bolao, preco_bolao, total_venda_bolao, qtd_venda_raspa, preco_raspa, total_venda_raspa, qtd_venda_federal, preco_federal, total_venda_federal, mov_cielo, pag_premios, vales_despesas, retirada_cofre, retirada_caixa_interno, dinheiro_gaveta, float(saldo_anterior), float(saldo_final_calculado), float(diferenca)]
-            fechamento_sheet.append_row(nova_linha)
-            if retirada_cofre > 0:
-                cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"])
-                mov_cofre = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, "Entrada no Cofre", float(retirada_cofre), f"Sangria do {pdv_selecionado}", f"Fechamento do dia {data_fechamento}"]
-                cofre_sheet.append_row(mov_cofre)
-                st.success(f"✅ Entrada de R$ {retirada_cofre:,.2f} registrada no Cofre.")
-            if retirada_caixa_interno > 0:
-                caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"])
-                op_caixa = [str(date.today()), datetime.now().strftime("%H:%M:%S"), st.session_state.nome_usuario, "Suprimento", "Sistema", "N/A", float(retirada_caixa_interno), 0, 0, float(retirada_caixa_interno), 0, "Concluído", "", "0.00%", f"Sangria do {pdv_selecionado} no dia {data_fechamento}"]
-                caixa_sheet.append_row(op_caixa)
-                st.success(f"✅ Suprimento de R$ {retirada_caixa_interno:,.2f} registrado no Caixa Interno.")
-            st.success(f"Fechamento do {pdv_selecionado} para o dia {data_fechamento} salvo!")
-            if diferenca == 0:
-                st.success("🎉 Caixa bateu perfeitamente!")
+        
+        st.info(f"💰 Saldo anterior ({data_fechamento - timedelta(days=1)}): R$ {saldo_anterior:,.2f}")
+        
+        # Seção de Compras
+        st.markdown("### 🛒 Compras do Dia")
+        col_comp1, col_comp2, col_comp3 = st.columns(3)
+        
+        with col_comp1:
+            st.markdown("**Bolão**")
+            qtd_comp_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_bolao")
+            custo_unit_bolao = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_bolao")
+            total_comp_bolao = qtd_comp_bolao * custo_unit_bolao
+            st.write(f"Total: R$ {total_comp_bolao:.2f}")
+        
+        with col_comp2:
+            st.markdown("**Raspadinha**")
+            qtd_comp_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_rasp")
+            custo_unit_rasp = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_rasp")
+            total_comp_rasp = qtd_comp_rasp * custo_unit_rasp
+            st.write(f"Total: R$ {total_comp_rasp:.2f}")
+        
+        with col_comp3:
+            st.markdown("**Loteria Federal**")
+            qtd_comp_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_fed")
+            custo_unit_fed = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_fed")
+            total_comp_fed = qtd_comp_fed * custo_unit_fed
+            st.write(f"Total: R$ {total_comp_fed:.2f}")
+        
+        # Seção de Vendas
+        st.markdown("### 💰 Vendas do Dia")
+        col_vend1, col_vend2, col_vend3 = st.columns(3)
+        
+        with col_vend1:
+            st.markdown("**Bolão**")
+            qtd_vend_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_bolao")
+            preco_unit_bolao = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_bolao")
+            total_vend_bolao = qtd_vend_bolao * preco_unit_bolao
+            st.write(f"Total: R$ {total_vend_bolao:.2f}")
+        
+        with col_vend2:
+            st.markdown("**Raspadinha**")
+            qtd_vend_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_rasp")
+            preco_unit_rasp = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_rasp")
+            total_vend_rasp = qtd_vend_rasp * preco_unit_rasp
+            st.write(f"Total: R$ {total_vend_rasp:.2f}")
+        
+        with col_vend3:
+            st.markdown("**Loteria Federal**")
+            qtd_vend_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_fed")
+            preco_unit_fed = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_fed")
+            total_vend_fed = qtd_vend_fed * preco_unit_fed
+            st.write(f"Total: R$ {total_vend_fed:.2f}")
+        
+        # Outras movimentações
+        st.markdown("### 🔄 Outras Movimentações")
+        col_mov1, col_mov2 = st.columns(2)
+        
+        with col_mov1:
+            movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", step=0.01)
+            pagamento_premios = st.number_input("Pagamento de Prêmios (R$)", step=0.01)
+            vales_despesas = st.number_input("Vales e Despesas (R$)", step=0.01)
+        
+        with col_mov2:
+            retirada_cofre = st.number_input("Retirada para Cofre (R$)", step=0.01)
+            retirada_caixa_interno = st.number_input("Retirada para Caixa Interno (R$)", step=0.01)
+            dinheiro_gaveta = st.number_input("Dinheiro na Gaveta (R$)", step=0.01)
+        
+        # Cálculos automáticos
+        total_entradas = total_vend_bolao + total_vend_rasp + total_vend_fed + movimentacao_cielo
+        total_saidas = total_comp_bolao + total_comp_rasp + total_comp_fed + pagamento_premios + vales_despesas + retirada_cofre + retirada_caixa_interno
+        
+        saldo_calculado = saldo_anterior + total_entradas - total_saidas
+        diferenca_caixa = dinheiro_gaveta - saldo_calculado
+        
+        # Resumo
+        st.markdown("### 📊 Resumo do Fechamento")
+        col_res1, col_res2, col_res3 = st.columns(3)
+        
+        with col_res1:
+            st.metric("Total Entradas", f"R$ {total_entradas:.2f}")
+            st.metric("Saldo Anterior", f"R$ {saldo_anterior:.2f}")
+        
+        with col_res2:
+            st.metric("Total Saídas", f"R$ {total_saidas:.2f}")
+            st.metric("Saldo Calculado", f"R$ {saldo_calculado:.2f}")
+        
+        with col_res3:
+            st.metric("Dinheiro na Gaveta", f"R$ {dinheiro_gaveta:.2f}")
+            
+            if diferenca_caixa == 0:
+                st.success(f"✅ Caixa Fechado: R$ {diferenca_caixa:.2f}")
+            elif diferenca_caixa > 0:
+                st.warning(f"⚠️ Sobra: R$ {diferenca_caixa:.2f}")
             else:
-                st.warning(f"⚠️ Atenção: Diferença de caixa de R$ {diferenca:,.2f}")
+                st.error(f"❌ Falta: R$ {abs(diferenca_caixa):.2f}")
+        
+        # Salvar fechamento
+        if st.form_submit_button("💾 Salvar Fechamento", use_container_width=True):
+            fechamento_sheet = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
+            
+            novo_fechamento = [
+                str(data_fechamento), pdv_selecionado, st.session_state.nome_usuario,
+                qtd_comp_bolao, custo_unit_bolao, total_comp_bolao,
+                qtd_comp_rasp, custo_unit_rasp, total_comp_rasp,
+                qtd_comp_fed, custo_unit_fed, total_comp_fed,
+                qtd_vend_bolao, preco_unit_bolao, total_vend_bolao,
+                qtd_vend_rasp, preco_unit_rasp, total_vend_rasp,
+                qtd_vend_fed, preco_unit_fed, total_vend_fed,
+                movimentacao_cielo, pagamento_premios, vales_despesas,
+                retirada_cofre, retirada_caixa_interno, dinheiro_gaveta,
+                float(saldo_anterior), float(saldo_calculado), float(diferenca_caixa)
+            ]
+            
+            fechamento_sheet.append_row(novo_fechamento)
+            st.success(f"✅ Fechamento do {pdv_selecionado} salvo com sucesso!")
             st.cache_data.clear()
 
-def render_operacoes_caixa(spreadsheet):
-    st.subheader("💸 Operações do Caixa Interno")
-    tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
-    
-    with tab1:
-        tipo_operacao = st.selectbox("Selecione o Tipo de Operação:",
-            ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual", "Suprimento Caixa"],
-            key="tipo_operacao_caixa", on_change=lambda: st.session_state.update(simulacao_atual=None))
-        
-        # O restante da sua função render_operacoes_caixa, que foi removida,
-        # precisa ser restaurada aqui.
-        if tipo_operacao in ["Saque Cartão Débito", "Saque Cartão Crédito"]:
-            render_form_saque_cartao(spreadsheet, "Débito" if tipo_operacao == "Saque Cartão Débito" else "Crédito")
-        elif "Cheque" in tipo_operacao:
-            render_form_cheque(spreadsheet, tipo_operacao)
-        elif tipo_operacao == "Suprimento Caixa":
-            render_form_suprimento(spreadsheet)
-
-    with tab2:
-        # Lógica do histórico
-        pass
-
-def render_form_saque_cartao(spreadsheet, tipo_cartao):
-    # Função completa, sem alterações
-    pass
-
-def render_form_cheque(spreadsheet, tipo_cheque):
-    # Função completa, sem alterações
-    pass
-    
-def render_form_suprimento(spreadsheet):
-    # Função completa, sem alterações
-    pass
-
-def render_dashboard_loterica(spreadsheet): st.subheader("🎰 Dashboard Lotérica"); st.info("🚧 Em desenvolvimento.")
-def render_relatorios_gerenciais(spreadsheet): st.subheader("📈 Relatórios Gerenciais"); st.info("🚧 Em desenvolvimento.")
-def render_lancamentos_loterica(spreadsheet): st.subheader("💰 Lançamentos Lotérica"); st.info("🚧 Em desenvolvimento.")
-def render_estoque(spreadsheet): st.subheader("📦 Gestão de Estoque"); st.info("🚧 Em desenvolvimento.")
-def render_relatorios_caixa(spreadsheet): st.subheader("📊 Relatórios do Caixa"); st.info("🚧 Em desenvolvimento.")
-
-# ---------------------------
-# Sistema Principal
-# ---------------------------
-def sistema_principal():
-    spreadsheet = init_google_sheets()
-    if not spreadsheet:
-        st.error("Falha crítica na conexão com o Google Sheets. O aplicativo não pode continuar.")
+# Função principal do sistema
+def main():
+    if not verificar_login():
         return
-
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        if st.session_state.perfil_usuario == "gerente": st.title("👑 Dashboard Gerencial - Sistema Unificado")
-        elif st.session_state.perfil_usuario == "operador_loterica": st.title("🎰 Sistema Lotérica")
-        else: st.title("💳 Sistema Caixa Interno")
-    with col2:
-        st.write(f"**{st.session_state.nome_usuario}**")
-        if st.button("🚪 Sair"):
-            for key in list(st.session_state.keys()): del st.session_state[key]
-            st.rerun()
-
+    
+    # Conectar ao Google Sheets
+    spreadsheet = conectar_google_sheets()
+    if not spreadsheet:
+        st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
+        return
+    
+    # Interface principal baseada no tipo de usuário
     st.sidebar.title("📋 Menu Principal")
     st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
-    st.sidebar.success("🌐 Conectado ao Google Sheets")
     st.sidebar.markdown("---")
     
-    paginas = {
-        "gerente": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Gestão do Cofre": "cofre", "Fechamento Lotérica": "fechamento_loterica", "Dashboard Lotérica": "dashboard_loterica", "Relatórios Gerenciais": "relatorios_gerenciais"},
-        "operador_loterica": {"Dashboard Lotérica": "dashboard_loterica", "Fechamento Lotérica": "fechamento_loterica", "Lançamentos Lotérica": "lancamentos_loterica", "Estoque Lotérica": "estoque"},
-        "operador_caixa": {"Dashboard Caixa": "dashboard_caixa", "Operações Caixa": "operacoes_caixa", "Relatórios Caixa": "relatorios_caixa"}
-    }
+    # Menu baseado no perfil
+    if st.session_state.tipo_usuario == "👑 Gerente":
+        st.title("👑 Dashboard Gerencial - Sistema Unificado")
+        
+        opcoes_menu = {
+            "📊 Dashboard Caixa": "dashboard_caixa",
+            "💳 Operações Caixa": "operacoes_caixa", 
+            "🏦 Gestão do Cofre": "cofre",
+            "📋 Fechamento Lotérica": "fechamento_loterica"
+        }
+        
+    elif st.session_state.tipo_usuario == "💳 Operador Caixa":
+        st.title("💳 Sistema Caixa Interno")
+        
+        opcoes_menu = {
+            "📊 Dashboard Caixa": "dashboard_caixa",
+            "💳 Operações Caixa": "operacoes_caixa"
+        }
+        
+    else:  # Operador Lotérica
+        st.title("🎰 Sistema Lotérica")
+        
+        opcoes_menu = {
+            "📋 Fechamento Lotérica": "fechamento_loterica"
+        }
     
+    # Navegação
     if 'pagina_atual' not in st.session_state:
-        st.session_state.pagina_atual = list(paginas[st.session_state.perfil_usuario].values())[0]
-
-    for nome, chave in paginas[st.session_state.perfil_usuario].items():
-        if st.sidebar.button(nome, use_container_width=True, key=f"btn_{chave}"):
-            st.session_state.pagina_atual = chave
-            st.rerun()
-            
-    paginas_render = {
-        "dashboard_caixa": render_dashboard_caixa, 
-        "operacoes_caixa": render_operacoes_caixa,
-        "cofre": render_cofre, 
-        "fechamento_loterica": render_fechamento_loterica,
-        "dashboard_loterica": render_dashboard_loterica, 
-        "relatorios_gerenciais": render_relatorios_gerenciais, 
-        "lancamentos_loterica": render_lancamentos_loterica, 
-        "estoque": render_estoque, 
-        "relatorios_caixa": render_relatorios_caixa
-    }
+        st.session_state.pagina_atual = list(opcoes_menu.values())[0]
     
-    paginas_render[st.session_state.pagina_atual](spreadsheet)
-
-def main():
-    if not st.session_state.acesso_liberado:
-        verificar_acesso()
-    else:
-        sistema_principal()
+    for nome_opcao, chave_opcao in opcoes_menu.items():
+        if st.sidebar.button(nome_opcao, use_container_width=True):
+            st.session_state.pagina_atual = chave_opcao
+            st.rerun()
+    
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+    
+    # Renderizar página atual
+    if st.session_state.pagina_atual == "dashboard_caixa":
+        render_dashboard_caixa(spreadsheet)
+    elif st.session_state.pagina_atual == "operacoes_caixa":
+        render_operacoes_caixa(spreadsheet)
+    elif st.session_state.pagina_atual == "cofre":
+        render_cofre(spreadsheet)
+    elif st.session_state.pagina_atual == "fechamento_loterica":
+        render_fechamento_loterica(spreadsheet)
 
 if __name__ == "__main__":
     main()
+
