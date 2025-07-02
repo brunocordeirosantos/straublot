@@ -705,7 +705,7 @@ def render_cofre(spreadsheet):
         # Tabs para organizar a interface
         tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
         
-              with tab1:
+         with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
             # --- CORREÇÃO: Mover o selectbox para fora do formulário ---
@@ -719,53 +719,6 @@ def render_cofre(spreadsheet):
                 # O tipo_mov já foi definido fora, então o usamos aqui dentro
                 
                 valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key="valor_cofre")
-                
-                # O restante da lógica condicional permanece o mesmo
-                destino_final = ""
-                
-                if tipo_mov == "Saída do Cofre":
-                    tipo_saida = st.selectbox(
-                        "Tipo de Saída:", 
-                        ["Transferência para Caixa", "Pagamento de Despesa"],
-                        key="tipo_saida_cofre"
-                    )
-                    
-                    if tipo_saida == "Transferência para Caixa":
-                        destino_caixa = st.selectbox(
-                            "Transferir para:", 
-                            ["Caixa Interno", "Caixa Lotérica"],
-                            key="destino_caixa_cofre"
-                        )
-                        
-                        if destino_caixa == "Caixa Lotérica":
-                            destino_pdv = st.selectbox(
-                                "Selecione o PDV:", 
-                                ["PDV 1", "PDV 2"],
-                                key="destino_pdv_cofre"
-                            )
-                            destino_final = f"{destino_caixa} - {destino_pdv}"
-                        else:
-                            destino_final = destino_caixa
-                    else:
-                        destino_final = st.text_input(
-                            "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
-                            key="descricao_despesa_cofre"
-                        )
-                else: # Entrada no Cofre
-                    destino_final = st.text_input(
-                        "Origem da Entrada (Ex: Banco, Sócio)",
-                        key="origem_entrada_cofre"
-                    )
-                
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
-                
-                submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
-                
-                if submitted:
-                    # A lógica de submissão permanece a mesma
-                    # ... (seu código para salvar os dados)
-                    pass # Apenas para o exemplo
-              
                 # Campo dinâmico baseado no tipo de movimentação
                 destino_final = ""
                 
