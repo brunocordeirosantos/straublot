@@ -757,13 +757,7 @@ def render_cofre(spreadsheet):
                         key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
 
-                else: # Entrada no Cofre
-              destino_final = st.text_input(
-                        "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
-                    )
-
-                
+                               
                 observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
                 
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
