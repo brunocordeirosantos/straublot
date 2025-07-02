@@ -472,69 +472,148 @@ def verificar_login():
 
 # Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
-    st.subheader("💳 Dashboard - Caixa Interno")
+    st.subheader("💳 Dashboard Caixa Interno")
     
-    # Buscar dados do caixa
-    caixa_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+    HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+    operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
     
-    if not caixa_data:
-        st.info("📊 Nenhuma operação registrada ainda. Comece fazendo um suprimento!")
+    if not operacoes_data:
+        st.info("📊 Nenhuma operação registrada para exibir o dashboard.")
         return
     
-    # Normalizar dados
-    caixa_data_normalizada = normalizar_dados_inteligente(caixa_data)
-    df_caixa = pd.DataFrame(caixa_data_normalizada)
-    
-    # Calcular métricas
-    saldo_caixa = Decimal('5000.00')  # Saldo inicial
-    valor_saque_hoje = Decimal('0')
-    operacoes_hoje = 0
-    
-    if not df_caixa.empty:
-        # Converter colunas para numérico
-        for col in ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']:
-            if col in df_caixa.columns:
-                df_caixa[col] = pd.to_numeric(df_caixa[col], errors='coerce').fillna(0)
+    try:
+        # Normalizar dados
+        operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+        df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
-        # Calcular saldo considerando todas as operações
-        entradas = df_caixa[df_caixa['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
-        saidas = df_caixa[df_caixa['Tipo_Operacao'].isin(['Saque Cartão Débito', 'Saque Cartão Crédito', 'Troca Cheque à Vista', 'Troca Cheque Pré-datado', 'Troca Cheque com Taxa Manual'])]['Valor_Liquido'].sum()
+        # Converter colunas numéricas
+        for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
         
-        saldo_caixa = Decimal('5000.00') + Decimal(str(entradas)) - Decimal(str(saidas))
+        # Calcular métricas
+        total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
+        total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
+        
+        # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
+        saldo_inicial = 5000.00  # Saldo inicial configurado
+        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
         
         # Operações de hoje
-        hoje = str(date.today())
-        df_hoje = df_caixa[df_caixa['Data'] == hoje]
-        if not df_hoje.empty:
-            valor_saque_hoje = Decimal(str(df_hoje[df_hoje['Tipo_Operacao'].str.contains('Saque|Troca', na=False)]['Valor_Bruto'].sum()))
-            operacoes_hoje = len(df_hoje)
-    
-    # Exibir métricas em cards
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
-            <h3>R$ {saldo_caixa:,.2f}</h3>
-            <p>💰 Saldo do Caixa</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);">
-            <h3>R$ {valor_saque_hoje:,.2f}</h3>
-            <p>📊 Valor Saque Hoje</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);">
-            <h3>{operacoes_hoje}</h3>
-            <p>🔢 Operações Hoje</p>
-        </div>
-        """, unsafe_allow_html=True)
+        hoje_str = str(date.today())
+        operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
+        operacoes_hoje_count = len(operacoes_de_hoje)
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Bruto'].sum()
+        
+        # Exibir métricas em cards
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <p>💰 Saldo do Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <p>💳 Valor Saque Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{operacoes_hoje_count}</h3>
+                <p>📋 Operações Hoje</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
+            status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
+            st.markdown(f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
+                <h3>{status_texto}</h3>
+                <p>🚦 Status Caixa</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Gráfico de resumo de operações
+        st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
+        
+        df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
+        df_operacoes.dropna(subset=['Data'], inplace=True)
+        df_recente = df_operacoes[df_operacoes['Data'] >= (datetime.now() - timedelta(days=7))]
+        
+        if not df_recente.empty:
+            resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
+            
+            fig = px.bar(
+                resumo_por_tipo, 
+                x='Tipo_Operacao', 
+                y='Valor_Liquido',
+                title="Valor Líquido por Tipo de Operação",
+                labels={
+                    'Tipo_Operacao': 'Tipo de Operação', 
+                    'Valor_Liquido': 'Valor Líquido Total (R$)'
+                },
+                color='Tipo_Operacao',
+                text_auto='.2f'
+            )
+            fig.update_layout(
+                showlegend=False,
+                height=400,
+                font=dict(family="Inter, sans-serif")
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
+        
+        # Alertas de saldo
+        if saldo_caixa < 1000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """, unsafe_allow_html=True)
+        elif saldo_caixa < 2000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Estatísticas adicionais
+        st.markdown("---")
+        st.subheader("📈 Estatísticas Detalhadas")
+        
+        col_stat1, col_stat2, col_stat3 = st.columns(3)
+        
+        with col_stat1:
+            total_taxas_hoje = operacoes_de_hoje['Taxa_Cliente'].sum()
+            st.metric("💰 Total Taxas Hoje", f"R$ {total_taxas_hoje:,.2f}")
+        
+        with col_stat2:
+            total_lucro_hoje = operacoes_de_hoje['Lucro'].sum()
+            st.metric("📈 Lucro Hoje", f"R$ {total_lucro_hoje:,.2f}")
+        
+        with col_stat3:
+            if not df_recente.empty:
+                media_operacao = df_recente['Valor_Bruto'].mean()
+                st.metric("📊 Média por Operação", f"R$ {media_operacao:,.2f}")
+            else:
+                st.metric("📊 Média por Operação", "R$ 0,00")
+        
+    except Exception as e:
+        st.error(f"Erro ao carregar dashboard: {e}")
+        st.exception(e)
 
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
