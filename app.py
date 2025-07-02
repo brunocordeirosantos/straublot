@@ -342,15 +342,15 @@ def debug_valores(dados, titulo="Debug"):
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
-    taxa_cliente = Decimal('1.00')  # Taxa fixa de R$ 1,00
-    taxa_banco = Decimal('1.00')   # Taxa fixa de R$ 1,00
-    lucro = Decimal('0.00')        # Sem lucro no débito
+    taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)  # 1% sobre o valor
+    taxa_banco = Decimal('1.00')   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
+    lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
     valor_liquido = valor_dec - taxa_cliente
     
     return {
         "taxa_cliente": float(taxa_cliente),
         "taxa_banco": float(taxa_banco),
-        "lucro": float(lucro),
+        "lucro": float(max(Decimal('0'), lucro)),  # Lucro não pode ser negativo
         "valor_liquido": float(valor_liquido)
     }
 
@@ -824,15 +824,15 @@ def render_saque_cartao(spreadsheet, headers):
             
             col_res1, col_res2 = st.columns(2)
             with col_res1:
-                st.metric("Taxa Cliente", f"R$ {calc['taxa_cliente']:,.2f}")
-                st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
+                st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
             
             with col_res2:
+                st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
                 if tipo_cartao == "Débito":
-                    st.info("💡 Taxa fixa de R$ 1,00 para débito")
+                    st.info("💡 Taxa de 1% sobre o valor do saque")
                 else:
-                    st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                    st.metric("💰 Taxa que fica no caixa", f"R$ {calc['taxa_cliente']:,.2f}")
+                    st.info("💡 Taxa de 5,33% sobre o valor do saque")
             
             st.session_state.simulacao_atual = {
                 'tipo': f'Saque Cartão {tipo_cartao}',
@@ -936,12 +936,17 @@ def render_troca_cheques(spreadsheet, headers):
             
             col_res1, col_res2 = st.columns(2)
             with col_res1:
-                st.metric("Taxa Cliente", f"R$ {calc['taxa_cliente']:,.2f}")
-                st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
+                st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
             
             with col_res2:
-                st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                st.metric("💰 Lucro", f"R$ {calc['lucro']:,.2f}")
+                st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                if tipo_cheque == "Cheque à Vista":
+                    st.info("💡 Taxa de 2% sobre o valor do cheque")
+                elif tipo_cheque == "Cheque Pré-datado":
+                    st.info(f"💡 Taxa de 2% + 0,33% por dia ({dias} dias)")
+                else:
+                    st.info(f"💡 Taxa manual de {taxa_manual}%")
             
             st.session_state.simulacao_atual = {
                 'tipo': tipo_cheque,
