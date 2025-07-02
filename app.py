@@ -261,26 +261,26 @@ def conectar_google_sheets():
                 "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
                 "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
             }
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
-            st.success("🌐 Conectado via Streamlit Secrets (Deploy)")
-            
-        except (KeyError, FileNotFoundError):
-            # Fallback para arquivo local
-            try:
-                creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-                st.success("💻 Conectado via arquivo local")
-            except FileNotFoundError:
-                st.error("❌ Arquivo credentials.json não encontrado")
-                st.info("📋 Para usar localmente, adicione o arquivo credentials.json na pasta do projeto")
-                return None
+            credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+            gc = gspread.authorize(credentials)
+            return gc.open("Sistema Lotérica - Caixa Interno")
+        except Exception as e:
+            st.warning(f"⚠️ Streamlit Secrets não disponível: {str(e)}")
         
-        client = gspread.authorize(creds)
-        return client.open("Lotericabasededados")
+        # Fallback para arquivo local
+        try:
+            credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+            gc = gspread.authorize(credentials)
+            return gc.open("Sistema Lotérica - Caixa Interno")
+        except Exception as e:
+            st.error(f"❌ Erro ao conectar com arquivo local: {str(e)}")
+            return None
+            
     except Exception as e:
-        st.error(f"Erro ao conectar com Google Sheets: {str(e)}")
+        st.error(f"❌ Erro geral na conexão: {str(e)}")
+        st.info("💡 Verifique se o arquivo credentials.json está no diretório correto ou se as secrets estão configuradas.")
         return None
 
-# Função para buscar dados com cache otimizado
 @st.cache_data(ttl=60)
 def buscar_dados(_spreadsheet, sheet_name):
     try:
@@ -964,7 +964,7 @@ def render_operacoes_caixa(spreadsheet):
                 col_sim, col_conf = st.columns([1, 1])
                 
                 with col_sim:
-                    simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True, key="sim_cheque")
+                    simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
                 
                 if simular and valor > 0:
                     try:
@@ -1007,7 +1007,7 @@ def render_operacoes_caixa(spreadsheet):
                         st.error(f"❌ Erro na simulação: {str(e)}")
                 
                 with col_conf:
-                    confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True, key="conf_cheque")
+                    confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
                 
                 if confirmar:
                     try:
