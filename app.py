@@ -568,7 +568,7 @@ def render_dashboard_caixa(spreadsheet):
         hoje_str = obter_data_brasilia()
         operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Bruto'].sum()
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
         
         # Exibir métricas em cards
         col1, col2, col3, col4 = st.columns(4)
