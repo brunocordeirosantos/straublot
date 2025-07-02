@@ -1469,7 +1469,8 @@ def main():
                 "📊 Dashboard Caixa": "dashboard_caixa",
                 "💳 Operações Caixa": "operacoes_caixa", 
                 "🏦 Gestão do Cofre": "cofre",
-                "📋 Fechamento Lotérica": "fechamento_loterica"
+                "📋 Fechamento Lotérica": "fechamento_loterica",
+                "🗓️ Fechamento Caixa": "fechamento_caixa_simplificado" # Adicionado para o gerente
             }
             
         elif st.session_state.tipo_usuario == "💳 Operador Caixa":
@@ -1477,7 +1478,8 @@ def main():
             
             opcoes_menu = {
                 "📊 Dashboard Caixa": "dashboard_caixa",
-                "💳 Operações Caixa": "operacoes_caixa"
+                "💳 Operações Caixa": "operacoes_caixa",
+                "🗓️ Fechamento Caixa": "fechamento_caixa_simplificado" # Adicionado para o operador de caixa
             }
             
         else:  # Operador Lotérica
@@ -1511,6 +1513,8 @@ def main():
             render_cofre(spreadsheet)
         elif st.session_state.pagina_atual == "fechamento_loterica":
             render_fechamento_loterica(spreadsheet)
+        elif st.session_state.pagina_atual == "fechamento_caixa_simplificado": # Nova condição para a função simplificada
+            render_fechamento_caixa_simplificado(spreadsheet)
     
     except Exception as e:
         st.error(f"❌ Erro crítico no sistema: {str(e)}")
@@ -1590,8 +1594,8 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Caixa")
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
-                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
-                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors='coerce').fillna(0)
+                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors=\'coerce\').dt.date
+                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors=\'coerce\').fillna(0)
                 
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
@@ -1613,8 +1617,8 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             df_operacoes = pd.DataFrame(operacoes_data_normalizada)
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if col in df_operacoes.columns:
-                    df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
-            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce").dt.date
+                    df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors=\'coerce\').fillna(0)
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors=\'coerce\').dt.date
             df_operacoes.dropna(subset=["Data"], inplace=True)
             operacoes_hoje = df_operacoes[df_operacoes["Data"] == hoje]
 
@@ -1654,7 +1658,7 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             if st.form_submit_button("💾 Salvar Fechamento"):
                 try:
                     # Simular st.session_state.nome_usuario para teste
-                    if 'nome_usuario' not in st.session_state:
+                    if \'nome_usuario\' not in st.session_state:
                         st.session_state.nome_usuario = "TESTE_USUARIO"
 
                     fechamento_sheet = get_or_create_worksheet(spreadsheet, "Fechamento_Caixa", HEADERS_FECHAMENTO_CAIXA)
@@ -1690,5 +1694,7 @@ if __name__ == "__main__":
     #     pass
     # render_fechamento_caixa_simplificado(MockSpreadsheet())
     pass
+
+
 
 
