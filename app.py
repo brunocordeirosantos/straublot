@@ -23,7 +23,7 @@ def obter_horario_brasilia():
     """Retorna hora atual no fuso horário de Brasília"""
     if PYTZ_AVAILABLE:
         try:
-            tz_brasilia = pytz.timezone('America/Sao_Paulo')
+            tz_brasilia = pytz.timezone("America/Sao_Paulo")
             agora = datetime.now(tz_brasilia)
             return agora.strftime("%H:%M:%S")
         except:
@@ -35,7 +35,7 @@ def obter_data_brasilia():
     """Retorna data atual no fuso horário de Brasília"""
     if PYTZ_AVAILABLE:
         try:
-            tz_brasilia = pytz.timezone('America/Sao_Paulo')
+            tz_brasilia = pytz.timezone("America/Sao_Paulo")
             agora = datetime.now(tz_brasilia)
             return agora.strftime("%Y-%m-%d")
         except:
@@ -47,7 +47,7 @@ def obter_datetime_brasilia():
     """Retorna datetime atual no fuso horário de Brasília"""
     if PYTZ_AVAILABLE:
         try:
-            tz_brasilia = pytz.timezone('America/Sao_Paulo')
+            tz_brasilia = pytz.timezone("America/Sao_Paulo")
             return datetime.now(tz_brasilia)
         except:
             pass
@@ -58,7 +58,7 @@ def obter_date_brasilia():
     """Retorna date atual no fuso horário de Brasília"""
     if PYTZ_AVAILABLE:
         try:
-            tz_brasilia = pytz.timezone('America/Sao_Paulo')
+            tz_brasilia = pytz.timezone("America/Sao_Paulo")
             agora = datetime.now(tz_brasilia)
             return agora.date()
         except:
@@ -78,11 +78,11 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Importar fonte Inter */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
     
     /* Aplicar fonte globalmente */
     html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+        font-family: "Inter", sans-serif;
     }
     
     /* Estilo para botões principais */
@@ -321,14 +321,14 @@ def normalizar_dados_inteligente(dados):
         registro_corrigido = registro.copy()
         
         # Verificar se tem os campos necessários
-        if not all(campo in registro for campo in ['Valor_Bruto', 'Taxa_Cliente', 'Valor_Liquido']):
+        if not all(campo in registro for campo in ["Valor_Bruto", "Taxa_Cliente", "Valor_Liquido"]):
             dados_corrigidos.append(registro_corrigido)
             continue
             
         try:
-            valor_bruto = float(registro['Valor_Bruto'])
-            taxa_cliente = float(registro['Taxa_Cliente'])
-            valor_liquido = float(registro['Valor_Liquido'])
+            valor_bruto = float(registro["Valor_Bruto"])
+            taxa_cliente = float(registro["Taxa_Cliente"])
+            valor_liquido = float(registro["Valor_Liquido"])
             
             # Se valor bruto é 0, pular validação
             if valor_bruto == 0:
@@ -339,7 +339,7 @@ def normalizar_dados_inteligente(dados):
             fatores_teste = [1, 0.01, 0.1, 10, 100]
             melhor_fator_taxa = 1
             melhor_fator_liquido = 1
-            menor_erro = float('inf')
+            menor_erro = float("inf")
             
             for fator_taxa in fatores_teste:
                 for fator_liquido in fatores_teste:
@@ -365,19 +365,19 @@ def normalizar_dados_inteligente(dados):
             
             # Aplicar correções se necessário
             if melhor_fator_taxa != 1:
-                registro_corrigido['Taxa_Cliente'] = taxa_cliente * melhor_fator_taxa
+                registro_corrigido["Taxa_Cliente"] = taxa_cliente * melhor_fator_taxa
                 
             if melhor_fator_liquido != 1:
-                registro_corrigido['Valor_Liquido'] = valor_liquido * melhor_fator_liquido
+                registro_corrigido["Valor_Liquido"] = valor_liquido * melhor_fator_liquido
             
             # Corrigir outros campos relacionados se existirem
-            if 'Taxa_Banco' in registro and melhor_fator_taxa != 1:
-                taxa_banco = float(registro.get('Taxa_Banco', 0))
-                registro_corrigido['Taxa_Banco'] = taxa_banco * melhor_fator_taxa
+            if "Taxa_Banco" in registro and melhor_fator_taxa != 1:
+                taxa_banco = float(registro.get("Taxa_Banco", 0))
+                registro_corrigido["Taxa_Banco"] = taxa_banco * melhor_fator_taxa
                 
-            if 'Lucro' in registro and melhor_fator_taxa != 1:
-                lucro = float(registro.get('Lucro', 0))
-                registro_corrigido['Lucro'] = lucro * melhor_fator_taxa
+            if "Lucro" in registro and melhor_fator_taxa != 1:
+                lucro = float(registro.get("Lucro", 0))
+                registro_corrigido["Lucro"] = lucro * melhor_fator_taxa
                 
         except (ValueError, TypeError):
             # Se houver erro na conversão, manter dados originais
@@ -390,7 +390,7 @@ def normalizar_dados_inteligente(dados):
 # Função para limpar cache forçadamente
 def limpar_cache_forcado():
     st.cache_data.clear()
-    if 'simulacao_atual' in st.session_state:
+    if "simulacao_atual" in st.session_state:
         del st.session_state.simulacao_atual
 
 # Função de debug para valores
@@ -399,43 +399,43 @@ def debug_valores(dados, titulo="Debug"):
         st.write("**Dados brutos:**")
         for i, registro in enumerate(dados[:3]):  # Mostrar apenas 3 primeiros
             st.write(f"Registro {i+1}:")
-            for campo in ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']:
+            for campo in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if campo in registro:
                     st.write(f"  {campo}: {registro[campo]} (tipo: {type(registro[campo])})")
 
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
     valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)  # 1% sobre o valor
-    taxa_banco = Decimal('1.00')   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
+    taxa_cliente = (valor_dec * Decimal("0.01")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # 1% sobre o valor
+    taxa_banco = Decimal("1.00")   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
     lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
     valor_liquido = valor_dec - taxa_cliente
     
     return {
         "taxa_cliente": float(taxa_cliente),
         "taxa_banco": float(taxa_banco),
-        "lucro": float(max(Decimal('0'), lucro)),  # Lucro não pode ser negativo
+        "lucro": float(max(Decimal("0"), lucro)),  # Lucro não pode ser negativo
         "valor_liquido": float(valor_liquido)
     }
 
 def calcular_taxa_cartao_credito(valor):
     valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.0533')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = (valor_dec * Decimal('0.0433')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    taxa_cliente = (valor_dec * Decimal("0.0533")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = (valor_dec * Decimal("0.0433")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
     valor_liquido = valor_dec - taxa_cliente
     
     return {
         "taxa_cliente": float(taxa_cliente),
         "taxa_banco": float(taxa_banco), 
-        "lucro": float(max(Decimal('0'), lucro)), 
+        "lucro": float(max(Decimal("0"), lucro)), 
         "valor_liquido": float(valor_liquido)
     }
 
 def calcular_taxa_cheque_vista(valor):
     valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal('0.02')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal('0.00')
+    taxa_cliente = (valor_dec * Decimal("0.02")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
@@ -448,10 +448,10 @@ def calcular_taxa_cheque_vista(valor):
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
     valor_dec = Decimal(str(valor))
-    taxa_base = valor_dec * Decimal('0.02')  # 2% base
-    taxa_adicional = valor_dec * Decimal('0.0033') * Decimal(str(dias))  # 0.33% por dia
-    taxa_cliente = (taxa_base + taxa_adicional).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal('0.00')
+    taxa_base = valor_dec * Decimal("0.02")  # 2% base
+    taxa_adicional = valor_dec * Decimal("0.0033") * Decimal(str(dias))  # 0.33% por dia
+    taxa_cliente = (taxa_base + taxa_adicional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
@@ -464,9 +464,9 @@ def calcular_taxa_cheque_pre_datado(valor, dias):
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
     valor_dec = Decimal(str(valor))
-    taxa_perc_dec = Decimal(str(taxa_percentual)) / Decimal('100')
-    taxa_cliente = (valor_dec * taxa_perc_dec).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal('0.00')
+    taxa_perc_dec = Decimal(str(taxa_percentual)) / Decimal("100")
+    taxa_cliente = (valor_dec * taxa_perc_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
@@ -479,7 +479,7 @@ def calcular_taxa_cheque_manual(valor, taxa_percentual):
 
 # Sistema de autenticação
 def verificar_login():
-    if 'logado' not in st.session_state:
+    if "logado" not in st.session_state:
         st.session_state.logado = False
     
     if not st.session_state.logado:
@@ -551,14 +551,14 @@ def render_dashboard_caixa(spreadsheet):
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
         # Converter colunas numéricas com tratamento de erro
-        for col in ['Valor_Bruto', 'Valor_Liquido', 'Taxa_Cliente', 'Taxa_Banco', 'Lucro']:
+        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
-                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-        total_suprimentos = df_operacoes[df_operacoes['Tipo_Operacao'] == 'Suprimento']['Valor_Bruto'].sum()
+        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-        total_saques_liquidos = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
+        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial = 0  # Saldo inicial configurado
@@ -566,9 +566,9 @@ def render_dashboard_caixa(spreadsheet):
         
         # Operações de hoje
         hoje_str = obter_data_brasilia()
-        operacoes_de_hoje = df_operacoes[df_operacoes['Data'] == hoje_str]
+        operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje['Tipo_Operacao'].isin(tipos_de_saida)]['Valor_Liquido'].sum()
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Exibir métricas em cards
         col1, col2, col3, col4 = st.columns(4)
@@ -613,33 +613,33 @@ def render_dashboard_caixa(spreadsheet):
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
         try:
-            df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
-            df_operacoes.dropna(subset=['Data'], inplace=True)
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
+            df_operacoes.dropna(subset=["Data"], inplace=True)
             
             # Converter datetime de Brasília para pandas datetime com tratamento de erro
             try:
                 data_limite = obter_datetime_brasilia() - timedelta(days=7)
-                data_limite_pandas = pd.to_datetime(data_limite.strftime('%Y-%m-%d'))
+                data_limite_pandas = pd.to_datetime(data_limite.strftime("%Y-%m-%d"))
             except:
                 # Fallback se houver erro
-                data_limite_pandas = pd.to_datetime((datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'))
+                data_limite_pandas = pd.to_datetime((datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
             
-            df_recente = df_operacoes[df_operacoes['Data'] >= data_limite_pandas]
+            df_recente = df_operacoes[df_operacoes["Data"] >= data_limite_pandas]
             
             if not df_recente.empty:
-                resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
+                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
                 
                 fig = px.bar(
                     resumo_por_tipo, 
-                    x='Tipo_Operacao', 
-                    y='Valor_Liquido',
+                    x="Tipo_Operacao", 
+                    y="Valor_Liquido",
                     title="Valor Líquido por Tipo de Operação",
                     labels={
-                        'Tipo_Operacao': 'Tipo de Operação', 
-                        'Valor_Liquido': 'Valor Líquido Total (R$)'
+                        "Tipo_Operacao": "Tipo de Operação", 
+                        "Valor_Liquido": "Valor Líquido Total (R$)"
                     },
-                    color='Tipo_Operacao',
-                    text_auto='.2f'
+                    color="Tipo_Operacao",
+                    text_auto=".2f"
                 )
                 fig.update_layout(
                     showlegend=False,
@@ -683,13 +683,13 @@ def render_cofre(spreadsheet):
         df_cofre = pd.DataFrame(cofre_data)
         
         # Calcular saldo do cofre
-        saldo_cofre = Decimal('0')
-        if not df_cofre.empty and 'Tipo_Transacao' in df_cofre.columns and 'Valor' in df_cofre.columns:
-            df_cofre['Valor'] = pd.to_numeric(df_cofre['Valor'], errors='coerce').fillna(0)
-            df_cofre['Tipo_Transacao'] = df_cofre['Tipo_Transacao'].astype(str)
+        saldo_cofre = Decimal("0")
+        if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
+            df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
+            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
             
-            entradas = df_cofre[df_cofre['Tipo_Transacao'] == 'Entrada no Cofre']['Valor'].sum()
-            saidas = df_cofre[df_cofre['Tipo_Transacao'] == 'Saída do Cofre']['Valor'].sum()
+            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
+            saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
         
         # Exibir saldo do cofre
@@ -918,8 +918,8 @@ def render_cofre(spreadsheet):
             if not df_cofre.empty:
                 # Ordenar por data e hora (mais recente primeiro)
                 try:
-                    if 'Data' in df_cofre.columns and 'Hora' in df_cofre.columns:
-                        df_cofre_sorted = df_cofre.sort_values(by=['Data', 'Hora'], ascending=False)
+                    if "Data" in df_cofre.columns and "Hora" in df_cofre.columns:
+                        df_cofre_sorted = df_cofre.sort_values(by=["Data", "Hora"], ascending=False)
                         st.dataframe(df_cofre_sorted, use_container_width=True)
                     else:
                         st.dataframe(df_cofre, use_container_width=True)
@@ -976,23 +976,23 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                            st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
+                            st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
-                            st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                            st.metric("💵 Valor a Entregar", f"R$ {calc["valor_liquido"]:,.2f}")
                             if tipo_cartao == "Débito":
                                 st.info("💡 Taxa de 1% sobre o valor do saque")
                             else:
                                 st.info("💡 Taxa de 5,33% sobre o valor do saque")
                         
                         st.session_state.simulacao_atual = {
-                            'tipo': f'Saque Cartão {tipo_cartao}',
-                            'dados': calc,
-                            'valor_bruto': valor,
-                            'nome': nome or "Não informado",
-                            'cpf': cpf or "Não informado",
-                            'observacoes': observacoes
+                            "tipo": f"Saque Cartão {tipo_cartao}",
+                            "dados": calc,
+                            "valor_bruto": valor,
+                            "nome": nome or "Não informado",
+                            "cpf": cpf or "Não informado",
+                            "observacoes": observacoes
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
@@ -1002,7 +1002,7 @@ def render_operacoes_caixa(spreadsheet):
                 
                 if confirmar:
                     try:
-                        if 'simulacao_atual' not in st.session_state:
+                        if "simulacao_atual" not in st.session_state:
                             st.error("❌ Faça a simulação antes de confirmar!")
                         else:
                             sim_data = st.session_state.simulacao_atual
@@ -1014,22 +1014,22 @@ def render_operacoes_caixa(spreadsheet):
                                 obter_data_brasilia(),
                                 obter_horario_brasilia(),
                                 st.session_state.nome_usuario,
-                                sim_data['tipo'],
-                                sim_data['nome'],
-                                sim_data['cpf'],
-                                sim_data['valor_bruto'],
-                                sim_data['dados']['taxa_cliente'],
-                                sim_data['dados']['taxa_banco'],
-                                sim_data['dados']['valor_liquido'],
-                                sim_data['dados']['lucro'],
+                                sim_data["tipo"],
+                                sim_data["nome"],
+                                sim_data["cpf"],
+                                sim_data["valor_bruto"],
+                                sim_data["dados"]["taxa_cliente"],
+                                sim_data["dados"]["taxa_banco"],
+                                sim_data["dados"]["valor_liquido"],
+                                sim_data["dados"]["lucro"],
                                 "Concluído",
                                 "",
-                                f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
-                                sim_data['observacoes']
+                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
+                                sim_data["observacoes"]
                             ]
                             
                             worksheet.append_row(nova_operacao)
-                            st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
+                            st.success(f"✅ {sim_data["tipo"]} de R$ {sim_data["valor_bruto"]:,.2f} registrado com sucesso!")
                             
                             # Limpar simulação
                             del st.session_state.simulacao_atual
@@ -1086,11 +1086,11 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                            st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
+                            st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
-                            st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                            st.metric("💵 Valor a Entregar", f"R$ {calc["valor_liquido"]:,.2f}")
                             if tipo_cheque == "Cheque à Vista":
                                 st.info("💡 Taxa de 2% sobre o valor do cheque")
                             elif tipo_cheque == "Cheque Pré-datado":
@@ -1099,13 +1099,13 @@ def render_operacoes_caixa(spreadsheet):
                                 st.info(f"💡 Taxa manual de {taxa_manual}%")
                         
                         st.session_state.simulacao_atual = {
-                            'tipo': tipo_cheque,
-                            'dados': calc,
-                            'valor_bruto': valor,
-                            'nome': nome or "Não informado",
-                            'cpf': cpf or "Não informado",
-                            'observacoes': observacoes,
-                            'data_vencimento': data_venc
+                            "tipo": tipo_cheque,
+                            "dados": calc,
+                            "valor_bruto": valor,
+                            "nome": nome or "Não informado",
+                            "cpf": cpf or "Não informado",
+                            "observacoes": observacoes,
+                            "data_vencimento": data_venc
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
@@ -1115,7 +1115,7 @@ def render_operacoes_caixa(spreadsheet):
                 
                 if confirmar:
                     try:
-                        if 'simulacao_atual' not in st.session_state:
+                        if "simulacao_atual" not in st.session_state:
                             st.error("❌ Faça a simulação antes de confirmar!")
                         else:
                             sim_data = st.session_state.simulacao_atual
@@ -1127,22 +1127,22 @@ def render_operacoes_caixa(spreadsheet):
                                 obter_data_brasilia(),
                                 obter_horario_brasilia(),
                                 st.session_state.nome_usuario,
-                                sim_data['tipo'],
-                                sim_data['nome'],
-                                sim_data['cpf'],
-                                sim_data['valor_bruto'],
-                                sim_data['dados']['taxa_cliente'],
-                                sim_data['dados']['taxa_banco'],
-                                sim_data['dados']['valor_liquido'],
-                                sim_data['dados']['lucro'],
+                                sim_data["tipo"],
+                                sim_data["nome"],
+                                sim_data["cpf"],
+                                sim_data["valor_bruto"],
+                                sim_data["dados"]["taxa_cliente"],
+                                sim_data["dados"]["taxa_banco"],
+                                sim_data["dados"]["valor_liquido"],
+                                sim_data["dados"]["lucro"],
                                 "Concluído",
-                                sim_data['data_vencimento'],
-                                f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
-                                sim_data['observacoes']
+                                sim_data["data_vencimento"],
+                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
+                                sim_data["observacoes"]
                             ]
                             
                             worksheet.append_row(nova_operacao)
-                            st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
+                            st.success(f"✅ {sim_data["tipo"]} de R$ {sim_data["valor_bruto"]:,.2f} registrado com sucesso!")
                             
                             # Limpar simulação
                             del st.session_state.simulacao_atual
@@ -1196,14 +1196,14 @@ def render_operacoes_caixa(spreadsheet):
                 
                 with col_filtro1:
                     if st.button("📅 Filtrar por Data"):
-                        st.session_state.mostrar_filtro_data = not st.session_state.get('mostrar_filtro_data', False)
+                        st.session_state.mostrar_filtro_data = not st.session_state.get("mostrar_filtro_data", False)
                 
-                if st.session_state.get('mostrar_filtro_data', False):
+                if st.session_state.get("mostrar_filtro_data", False):
                     col_data1, col_data2 = st.columns(2)
                     with col_data1:
                         data_inicio = st.date_input("Data Início", value=obter_date_brasilia() - timedelta(days=7))
                     with col_data2:
-                        if 'data_inicio' in locals():
+                        if "data_inicio" in locals():
                             data_fim = st.date_input("Data Fim", value=obter_date_brasilia())
                         else:
                             data_fim = obter_date_brasilia()
@@ -1221,16 +1221,16 @@ def render_operacoes_caixa(spreadsheet):
                     
                     # Aplicar filtros
                     if tipo_operacao_filtro != "Todos":
-                        df_operacoes = df_operacoes[df_operacoes['Tipo_Operacao'] == tipo_operacao_filtro]
+                        df_operacoes = df_operacoes[df_operacoes["Tipo_Operacao"] == tipo_operacao_filtro]
                     
-                    if st.session_state.get('mostrar_filtro_data', False) and 'data_inicio' in locals():
+                    if st.session_state.get("mostrar_filtro_data", False) and "data_inicio" in locals():
                         try:
-                            df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
+                            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
                             data_inicio_pd = pd.to_datetime(data_inicio)
                             data_fim_pd = pd.to_datetime(data_fim)
                             df_operacoes = df_operacoes[
-                                (df_operacoes['Data'] >= data_inicio_pd) & 
-                                (df_operacoes['Data'] <= data_fim_pd)
+                                (df_operacoes["Data"] >= data_inicio_pd) & 
+                                (df_operacoes["Data"] <= data_fim_pd)
                             ]
                         except Exception as e:
                             st.warning("⚠️ Erro ao aplicar filtro de data.")
@@ -1238,8 +1238,8 @@ def render_operacoes_caixa(spreadsheet):
                     # Ordenar por data e hora (mais recente primeiro)
                     if not df_operacoes.empty:
                         try:
-                            if 'Data' in df_operacoes.columns and 'Hora' in df_operacoes.columns:
-                                df_operacoes = df_operacoes.sort_values(by=['Data', 'Hora'], ascending=False)
+                            if "Data" in df_operacoes.columns and "Hora" in df_operacoes.columns:
+                                df_operacoes = df_operacoes.sort_values(by=["Data", "Hora"], ascending=False)
                         except Exception as e:
                             st.warning("⚠️ Erro ao ordenar dados.")
                         
@@ -1256,13 +1256,13 @@ def render_operacoes_caixa(spreadsheet):
                             st.metric("Total de Operações", total_operacoes)
                         
                         with col_stat2:
-                            if 'Valor_Bruto' in df_operacoes.columns:
-                                total_movimentado = df_operacoes['Valor_Bruto'].sum()
+                            if "Valor_Bruto" in df_operacoes.columns:
+                                total_movimentado = df_operacoes["Valor_Bruto"].sum()
                                 st.metric("Total Movimentado", f"R$ {total_movimentado:,.2f}")
                         
                         with col_stat3:
-                            if 'Taxa_Cliente' in df_operacoes.columns:
-                                total_taxas = df_operacoes['Taxa_Cliente'].sum()
+                            if "Taxa_Cliente" in df_operacoes.columns:
+                                total_taxas = df_operacoes["Taxa_Cliente"].sum()
                                 st.metric("Total em Taxas", f"R$ {total_taxas:,.2f}")
                     else:
                         st.info("Nenhuma operação encontrada com os filtros aplicados.")
@@ -1303,21 +1303,21 @@ def render_fechamento_loterica(spreadsheet):
                 data_fechamento = st.date_input("Data do Fechamento", obter_date_brasilia())
             
             # Buscar saldo anterior
-            sheet_name = f"Fechamentos_{pdv_selecionado.replace(' ', '')}"
+            sheet_name = f"Fechamentos_{pdv_selecionado.replace(" ", "")}"
             fechamentos_data = buscar_dados(spreadsheet, sheet_name)
             df_fechamentos = pd.DataFrame(fechamentos_data)
             
-            saldo_anterior = Decimal('0')
+            saldo_anterior = Decimal("0")
             if not df_fechamentos.empty:
                 try:
-                    df_fechamentos['Data_Fechamento'] = pd.to_datetime(df_fechamentos['Data_Fechamento'], errors='coerce').dt.date
-                    df_fechamentos['Saldo_Final_Calculado'] = pd.to_numeric(df_fechamentos['Saldo_Final_Calculado'], errors='coerce').fillna(0)
+                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors="coerce").dt.date
+                    df_fechamentos["Saldo_Final_Calculado"] = pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"], errors="coerce").fillna(0)
                     
                     data_anterior = data_fechamento - timedelta(days=1)
-                    registro_anterior = df_fechamentos[df_fechamentos['Data_Fechamento'] == data_anterior]
+                    registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
                     
                     if not registro_anterior.empty:
-                        saldo_anterior = Decimal(str(registro_anterior.iloc[0]['Saldo_Final_Calculado']))
+                        saldo_anterior = Decimal(str(registro_anterior.iloc[0]["Saldo_Final_Calculado"]))
                 except Exception as e:
                     st.warning("⚠️ Erro ao calcular saldo anterior. Usando saldo zero.")
             
@@ -1488,7 +1488,7 @@ def main():
             }
         
         # Navegação
-        if 'pagina_atual' not in st.session_state:
+        if "pagina_atual" not in st.session_state:
             st.session_state.pagina_atual = list(opcoes_menu.values())[0]
         
         for nome_opcao, chave_opcao in opcoes_menu.items():
@@ -1539,9 +1539,9 @@ def render_fechamento_caixa(spreadsheet):
         # Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
-                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors=\'coerce\').fillna(0)
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
 
-        df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors=\'coerce\').dt.date
+        df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce").dt.date
         df_operacoes.dropna(subset=["Data"], inplace=True)
 
         hoje = obter_date_brasilia()
@@ -1596,7 +1596,7 @@ def render_fechamento_caixa(spreadsheet):
             st.markdown("##### Detalhes das Operações de Ontem")
             st.dataframe(operacoes_ontem.sort_values(by=["Hora"], ascending=False), use_container_width=True)
         else:
-            st.info(f"Nenhuma operação registrada para o dia {ontem.strftime(\'%d/%m/%Y\')}.")
+            st.info(f"Nenhuma operação registrada para o dia {ontem.strftime("%d/%m/%Y")}.")
 
     except Exception as e:
         st.error(f"❌ Erro ao carregar fechamento do caixa: {str(e)}")
@@ -1607,5 +1607,7 @@ def render_fechamento_caixa(spreadsheet):
 
         with tab5:
             render_fechamento_caixa(spreadsheet)
+
+
 
 
