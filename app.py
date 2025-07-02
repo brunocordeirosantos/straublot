@@ -575,7 +575,12 @@ def render_dashboard_caixa(spreadsheet):
         
         df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
         df_operacoes.dropna(subset=['Data'], inplace=True)
-        df_recente = df_operacoes[df_operacoes['Data'] >= (obter_datetime_brasilia() - timedelta(days=7))]
+        
+        # Converter datetime de Brasília para pandas datetime
+        data_limite = obter_datetime_brasilia() - timedelta(days=7)
+        data_limite_pandas = pd.to_datetime(data_limite.strftime('%Y-%m-%d'))
+        
+        df_recente = df_operacoes[df_operacoes['Data'] >= data_limite_pandas]
         
         if not df_recente.empty:
             resumo_por_tipo = df_recente.groupby('Tipo_Operacao')['Valor_Liquido'].sum().reset_index()
@@ -1048,10 +1053,12 @@ def render_operacoes_caixa(spreadsheet):
                 df_operacoes = df_operacoes[df_operacoes['Tipo_Operacao'] == tipo_operacao_filtro]
             
             if st.session_state.get('mostrar_filtro_data', False) and 'data_inicio' in locals():
-                df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'])
+                df_operacoes['Data'] = pd.to_datetime(df_operacoes['Data'], errors='coerce')
+                data_inicio_pd = pd.to_datetime(data_inicio)
+                data_fim_pd = pd.to_datetime(data_fim)
                 df_operacoes = df_operacoes[
-                    (df_operacoes['Data'] >= pd.to_datetime(data_inicio)) & 
-                    (df_operacoes['Data'] <= pd.to_datetime(data_fim))
+                    (df_operacoes['Data'] >= data_inicio_pd) & 
+                    (df_operacoes['Data'] <= data_fim_pd)
                 ]
             
             # Ordenar por data e hora (mais recente primeiro)
