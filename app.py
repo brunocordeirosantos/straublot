@@ -731,27 +731,32 @@ def render_cofre(spreadsheet):
                     )
                     
                     if tipo_saida == "Transferência para Caixa":
-                                                destino_caixa = st.selectbox(
+                        destino_caixa = st.selectbox(
                             "Transferir para:", 
                             ["Caixa Interno", "Caixa Lotérica"],
                             key=f"destino_caixa_cofre_{tipo_saida}" # Chave dinâmica
                         )
                         
-                    if destino_caixa == "Caixa Lotérica":
-                        destino_pdv = st.selectbox(
+                        if destino_caixa == "Caixa Lotérica":
+                            destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
                                 key=f"destino_pdv_cofre_{destino_caixa}" # Chave dinâmica
                             )
-
-                        destino_final = f"{destino_caixa} - {destino_pdv}"
-                    else:
-                               destino_final = destino_caixa
-                    else:
-                    destino_final = st.text_input(
+                            destino_final = f"{destino_caixa} - {destino_pdv}"
+                        else: # Este else corresponde ao if da linha 740
+                            destino_final = destino_caixa
+                    else: # ESTE else CORRESPONDE AO if DA LINHA 733 (tipo_saida == "Transferência para Caixa")
+                        destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
+                else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
+                    destino_final = st.text_input(
+                        "Origem da Entrada (Ex: Banco, Sócio)",
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                    )
+
                 else: # Entrada no Cofre
               destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
