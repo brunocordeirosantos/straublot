@@ -247,56 +247,104 @@ def conectar_google_sheets():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # Primeiro tenta usar Streamlit Secrets (para deploy)
+        # Tenta usar Streamlit Secrets (para deploy)
         try:
-            credentials_dict = {
-                "type": st.secrets["gcp_service_account"]["type"],
-                "project_id": st.secrets["gcp_service_account"]["project_id"],
-                "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
-                "private_key": st.secrets["gcp_service_account"]["private_key"],
-                "client_email": st.secrets["gcp_service_account"]["client_email"],
-                "client_id": st.secrets["gcp_service_account"]["client_id"],
-                "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
-                "token_uri": st.secrets["gcp_service_account"]["token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
-            }
-            credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
-            gc = gspread.authorize(credentials)
-            return gc.open("Sistema Lotérica - Caixa Interno")
+            if "gcp_service_account" in st.secrets:
+                credentials_dict = {
+                    "type": st.secrets["gcp_service_account"]["type"],
+                    "project_id": st.secrets["gcp_service_account"]["project_id"],
+                    "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
+                    "private_key": st.secrets["gcp_service_account"]["private_key"],
+                    "client_email": st.secrets["gcp_service_account"]["client_email"],
+                    "client_id": st.secrets["gcp_service_account"]["client_id"],
+                    "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
+                    "token_uri": st.secrets["gcp_service_account"]["token_uri"],
+                    "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
+                    "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
+                }
+                credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+                gc = gspread.authorize(credentials)
+                return gc.open("Sistema Lotérica - Caixa Interno")
+            else:
+                st.warning("⚠️ Streamlit Secrets não configurados")
+                return None
         except Exception as e:
-            st.warning(f"⚠️ Streamlit Secrets não disponível: {str(e)}")
-        
-        # Fallback para arquivo local
-        try:
-            credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-            gc = gspread.authorize(credentials)
-            return gc.open("Sistema Lotérica - Caixa Interno")
-        except Exception as e:
-            st.error(f"❌ Erro ao conectar com arquivo local: {str(e)}")
+            st.warning(f"⚠️ Erro ao acessar Streamlit Secrets: {str(e)}")
             return None
             
     except Exception as e:
         st.error(f"❌ Erro geral na conexão: {str(e)}")
-        st.info("💡 Verifique se o arquivo credentials.json está no diretório correto ou se as secrets estão configuradas.")
         return None
 
 @st.cache_data(ttl=60)
 def buscar_dados(_spreadsheet, sheet_name):
     try:
+        if _spreadsheet is None:
+            # Modo demo - retorna dados simulados
+            return get_dados_demo(sheet_name)
+        
         worksheet = _spreadsheet.worksheet(sheet_name)
         data = worksheet.get_all_records()
         return data
     except Exception as e:
-        st.warning(f"Planilha '{sheet_name}' não encontrada. Será criada automaticamente.")
+        st.warning(f"⚠️ Erro ao buscar dados de {sheet_name}: {str(e)}")
+        return get_dados_demo(sheet_name)
+
+def get_dados_demo(sheet_name):
+    """Retorna dados simulados para modo demo"""
+    if sheet_name == "Operacoes_Caixa":
+        return [
+            {
+                "Data": "2025-07-02",
+                "Hora": "14:30:00",
+                "Operador": "Demo",
+                "Tipo_Operacao": "Saque Cartão Débito",
+                "Cliente": "Cliente Demo",
+                "CPF": "000.000.000-00",
+                "Valor_Bruto": 100.0,
+                "Taxa_Cliente": 1.0,
+                "Taxa_Banco": 1.0,
+                "Valor_Liquido": 99.0,
+                "Lucro": 0.0,
+                "Status": "Concluído",
+                "Data_Vencimento_Cheque": "",
+                "Taxa_Percentual": 1.0,
+                "Observacoes": "Operação demo"
+            }
+        ]
+    elif sheet_name == "Operacoes_Cofre":
+        return [
+            {
+                "Data": "2025-07-02",
+                "Hora": "14:00:00",
+                "Operador": "Demo",
+                "Tipo_Movimentacao": "Entrada no Cofre",
+                "Valor": 1000.0,
+                "Origem_Destino": "Banco",
+                "Observacoes": "Suprimento demo"
+            }
+        ]
+    else:
         return []
+
+def salvar_operacao_demo(dados):
+    """Simula salvamento de operação em modo demo"""
+    st.success("✅ Operação salva com sucesso! (Modo Demo)")
+    st.info("💡 **Modo Demo Ativo** - Os dados não são salvos permanentemente. Configure as credenciais do Google Sheets para salvar dados reais.")
+    return True
 
 # Função para criar ou obter worksheet
 def get_or_create_worksheet(spreadsheet, sheet_name, headers):
     try:
+        if spreadsheet is None:
+            # Modo demo - retorna None
+            return None
+        
         worksheet = spreadsheet.worksheet(sheet_name)
         return worksheet
     except:
+        if spreadsheet is None:
+            return None
         worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
         worksheet.append_row(headers)
         return worksheet
