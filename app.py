@@ -146,24 +146,16 @@ def init_google_sheets():
     """Inicializa conexão com Google Sheets. Cache para o recurso de conexão."""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        
-        # Lógica para funcionar tanto online (deploy) quanto no seu computador (local)
         try:
-            # Tenta carregar do Streamlit secrets (deploy)
             creds_dict = dict(st.secrets["gcp_service_account"])
         except:
-            # Se falhar, tenta abrir o arquivo local (desenvolvimento)
             with open("credentials.json") as f:
                 creds_dict = json.load(f)
-        
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        
-        # Abre a planilha
         spreadsheet = client.open_by_url(
             "https://docs.google.com/spreadsheets/d/1rx9AfZQvCrwPdSxKj_-pTpm_l8I5JFZTjUt1fvSfLo8/edit"
         )
-        
         return spreadsheet
     except Exception as e:
         st.error(f"Erro ao conectar com Google Sheets: {e}")
