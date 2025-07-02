@@ -705,7 +705,7 @@ def render_cofre(spreadsheet):
         # Tabs para organizar a interface
         tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
         
-               with tab1:
+        with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
             # --- NOVO CÓDIGO: Mover o selectbox para fora do formulário ---
