@@ -528,20 +528,37 @@ def render_operacoes_caixa(spreadsheet):
                 df = pd.DataFrame(data)
                 for col in HEADERS:
                     if col not in df.columns: df[col] = ''
+                
+                # CORREÇÃO: Garantir que os valores numéricos sejam exibidos corretamente
+                colunas_numericas = ['Valor_Bruto', 'Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro']
+                for col in colunas_numericas:
+                    if col in df.columns:
+                        # Converter para numérico e garantir que não há multiplicação indevida
+                        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                        # Garantir que os valores estão no formato correto (não multiplicados por 100)
+                        df[col] = df[col].astype(float)
+                
                 col1, col2, col3 = st.columns(3)
                 with col1: filtro_data = st.date_input("Filtrar por data:", value=None, key="filtro_data_hist")
                 with col2:
                     tipos_unicos = df['Tipo_Operacao'].unique() if 'Tipo_Operacao' in df.columns else []
                     filtro_tipo = st.selectbox("Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
                 with col3: filtro_operador = st.selectbox("Filtrar por operador:", ["Todos"] + list(df['Operador'].unique()) if 'Operador' in df.columns else ["Todos"])
+                
                 df_filtrado = df.copy()
                 if filtro_data and 'Data' in df.columns: df_filtrado = df_filtrado[df_filtrado['Data'] == str(filtro_data)]
                 if filtro_tipo != "Todos" and 'Tipo_Operacao' in df.columns: df_filtrado = df_filtrado[df_filtrado['Tipo_Operacao'] == filtro_tipo]
                 if filtro_operador != "Todos" and 'Operador' in df.columns: df_filtrado = df_filtrado[df_filtrado['Operador'] == filtro_operador]
-                st.dataframe(df_filtrado, use_container_width=True)
+                
+                # CORREÇÃO: Formatar colunas numéricas para exibição correta
+                df_exibicao = df_filtrado.copy()
+                for col in colunas_numericas:
+                    if col in df_exibicao.columns:
+                        df_exibicao[col] = df_exibicao[col].apply(lambda x: f"R$ {float(x):,.2f}" if pd.notnull(x) and x != 0 else "R$ 0,00")
+                
+                st.dataframe(df_exibicao, use_container_width=True)
+                
                 if not df_filtrado.empty and 'Valor_Bruto' in df_filtrado.columns:
-                    df_filtrado['Valor_Bruto'] = pd.to_numeric(df_filtrado['Valor_Bruto'], errors='coerce').fillna(0)
-                    df_filtrado['Lucro'] = pd.to_numeric(df_filtrado['Lucro'], errors='coerce').fillna(0)
                     total_operacoes = len(df_filtrado)
                     total_valor = df_filtrado['Valor_Bruto'].sum()
                     total_lucro = df_filtrado['Lucro'].sum()
