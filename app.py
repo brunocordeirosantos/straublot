@@ -177,13 +177,60 @@ def get_or_create_worksheet(spreadsheet, sheet_name, headers):
         worksheet.append_row(headers)
     return worksheet
 
-# CORREÇÃO: Função buscar_dados com _ no parâmetro para evitar erro de cache
+# CORREÇÃO: Função buscar_dados com correção forçada de valores
 @st.cache_data(ttl=60)
 def buscar_dados(_spreadsheet, sheet_name):
-    """Busca todos os registros de uma planilha e aplica cache de dados."""
+    """Busca todos os registros de uma planilha e aplica correção forçada nos valores."""
     try:
         sheet = _spreadsheet.worksheet(sheet_name)
-        return sheet.get_all_records()
+        dados = sheet.get_all_records()
+        
+        # CORREÇÃO FORÇADA: Dividir valores por 100 se estiverem multiplicados
+        if dados and sheet_name == "Operacoes_Caixa":
+            for registro in dados:
+                # Corrigir Taxa_Cliente se estiver multiplicada por 100
+                if 'Taxa_Cliente' in registro and registro['Taxa_Cliente']:
+                    try:
+                        valor = float(registro['Taxa_Cliente'])
+                        if valor > 50:  # Se taxa for maior que 50, provavelmente está multiplicada
+                            registro['Taxa_Cliente'] = valor / 100
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Corrigir Taxa_Banco se estiver multiplicada por 100
+                if 'Taxa_Banco' in registro and registro['Taxa_Banco']:
+                    try:
+                        valor = float(registro['Taxa_Banco'])
+                        if valor > 50:  # Se taxa for maior que 50, provavelmente está multiplicada
+                            registro['Taxa_Banco'] = valor / 100
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Corrigir Valor_Liquido se estiver multiplicado por 100
+                if 'Valor_Liquido' in registro and registro['Valor_Liquido']:
+                    try:
+                        valor_liquido = float(registro['Valor_Liquido'])
+                        valor_bruto = float(registro.get('Valor_Bruto', 0))
+                        
+                        # Se valor líquido for muito maior que o bruto, está multiplicado
+                        if valor_bruto > 0 and valor_liquido > (valor_bruto * 5):
+                            registro['Valor_Liquido'] = valor_liquido / 100
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Corrigir Lucro se estiver multiplicado por 100
+                if 'Lucro' in registro and registro['Lucro']:
+                    try:
+                        lucro = float(registro['Lucro'])
+                        valor_bruto = float(registro.get('Valor_Bruto', 0))
+                        
+                        # Se lucro for muito maior que esperado, está multiplicado
+                        if valor_bruto > 0 and lucro > (valor_bruto * 0.2):
+                            registro['Lucro'] = lucro / 100
+                    except (ValueError, TypeError):
+                        pass
+        
+        return dados
     except gspread.WorksheetNotFound:
         return []
     except Exception as e:
@@ -815,4 +862,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# CORREÇÃO: Função para forçar limpeza de cache quando necessário
+def limpar_cache_forcado():
+    """Força limpeza completa do cache do Streamlit"""
+    st.cache_data.clear()
+    if hasattr(st, 'cache_resource'):
+        st.cache_resource.clear()
+
+# CORREÇÃO: Função para debug de valores
+def debug_valores(dados, titulo="Debug"):
+    """Função para debugar valores e ver como estão chegando"""
+    if dados and len(dados) > 0:
+        st.write(f"**{titulo}:**")
+        primeiro_registro = dados[0]
+        for chave, valor in primeiro_registro.items():
+            if chave in ['Taxa_Cliente', 'Taxa_Banco', 'Valor_Liquido', 'Lucro', 'Valor_Bruto']:
+                st.write(f"- {chave}: {valor} (tipo: {type(valor)})")
 
