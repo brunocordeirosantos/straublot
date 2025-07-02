@@ -737,7 +737,7 @@ def render_cofre(spreadsheet):
                             key=f"destino_caixa_cofre_{tipo_saida}" # Chave dinâmica
                         )
                         
-                        if destino_caixa == "Caixa Lotérica":
+                    if destino_caixa == "Caixa Lotérica":
                         destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
