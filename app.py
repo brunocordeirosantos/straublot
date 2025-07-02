@@ -727,7 +727,7 @@ def render_cofre(spreadsheet):
                     tipo_saida = st.selectbox(
                         "Tipo de Saída:", 
                         ["Transferência para Caixa", "Pagamento de Despesa"],
-                        key="tipo_saida_cofre"
+                        key=f"tipo_saida_cofre_{tipo_mov}" # Chave dinâmica
                     )
                     
                     if tipo_saida == "Transferência para Caixa":
