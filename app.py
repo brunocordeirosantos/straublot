@@ -942,7 +942,7 @@ def render_operacoes_caixa(spreadsheet):
         HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
         
         # Tabs para organizar as operações
-        tab1, tab2, tab3, tab4 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa"])
         
         with tab1:
             st.markdown("### 💳 Saque com Cartão")
@@ -1519,4 +1519,93 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# Função para fechamento diário do caixa interno
+def render_fechamento_caixa(spreadsheet):
+    st.subheader("🗓️ Fechamento Diário do Caixa Interno")
+
+    try:
+        HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+        operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+
+        if not operacoes_data:
+            st.info("📊 Nenhuma operação registrada para o fechamento.")
+            return
+
+        df_operacoes = pd.DataFrame(normalizar_dados_inteligente(operacoes_data))
+
+        # Converter colunas numéricas com tratamento de erro
+        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors=\'coerce\').fillna(0)
+
+        df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors=\'coerce\').dt.date
+        df_operacoes.dropna(subset=["Data"], inplace=True)
+
+        hoje = obter_date_brasilia()
+        ontem = hoje - timedelta(days=1)
+
+        # Operações do dia atual
+        operacoes_hoje = df_operacoes[df_operacoes["Data"] == hoje]
+
+        # Operações do dia anterior
+        operacoes_ontem = df_operacoes[df_operacoes["Data"] == ontem]
+
+        st.markdown("#### Resumo do Dia Atual")
+        if not operacoes_hoje.empty:
+            total_saques_hoje = operacoes_hoje[operacoes_hoje["Tipo_Operacao"].str.contains("Saque|Troca Cheque")]
+            total_suprimentos_hoje = operacoes_hoje[operacoes_hoje["Tipo_Operacao"] == "Suprimento"]
+
+            valor_saques_hoje = total_saques_hoje["Valor_Liquido"].sum()
+            valor_suprimentos_hoje = total_suprimentos_hoje["Valor_Bruto"].sum()
+            saldo_diario_hoje = valor_suprimentos_hoje - valor_saques_hoje
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Saques (Hoje)", f"R$ {valor_saques_hoje:,.2f}")
+            with col2:
+                st.metric("Total Suprimentos (Hoje)", f"R$ {valor_suprimentos_hoje:,.2f}")
+            with col3:
+                st.metric("Saldo Diário (Hoje)", f"R$ {saldo_diario_hoje:,.2f}")
+
+            st.markdown("##### Detalhes das Operações de Hoje")
+            st.dataframe(operacoes_hoje.sort_values(by=["Hora"], ascending=False), use_container_width=True)
+        else:
+            st.info("Nenhuma operação registrada para o dia de hoje.")
+
+        st.markdown("---")
+        st.markdown("#### Saldo do Dia Anterior")
+        if not operacoes_ontem.empty:
+            total_saques_ontem = operacoes_ontem[operacoes_ontem["Tipo_Operacao"].str.contains("Saque|Troca Cheque")]
+            total_suprimentos_ontem = operacoes_ontem[operacoes_ontem["Tipo_Operacao"] == "Suprimento"]
+
+            valor_saques_ontem = total_saques_ontem["Valor_Liquido"].sum()
+            valor_suprimentos_ontem = total_suprimentos_ontem["Valor_Bruto"].sum()
+            saldo_diario_ontem = valor_suprimentos_ontem - valor_saques_ontem
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Saques (Ontem)", f"R$ {valor_saques_ontem:,.2f}")
+            with col2:
+                st.metric("Total Suprimentos (Ontem)", f"R$ {valor_suprimentos_ontem:,.2f}")
+            with col3:
+                st.metric("Saldo Diário (Ontem)", f"R$ {saldo_diario_ontem:,.2f}")
+
+            st.markdown("##### Detalhes das Operações de Ontem")
+            st.dataframe(operacoes_ontem.sort_values(by=["Hora"], ascending=False), use_container_width=True)
+        else:
+            st.info(f"Nenhuma operação registrada para o dia {ontem.strftime(\'%d/%m/%Y\')}.")
+
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar fechamento do caixa: {str(e)}")
+        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
+
+
+
+        with tab5:
+            render_fechamento_caixa(spreadsheet)
+
 
