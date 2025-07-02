@@ -745,14 +745,14 @@ def render_cofre(spreadsheet):
                             )
 
                         destino_final = f"{destino_caixa} - {destino_pdv}"
-                       else:
+                    else:
                                destino_final = destino_caixa
-                 else:
+                    else:
                             destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
                             key="descricao_despesa_cofre"
                         )
-                      else: # Entrada no Cofre
+                else: # Entrada no Cofre
               destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
                         key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
