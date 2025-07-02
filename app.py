@@ -549,6 +549,69 @@ def render_fechamento_loterica(spreadsheet):
             
             st.cache_data.clear()
 
+def render_operacoes_caixa(spreadsheet):
+    st.subheader("💸 Operações do Caixa Interno")
+    tab1, tab2 = st.tabs(["➕ Nova Operação", "📋 Histórico"])
+    
+    with tab1:
+        tipo_operacao = st.selectbox("Selecione o Tipo de Operação:",
+            ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual", "Suprimento Caixa"],
+            on_change=lambda: st.session_state.update(simulacao_atual=None))
+        
+        if tipo_operacao == "Saque Cartão Débito": render_form_saque_cartao(spreadsheet, "Débito")
+        elif tipo_operacao == "Saque Cartão Crédito": render_form_saque_cartao(spreadsheet, "Crédito")
+        elif tipo_operacao == "Cheque à Vista": render_form_cheque(spreadsheet, "Cheque à Vista")
+        elif tipo_operacao == "Cheque Pré-datado": render_form_cheque(spreadsheet, "Cheque Pré-datado")
+        elif tipo_operacao == "Cheque com Taxa Manual": render_form_cheque(spreadsheet, "Cheque com Taxa Manual")
+        elif tipo_operacao == "Suprimento Caixa": render_form_suprimento(spreadsheet)
+    
+    with tab2:
+        try:
+            HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+            data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+
+            if data:
+                df = pd.DataFrame(data)
+                for col in HEADERS:
+                    if col not in df.columns: df[col] = ''
+                col1, col2, col3 = st.columns(3)
+                with col1: filtro_data = st.date_input("Filtrar por data:", value=None, key="filtro_data_hist")
+                with col2:
+                    tipos_unicos = df['Tipo_Operacao'].unique() if 'Tipo_Operacao' in df.columns else []
+                    filtro_tipo = st.selectbox("Filtrar por tipo:", ["Todos"] + list(tipos_unicos))
+                with col3: filtro_operador = st.selectbox("Filtrar por operador:", ["Todos"] + list(df['Operador'].unique()) if 'Operador' in df.columns else ["Todos"])
+                df_filtrado = df.copy()
+                if filtro_data and 'Data' in df.columns: df_filtrado = df_filtrado[df_filtrado['Data'] == str(filtro_data)]
+                if filtro_tipo != "Todos" and 'Tipo_Operacao' in df.columns: df_filtrado = df_filtrado[df_filtrado['Tipo_Operacao'] == filtro_tipo]
+                if filtro_operador != "Todos" and 'Operador' in df.columns: df_filtrado = df_filtrado[df_filtrado['Operador'] == filtro_operador]
+                st.dataframe(df_filtrado, use_container_width=True)
+                if not df_filtrado.empty and 'Valor_Bruto' in df_filtrado.columns:
+                    df_filtrado['Valor_Bruto'] = pd.to_numeric(df_filtrado['Valor_Bruto'], errors='coerce').fillna(0)
+                    df_filtrado['Lucro'] = pd.to_numeric(df_filtrado['Lucro'], errors='coerce').fillna(0)
+                    total_operacoes = len(df_filtrado)
+                    total_valor = df_filtrado['Valor_Bruto'].sum()
+                    total_lucro = df_filtrado['Lucro'].sum()
+                    col1_total, col2_total, col3_total = st.columns(3)
+                    with col1_total: st.metric("Total de Operações (Filtro)", total_operacoes)
+                    with col2_total: st.metric("Valor Total (Filtro)", f"R$ {total_valor:,.2f}")
+                    with col3_total: st.metric("Lucro Total (Filtro)", f"R$ {total_lucro:,.2f}")
+            else:
+                st.info("📋 Nenhuma operação registrada ainda.")
+        except Exception as e:
+            st.error(f"Erro ao carregar histórico: {e}")
+
+# ---------------------------
+# Outras Funções
+# ---------------------------
+def render_form_saque_cartao(spreadsheet, tipo_cartao): pass
+def render_form_cheque(spreadsheet, tipo_cheque): pass
+def render_form_suprimento(spreadsheet): pass
+def render_dashboard_loterica(spreadsheet): st.subheader("🎰 Dashboard Lotérica"); st.info("🚧 Em desenvolvimento.")
+def render_relatorios_gerenciais(spreadsheet): st.subheader("📈 Relatórios Gerenciais"); st.info("🚧 Em desenvolvimento.")
+def render_lancamentos_loterica(spreadsheet): st.subheader("💰 Lançamentos Lotérica"); st.info("🚧 Em desenvolvimento.")
+def render_estoque(spreadsheet): st.subheader("📦 Gestão de Estoque"); st.info("🚧 Em desenvolvimento.")
+def render_relatorios_caixa(spreadsheet): st.subheader("📊 Relatórios do Caixa"); st.info("🚧 Em desenvolvimento.")
+
 # ---------------------------
 # Sistema Principal
 # ---------------------------
@@ -574,7 +637,6 @@ def sistema_principal():
     st.sidebar.success("🌐 Conectado ao Google Sheets")
     st.sidebar.markdown("---")
     
-    # Adicionando a nova página aos menus
     paginas = {
         "gerente": {
             "Dashboard Caixa": "dashboard_caixa", 
@@ -604,8 +666,7 @@ def sistema_principal():
         if st.sidebar.button(nome, use_container_width=True, key=f"btn_{chave}"):
             st.session_state.pagina_atual = chave
             st.rerun()
-            
-    # Adicionando a função de renderização ao dispatcher
+
     paginas_render = {
         "dashboard_caixa": render_dashboard_caixa, 
         "operacoes_caixa": render_operacoes_caixa,
@@ -617,17 +678,7 @@ def sistema_principal():
         "estoque": render_estoque, 
         "relatorios_caixa": render_relatorios_caixa
     }
-
-    # Funções que faltam precisam ser definidas para evitar erros
-    # Mesmo que sejam apenas placeholders por enquanto
-    def render_form_saque_cartao(spreadsheet, tipo): pass
-    def render_form_cheque(spreadsheet, tipo): pass
-    def render_form_suprimento(spreadsheet): pass
-    def render_relatorios_caixa(s): pass
-    def render_estoque(s): pass
-    def render_lancamentos_loterica(s): pass
-
-
+    
     paginas_render[st.session_state.pagina_atual](spreadsheet)
 
 def main():
