@@ -1585,8 +1585,8 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Caixa")
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
-                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors=\'coerce\').dt.date
-                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors=\'coerce\').fillna(0)
+                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
+                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors='coerce').fillna(0)
                 
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
@@ -1608,8 +1608,8 @@ def render_fechamento_caixa_simplificado(spreadsheet):
             df_operacoes = pd.DataFrame(operacoes_data_normalizada)
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if col in df_operacoes.columns:
-                    df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors=\'coerce\').fillna(0)
-            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors=\'coerce\').dt.date
+                    df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors='coerce').fillna(0)
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors='coerce').dt.date
             df_operacoes.dropna(subset=["Data"], inplace=True)
             operacoes_hoje = df_operacoes[df_operacoes["Data"] == hoje]
 
