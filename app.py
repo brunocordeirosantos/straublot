@@ -1116,6 +1116,10 @@ def render_operacoes_caixa(spreadsheet):
             st.markdown("### 💳 Saque com Cartão")
             
             with st.form("form_saque_cartao", clear_on_submit=False):
+                # Campo de operador
+                operador_selecionado = st.selectbox("👤 Operador Responsável", 
+                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"])
+                
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -1181,7 +1185,7 @@ def render_operacoes_caixa(spreadsheet):
                             nova_operacao = [
                                 obter_data_brasilia(),
                                 obter_horario_brasilia(),
-                                st.session_state.nome_usuario,
+                                operador_selecionado,  # Operador responsável
                                 sim_data["tipo"],
                                 sim_data["nome"],
                                 sim_data["cpf"],
@@ -1209,6 +1213,10 @@ def render_operacoes_caixa(spreadsheet):
             st.markdown("### 📄 Troca de Cheques")
             
             with st.form("form_troca_cheque", clear_on_submit=False):
+                # Campo de operador
+                operador_selecionado_cheque = st.selectbox("👤 Operador Responsável", 
+                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"], key="op_cheque")
+                
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -1294,7 +1302,7 @@ def render_operacoes_caixa(spreadsheet):
                             nova_operacao = [
                                 obter_data_brasilia(),
                                 obter_horario_brasilia(),
-                                st.session_state.nome_usuario,
+                                operador_selecionado_cheque,  # Operador responsável
                                 sim_data["tipo"],
                                 sim_data["nome"],
                                 sim_data["cpf"],
@@ -1322,6 +1330,10 @@ def render_operacoes_caixa(spreadsheet):
             st.markdown("### 🔄 Suprimento do Caixa")
             
             with st.form("form_suprimento", clear_on_submit=True):
+                # Campo de operador
+                operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", 
+                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"], key="op_suprimento")
+                
                 valor_suprimento = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0)
                 origem_suprimento = st.selectbox("Origem do Suprimento", ["Cofre Principal", "Banco", "Outro"])
                 observacoes_sup = st.text_area("Observações do Suprimento")
@@ -1334,7 +1346,7 @@ def render_operacoes_caixa(spreadsheet):
                         nova_operacao = [
                             obter_data_brasilia(),
                             obter_horario_brasilia(),
-                            st.session_state.nome_usuario,
+                            operador_selecionado_suprimento,  # Operador responsável
                             "Suprimento",
                             "Sistema",
                             "N/A",
