@@ -572,7 +572,6 @@ def render_fechamento_loterica(spreadsheet):
                     df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors="coerce").dt.date
                     df_fechamentos["Saldo_Final_Calculado"] = pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"], errors="coerce").fillna(0)
                     
-                    data_anterior = data_fechamento - timedelta(days=1)
                     registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
                     
                     if not registro_anterior.empty:
@@ -1464,11 +1463,12 @@ def render_fechamento_diario_simplificado(spreadsheet):
         # 1. Buscar Saldo do Dia Anterior
         saldo_dia_anterior = 0.0
         try:
-            fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Caixa")
+            # Alterado para buscar da nova guia de fechamento
+            fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Diario_Caixa_Interno")
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
-                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
-                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors='coerce').fillna(0)
+                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors=\'coerce\').dt.date
+                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors=\'coerce\').fillna(0)
                 
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
@@ -1534,18 +1534,19 @@ def render_fechamento_diario_simplificado(spreadsheet):
                     if 'nome_usuario' not in st.session_state:
                         st.session_state.nome_usuario = "TESTE_USUARIO"
 
-                    fechamento_sheet = get_or_create_worksheet(spreadsheet, "Fechamento_Caixa", HEADERS_FECHAMENTO_CAIXA)
+                    # Alterado para usar a nova guia de fechamento
+                    fechamento_sheet = get_or_create_worksheet(spreadsheet, "Fechamento_Diario_Caixa_Interno", HEADERS_FECHAMENTO_CAIXA)
                     
                     novo_fechamento = [
                         obter_data_brasilia(),
                         st.session_state.nome_usuario,
-                        saldo_dia_anterior,
-                        total_saques_cartao,
-                        total_trocas_cheque,
-                        total_suprimentos,
-                        saldo_calculado_dia,
-                        dinheiro_contado,
-                        diferenca,
+                        float(saldo_dia_anterior), # Convertido para float
+                        float(total_saques_cartao), # Convertido para float
+                        float(total_trocas_cheque), # Convertido para float
+                        float(total_suprimentos), # Convertido para float
+                        float(saldo_calculado_dia), # Convertido para float
+                        float(dinheiro_contado), # Convertido para float
+                        float(diferenca), # Convertido para float
                         observacoes_fechamento
                     ]
                     fechamento_sheet.append_row(novo_fechamento)
@@ -1638,6 +1639,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
