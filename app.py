@@ -69,7 +69,7 @@ def obter_date_brasilia():
 # Configuração da página
 st.set_page_config(
     page_title="Sistema Unificado - Lotérica & Caixa Interno",
-    page_icon="🏪",
+    page_icon="🏧",
     layout="wide",
     initial_sidebar_state="expanded"
 )
