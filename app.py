@@ -718,8 +718,13 @@ def render_dashboard_caixa(spreadsheet):
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 
-    tipos_cheques_validos = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
-    total_cheques = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_cheques_validos)]['Valor_Liquido'].sum()
+tipos_cheques_validos = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
+total_cheques = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_cheques_validos)]['Valor_Liquido'].sum()
+
+total_saques = df_operacoes[df_operacoes['Tipo_Operacao'].str.contains("Saque", case=False, na=False)]['Valor_Liquido'].sum()
+total_saques += total_cheques
+
+
 
     total_saques = df_operacoes[df_operacoes['Tipo_Operacao'].str.contains("Saque", case=False, na=False)]['Valor_Liquido'].sum()
     total_saques += total_cheques
@@ -1657,7 +1662,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
