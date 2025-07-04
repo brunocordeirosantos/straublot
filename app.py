@@ -793,24 +793,24 @@ for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
-        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
+tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
+total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
-        saldo_inicial = 0  # Saldo inicial configurado
-        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+saldo_inicial = 0  # Saldo inicial configurado
+saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
         
         # Operações de hoje
-        hoje_str = obter_data_brasilia()
-        operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
-        operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+hoje_str = obter_data_brasilia()
+operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
+operacoes_hoje_count = len(operacoes_de_hoje)
+valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Exibir métricas em cards
-        col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
         
-        with col1:
+with col1:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
                 <h3>R$ {saldo_caixa:,.2f}</h3>
@@ -818,7 +818,7 @@ for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro
             </div>
             """, unsafe_allow_html=True)
         
-        with col2:
+with col2:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                 <h3>R$ {valor_saque_hoje:,.2f}</h3>
@@ -826,7 +826,7 @@ for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro
             </div>
             """, unsafe_allow_html=True)
         
-        with col3:
+with col3:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                 <h3>{operacoes_hoje_count}</h3>
@@ -834,7 +834,7 @@ for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro
             </div>
             """, unsafe_allow_html=True)
         
-        with col4:
+with col4:
             status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
             status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
             st.markdown(f"""
