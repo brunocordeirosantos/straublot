@@ -720,8 +720,6 @@ def render_dashboard_caixa(spreadsheet):
         tipos_cheques_validos = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
         total_cheques = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_cheques_validos)]['Valor_Liquido'].sum()
         total_saques = df_operacoes[df_operacoes['Tipo_Operacao'].str.contains("Saque", case=False, na=False)]['Valor_Liquido'].sum()
-        total_saques += total_cheques
-    total_saques += total_cheques
         
         # Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
