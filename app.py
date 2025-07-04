@@ -726,6 +726,9 @@ def render_dashboard_caixa(spreadsheet):
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+if not df_operacoes.empty:
+    for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+        df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
 for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
     df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
         
@@ -1409,6 +1412,9 @@ def render_operacoes_caixa(spreadsheet):
                     # Normalizar dados
                     operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
                     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+if not df_operacoes.empty:
+    for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+        df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
 for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
     df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
                     
@@ -1513,6 +1519,9 @@ def render_fechamento_diario_simplificado(spreadsheet):
         else:
             operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
             df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+if not df_operacoes.empty:
+    for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+        df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
 for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
     df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
