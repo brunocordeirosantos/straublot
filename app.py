@@ -903,10 +903,6 @@ elif saldo_caixa < 2000:
     </div>
     """, unsafe_allow_html=True)
 
-except Exception as e:
-st.error(f"❌ Erro ao carregar dashboard: {str(e)}")
-st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
-
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
