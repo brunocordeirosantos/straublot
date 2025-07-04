@@ -1,3 +1,8 @@
+
+def aplicar_filtro_por_data(df, coluna_data, data_inicio, data_fim):
+    df[coluna_data] = pd.to_datetime(df[coluna_data], errors='coerce').dt.date
+    return df[(df[coluna_data] >= data_inicio) & (df[coluna_data] <= data_fim)]
+
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -725,14 +730,8 @@ def render_dashboard_caixa(spreadsheet):
         
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
-        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
-        
-        # Separar por tipo para exibição
-        tipos_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
-        tipos_cheque = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
-        total_cartoes = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_cartao)]["Valor_Liquido"].sum()
-        total_cheques = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_cheque)]["Valor_Liquido"].sum()
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial = 0  # Saldo inicial configurado
@@ -758,63 +757,26 @@ def render_dashboard_caixa(spreadsheet):
         with col2:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <h3>R$ {total_cartoes:,.2f}</h3>
-                <p>💳 Total Cartões</p>
+                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <p>💳 Valor Saque Hoje</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col3:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <h3>R$ {total_cheques:,.2f}</h3>
-                <p>📄 Total Cheques</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            total_geral = total_cartoes + total_cheques
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
-                <h3>R$ {total_geral:,.2f}</h3>
-                <p>📊 Total Geral</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Segunda linha de métricas
-        st.markdown("<br>", unsafe_allow_html=True)
-        col5, col6, col7, col8 = st.columns(4)
-        
-        with col5:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
-                <h3>R$ {valor_saque_hoje:,.2f}</h3>
-                <p>📅 Saques Hoje</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col6:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);">
                 <h3>{operacoes_hoje_count}</h3>
                 <p>📋 Operações Hoje</p>
             </div>
             """, unsafe_allow_html=True)
         
-        with col7:
+        with col4:
             status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
             status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
                 <h3>{status_texto}</h3>
                 <p>🚦 Status Caixa</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col8:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
-                <h3>R$ {total_suprimentos:,.2f}</h3>
-                <p>💰 Suprimentos</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -1146,6 +1108,10 @@ def render_cofre(spreadsheet):
 
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
+
+    if 'pagina_atual' in st.session_state and st.session_state.pagina_atual != 'operacoes_caixa':
+        st.session_state.simulacao_atual = None
+
     st.subheader("💳 Operações do Caixa Interno")
     
     try:
@@ -1466,14 +1432,7 @@ def render_operacoes_caixa(spreadsheet):
                         except Exception as e:
                             st.warning("⚠️ Erro ao ordenar dados.")
                         
-                        # Formatar valores monetários para exibição
-                        df_display = df_operacoes.copy()
-                        colunas_monetarias = ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]
-                        for col in colunas_monetarias:
-                            if col in df_display.columns:
-                                df_display[col] = df_display[col].apply(lambda x: f"R$ {float(x):,.2f}" if pd.notnull(x) and x != 0 else "R$ 0,00")
-                        
-                        st.dataframe(df_display, use_container_width=True)
+                        st.dataframe(df_operacoes, use_container_width=True)
                         
                         # Estatísticas do período
                         st.markdown("---")
@@ -1559,7 +1518,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
 
         # 3. Calcular Totais do Dia
         tipos_saque_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
-        tipos_troca_cheque = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
+        tipos_troca_cheque = ["Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         tipo_suprimento = "Suprimento"
 
         total_saques_cartao = operacoes_hoje[operacoes_hoje["Tipo_Operacao"].isin(tipos_saque_cartao)]["Valor_Liquido"].sum()
