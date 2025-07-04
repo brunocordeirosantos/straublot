@@ -726,11 +726,6 @@ def render_dashboard_caixa(spreadsheet):
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
         # INÍCIO PATCH GOOGLE SHEETS
-import streamlit as st
-import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import date
 
 st.set_page_config(page_title="Sistema Lotérica", layout="wide")
 
