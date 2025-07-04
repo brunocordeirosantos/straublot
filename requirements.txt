@@ -1,7 +1,6 @@
-streamlit==1.28.2
-pandas==2.1.4
-plotly==5.18.0
-gspread==5.12.0
-oauth2client==4.1.3
-pytz==2024.1
-python-decimal
+streamlit>=1.28.0
+pandas>=2.0.0
+plotly>=5.15.0
+gspread>=5.10.0
+oauth2client>=4.1.3
+pytz
