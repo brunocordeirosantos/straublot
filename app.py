@@ -886,26 +886,26 @@ try:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
-        except Exception as e:
-            st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
-        
-        # Alertas de saldo
-        if saldo_caixa < 1000:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
-            </div>
-            """, unsafe_allow_html=True)
-        elif saldo_caixa < 2000:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
-            </div>
-            """, unsafe_allow_html=True)
-        
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar dashboard: {str(e)}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+except Exception as e:
+    st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
+
+# Alertas de saldo
+if saldo_caixa < 1000:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+        🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+    </div>
+    """, unsafe_allow_html=True)
+elif saldo_caixa < 2000:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+        ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+    </div>
+    """, unsafe_allow_html=True)
+
+except Exception as e:
+st.error(f"❌ Erro ao carregar dashboard: {str(e)}")
+st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
