@@ -844,7 +844,7 @@ with col4:
             </div>
             """, unsafe_allow_html=True)
         
-        st.markdown("---")
+            st.markdown("---")
         
         # Gráfico de resumo de operações
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
