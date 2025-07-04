@@ -717,6 +717,7 @@ def render_dashboard_caixa(spreadsheet):
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        st.write(df_operacoes.head())  # DEBUG: visualiza primeiros dados
         tipos_cheques_validos = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
         total_cheques = df_operacoes[df_operacoes['Tipo_Operacao'].isin(tipos_cheques_validos)]['Valor_Liquido'].sum()
         total_saques = df_operacoes[df_operacoes['Tipo_Operacao'].str.contains("Saque", case=False, na=False)]['Valor_Liquido'].sum()
@@ -1401,6 +1402,7 @@ def render_operacoes_caixa(spreadsheet):
                     # Normalizar dados
                     operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
                     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        st.write(df_operacoes.head())  # DEBUG: visualiza primeiros dados
                     
                     # Aplicar filtros
                     if tipo_operacao_filtro != "Todos":
@@ -1503,6 +1505,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
         else:
             operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
             df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        st.write(df_operacoes.head())  # DEBUG: visualiza primeiros dados
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if col in df_operacoes.columns:
                     df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
