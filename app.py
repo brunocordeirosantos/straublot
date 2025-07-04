@@ -18,6 +18,15 @@ except ImportError:
     PYTZ_AVAILABLE = False
     st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
 
+
+def parse_float_str(valor):
+    try:
+        if isinstance(valor, str):
+            valor = valor.replace(".", "").replace(",", ".")
+        return float(valor)
+    except (ValueError, TypeError):
+        return 0.0
+
 # Funções para horário de Brasília com fallback
 def obter_horario_brasilia():
     """Retorna hora atual no fuso horário de Brasília"""
@@ -326,9 +335,9 @@ def normalizar_dados_inteligente(dados):
             continue
             
         try:
-            valor_bruto = float(registro["Valor_Bruto"])
-            taxa_cliente = float(registro["Taxa_Cliente"])
-            valor_liquido = float(registro["Valor_Liquido"])
+            valor_bruto = parse_float_str(registro["Valor_Bruto"])
+            taxa_cliente = parse_float_str(registro["Taxa_Cliente"])
+            valor_liquido = parse_float_str(registro["Valor_Liquido"])
             
             # Se valor bruto é 0, pular validação
             if valor_bruto == 0:
