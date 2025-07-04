@@ -18,15 +18,6 @@ except ImportError:
     PYTZ_AVAILABLE = False
     st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
 
-
-def parse_float_str(valor):
-    try:
-        if isinstance(valor, str):
-            valor = valor.replace(".", "").replace(",", ".")
-        return float(valor)
-    except (ValueError, TypeError):
-        return 0.0
-
 # Funções para horário de Brasília com fallback
 def obter_horario_brasilia():
     """Retorna hora atual no fuso horário de Brasília"""
@@ -335,9 +326,9 @@ def normalizar_dados_inteligente(dados):
             continue
             
         try:
-            valor_bruto = parse_float_str(registro["Valor_Bruto"])
-            taxa_cliente = parse_float_str(registro["Taxa_Cliente"])
-            valor_liquido = parse_float_str(registro["Valor_Liquido"])
+            valor_bruto = float(registro["Valor_Bruto"])
+            taxa_cliente = float(registro["Taxa_Cliente"])
+            valor_liquido = float(registro["Valor_Liquido"])
             
             # Se valor bruto é 0, pular validação
             if valor_bruto == 0:
@@ -713,104 +704,44 @@ def render_fechamento_loterica(spreadsheet):
 
 # Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
+    st.subheader("💳 Dashboard Caixa Interno")
+    
     try:
-        HEADERS = [...]
+        HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
         operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
         
         if not operacoes_data:
-            st.info("📋 Nenhuma operação registrada para exibir o dashboard.")
+            st.info("📊 Nenhuma operação registrada para exibir o dashboard.")
             return
-
+        
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
-
-        # INÍCIO PATCH GOOGLE SHEETS
-        st.set_page_config(page_title="Sistema Lotérica", layout="wide")
-
-        # [...continua o código normalmente...]
-
-    except Exception as e:
-        st.error(f"Erro ao carregar o dashboard: {e}")
-
-# AUTENTICAÇÃO COM GOOGLE SHEETS
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
-client = gspread.authorize(credentials)
-sheet = client.open("Lotericabasededados").sheet1
-
-# LEITURA DO SHEETS
-dados = sheet.get_all_records()
-df_operacoes = pd.DataFrame(dados)
-
-# CONVERSÃO DE CAMPOS
-df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors='coerce').dt.date
-df_operacoes["Valor_Liquido"] = (
-    df_operacoes["Valor_Liquido"]
-    .astype(str)
-    .str.replace(",", ".")
-    .str.replace(" ", "")
-    .astype(float)
-)
-
-# FILTRAGEM POR DATA
-hoje = date.today()
-df_hoje = df_operacoes[(df_operacoes["Data"] == hoje) & (df_operacoes["Status"] == "Concluído")]
-
-# TIPOS DE OPERAÇÃO
-tipos_cheques = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
-tipos_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
-tipos_suprimento = ["Suprimento"]
-
-# FUNÇÃO ÚNICA DE SOMA POR TIPO
-def calcular_total(df, tipos):
-    return df[df["Tipo_Operacao"].isin(tipos)]["Valor_Liquido"].sum()
-
-# CALCULOS UNIFICADOS
-total_cheques = calcular_total(df_hoje, tipos_cheques)
-total_cartoes = calcular_total(df_hoje, tipos_cartao)
-total_suprimentos = calcular_total(df_hoje, tipos_suprimento)
-total_operacoes = df_hoje.shape[0]
-saldo_caixa = total_suprimentos - (total_cheques + total_cartoes)
-
-# DASHBOARD VISUAL
-st.title("📊 Dashboard Gerencial - Sistema Lotérica")
-st.subheader(f"Resumo do Dia: {hoje.strftime('%d/%m/%Y')}")
-
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("💰 Saldo do Caixa", f"R$ {saldo_caixa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-col2.metric("💳 Saques Cartão", f"R$ {total_cartoes:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-col3.metric("🧾 Total Cheques", f"R$ {total_cheques:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-col4.metric("📋 Operações do Dia", f"{total_operacoes}")
-
-with st.expander("📄 Ver histórico do dia"):
-    st.dataframe(df_hoje)
-# FIM PATCH GOOGLE SHEETS
-df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
-# Converter colunas numéricas com tratamento de erro
-for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+        # Converter colunas numéricas com tratamento de erro
+        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
-tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
+        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
-saldo_inicial = 0  # Saldo inicial configurado
-saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+        saldo_inicial = 0  # Saldo inicial configurado
+        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
         
         # Operações de hoje
-hoje_str = obter_data_brasilia()
-operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
-operacoes_hoje_count = len(operacoes_de_hoje)
-valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+        hoje_str = obter_data_brasilia()
+        operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
+        operacoes_hoje_count = len(operacoes_de_hoje)
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Exibir métricas em cards
-col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = st.columns(4)
         
-with col1:
+        with col1:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
                 <h3>R$ {saldo_caixa:,.2f}</h3>
@@ -818,7 +749,7 @@ with col1:
             </div>
             """, unsafe_allow_html=True)
         
-with col2:
+        with col2:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                 <h3>R$ {valor_saque_hoje:,.2f}</h3>
@@ -826,7 +757,7 @@ with col2:
             </div>
             """, unsafe_allow_html=True)
         
-with col3:
+        with col3:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                 <h3>{operacoes_hoje_count}</h3>
@@ -834,7 +765,7 @@ with col3:
             </div>
             """, unsafe_allow_html=True)
         
-with col4:
+        with col4:
             status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
             status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
             st.markdown(f"""
@@ -844,12 +775,12 @@ with col4:
             </div>
             """, unsafe_allow_html=True)
         
-            st.markdown("---")
+        st.markdown("---")
         
         # Gráfico de resumo de operações
-st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
-
-try:
+        st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
+        
+        try:
             df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
             df_operacoes.dropna(subset=["Data"], inplace=True)
             
@@ -886,22 +817,26 @@ try:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
-except Exception as e:
-    st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
-
-# Alertas de saldo
-if saldo_caixa < 1000:
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-        🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
-    </div>
-    """, unsafe_allow_html=True)
-elif saldo_caixa < 2000:
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-        ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
-    </div>
-    """, unsafe_allow_html=True)
+        except Exception as e:
+            st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
+        
+        # Alertas de saldo
+        if saldo_caixa < 1000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """, unsafe_allow_html=True)
+        elif saldo_caixa < 2000:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """, unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar dashboard: {str(e)}")
+        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
