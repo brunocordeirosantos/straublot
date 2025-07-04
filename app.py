@@ -1,8 +1,3 @@
-
-def aplicar_filtro_por_data(df, coluna_data, data_inicio, data_fim):
-    df[coluna_data] = pd.to_datetime(df[coluna_data], errors='coerce').dt.date
-    return df[(df[coluna_data] >= data_inicio) & (df[coluna_data] <= data_fim)]
-
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -1108,10 +1103,6 @@ def render_cofre(spreadsheet):
 
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
-
-    if 'pagina_atual' in st.session_state and st.session_state.pagina_atual != 'operacoes_caixa':
-        st.session_state.simulacao_atual = None
-
     st.subheader("💳 Operações do Caixa Interno")
     
     try:
