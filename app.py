@@ -847,9 +847,9 @@ with col4:
             st.markdown("---")
         
         # Gráfico de resumo de operações
-        st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
-        
-        try:
+st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
+
+try:
             df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
             df_operacoes.dropna(subset=["Data"], inplace=True)
             
