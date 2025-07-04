@@ -787,8 +787,8 @@ with st.expander("📄 Ver histórico do dia"):
 # FIM PATCH GOOGLE SHEETS
 df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
-        # Converter colunas numéricas com tratamento de erro
-        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+# Converter colunas numéricas com tratamento de erro
+for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
