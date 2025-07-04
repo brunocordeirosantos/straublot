@@ -726,6 +726,8 @@ def render_dashboard_caixa(spreadsheet):
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+    df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
         
         # Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
@@ -1407,6 +1409,8 @@ def render_operacoes_caixa(spreadsheet):
                     # Normalizar dados
                     operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
                     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+    df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
                     
                     # Aplicar filtros
                     if tipo_operacao_filtro != "Todos":
@@ -1509,6 +1513,8 @@ def render_fechamento_diario_simplificado(spreadsheet):
         else:
             operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
             df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+    df_operacoes[col] = df_operacoes[col].astype(str).apply(parse_float_str)
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if col in df_operacoes.columns:
                     df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
