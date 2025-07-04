@@ -713,21 +713,24 @@ def render_fechamento_loterica(spreadsheet):
 
 # Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
-    st.subheader("💳 Dashboard Caixa Interno")
-    
     try:
-        HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+        HEADERS = [...]
         operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
         
         if not operacoes_data:
-            st.info("📊 Nenhuma operação registrada para exibir o dashboard.")
+            st.info("📋 Nenhuma operação registrada para exibir o dashboard.")
             return
-        
+
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
-        # INÍCIO PATCH GOOGLE SHEETS
 
-st.set_page_config(page_title="Sistema Lotérica", layout="wide")
+        # INÍCIO PATCH GOOGLE SHEETS
+        st.set_page_config(page_title="Sistema Lotérica", layout="wide")
+
+        # [...continua o código normalmente...]
+
+    except Exception as e:
+        st.error(f"Erro ao carregar o dashboard: {e}")
 
 # AUTENTICAÇÃO COM GOOGLE SHEETS
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
