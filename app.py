@@ -725,7 +725,69 @@ def render_dashboard_caixa(spreadsheet):
         
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
-        df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+        # INÍCIO PATCH GOOGLE SHEETS
+import streamlit as st
+import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import date
+
+st.set_page_config(page_title="Sistema Lotérica", layout="wide")
+
+# AUTENTICAÇÃO COM GOOGLE SHEETS
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+client = gspread.authorize(credentials)
+sheet = client.open("Lotericabasededados").sheet1
+
+# LEITURA DO SHEETS
+dados = sheet.get_all_records()
+df_operacoes = pd.DataFrame(dados)
+
+# CONVERSÃO DE CAMPOS
+df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors='coerce').dt.date
+df_operacoes["Valor_Liquido"] = (
+    df_operacoes["Valor_Liquido"]
+    .astype(str)
+    .str.replace(",", ".")
+    .str.replace(" ", "")
+    .astype(float)
+)
+
+# FILTRAGEM POR DATA
+hoje = date.today()
+df_hoje = df_operacoes[(df_operacoes["Data"] == hoje) & (df_operacoes["Status"] == "Concluído")]
+
+# TIPOS DE OPERAÇÃO
+tipos_cheques = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
+tipos_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
+tipos_suprimento = ["Suprimento"]
+
+# FUNÇÃO ÚNICA DE SOMA POR TIPO
+def calcular_total(df, tipos):
+    return df[df["Tipo_Operacao"].isin(tipos)]["Valor_Liquido"].sum()
+
+# CALCULOS UNIFICADOS
+total_cheques = calcular_total(df_hoje, tipos_cheques)
+total_cartoes = calcular_total(df_hoje, tipos_cartao)
+total_suprimentos = calcular_total(df_hoje, tipos_suprimento)
+total_operacoes = df_hoje.shape[0]
+saldo_caixa = total_suprimentos - (total_cheques + total_cartoes)
+
+# DASHBOARD VISUAL
+st.title("📊 Dashboard Gerencial - Sistema Lotérica")
+st.subheader(f"Resumo do Dia: {hoje.strftime('%d/%m/%Y')}")
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("💰 Saldo do Caixa", f"R$ {saldo_caixa:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+col2.metric("💳 Saques Cartão", f"R$ {total_cartoes:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+col3.metric("🧾 Total Cheques", f"R$ {total_cheques:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+col4.metric("📋 Operações do Dia", f"{total_operacoes}")
+
+with st.expander("📄 Ver histórico do dia"):
+    st.dataframe(df_hoje)
+# FIM PATCH GOOGLE SHEETS
+df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
         # Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
