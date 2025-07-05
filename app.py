@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 
-#    Importar pytz com tratamento de erro
+#  Importar pytz com tratamento de erro
 try:
     import pytz
     PYTZ_AVAILABLE = True
