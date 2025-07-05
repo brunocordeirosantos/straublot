@@ -719,7 +719,17 @@ def render_dashboard_caixa(spreadsheet):
         df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
         # Converter colunas numéricas com tratamento de erro
-        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+from decimal import Decimal, InvalidOperation
+
+def parse_decimal(valor):
+    try:
+        valor_str = str(valor).replace(',', '.').replace(' ', '')
+        return float(Decimal(valor_str))
+    except (InvalidOperation, ValueError, TypeError):
+        return 0.0
+
+for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+    df_operacoes[col] = df_operacoes[col].apply(parse_decimal)
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
