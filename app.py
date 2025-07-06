@@ -328,9 +328,9 @@ def normalizar_dados_inteligente(dados):
             continue
             
         try:
-            valor_bruto = float(registro["Valor_Bruto"])
-            taxa_cliente = float(registro["Taxa_Cliente"])
-            valor_liquido = float(registro["Valor_Liquido"])
+            valor_bruto = Decimal(registro["Valor_Bruto"])
+            taxa_cliente = Decimal(registro["Taxa_Cliente"])
+            valor_liquido = Decimal(registro["Valor_Liquido"])
             
             # Se valor bruto é 0, pular validação
             if valor_bruto == 0:
@@ -341,7 +341,7 @@ def normalizar_dados_inteligente(dados):
             fatores_teste = [1, 0.01, 0.1, 10, 100]
             melhor_fator_taxa = 1
             melhor_fator_liquido = 1
-            menor_erro = float("inf")
+            menor_erro = Decimal("Infinity")
             
             for fator_taxa in fatores_teste:
                 for fator_liquido in fatores_teste:
@@ -374,11 +374,11 @@ def normalizar_dados_inteligente(dados):
             
             # Corrigir outros campos relacionados se existirem
             if "Taxa_Banco" in registro and melhor_fator_taxa != 1:
-                taxa_banco = float(registro.get("Taxa_Banco", 0))
+                taxa_banco = Decimal(registro.get("Taxa_Banco", 0))
                 registro_corrigido["Taxa_Banco"] = taxa_banco * melhor_fator_taxa
                 
             if "Lucro" in registro and melhor_fator_taxa != 1:
-                lucro = float(registro.get("Lucro", 0))
+                lucro = Decimal(registro.get("Lucro", 0))
                 registro_corrigido["Lucro"] = lucro * melhor_fator_taxa
                 
         except (ValueError, TypeError):
@@ -414,10 +414,10 @@ def calcular_taxa_cartao_debito(valor):
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": float(taxa_cliente),
-        "taxa_banco": float(taxa_banco),
-        "lucro": float(max(Decimal("0"), lucro)),  # Lucro não pode ser negativo
-        "valor_liquido": float(valor_liquido)
+        "taxa_cliente": Decimal(taxa_cliente),
+        "taxa_banco": Decimal(taxa_banco),
+        "lucro": Decimal(max(Decimal("0"), lucro)),  # Lucro não pode ser negativo
+        "valor_liquido": Decimal(valor_liquido)
     }
 
 def calcular_taxa_cartao_credito(valor):
@@ -428,10 +428,10 @@ def calcular_taxa_cartao_credito(valor):
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": float(taxa_cliente),
-        "taxa_banco": float(taxa_banco), 
-        "lucro": float(max(Decimal("0"), lucro)), 
-        "valor_liquido": float(valor_liquido)
+        "taxa_cliente": Decimal(taxa_cliente),
+        "taxa_banco": Decimal(taxa_banco), 
+        "lucro": Decimal(max(Decimal("0"), lucro)), 
+        "valor_liquido":Decimal(valor_liquido)
     }
 
 def calcular_taxa_cheque_vista(valor):
@@ -442,10 +442,10 @@ def calcular_taxa_cheque_vista(valor):
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": float(taxa_cliente),
-        "taxa_banco": float(taxa_banco),
-        "lucro": float(lucro),
-        "valor_liquido": float(valor_liquido)
+        "taxa_cliente": Decimal(taxa_cliente),
+        "taxa_banco": Decimal(taxa_banco),
+        "lucro": Decimal(lucro),
+        "valor_liquido": Decimal(valor_liquido)
     }
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
@@ -458,10 +458,10 @@ def calcular_taxa_cheque_pre_datado(valor, dias):
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": float(taxa_cliente),
-        "taxa_banco": float(taxa_banco),
-        "lucro": float(lucro),
-        "valor_liquido": float(valor_liquido)
+        "taxa_cliente": Decimal(taxa_cliente),
+        "taxa_banco": Decimal(taxa_banco),
+        "lucro": Decimal(lucro),
+        "valor_liquido": Decimal(valor_liquido)
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
@@ -473,10 +473,10 @@ def calcular_taxa_cheque_manual(valor, taxa_percentual):
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": float(taxa_cliente),
-        "taxa_banco": float(taxa_banco),
-        "lucro": float(lucro),
-        "valor_liquido": float(valor_liquido)
+        "taxa_cliente": Decimal(taxa_cliente),
+        "taxa_banco": Decimal(taxa_banco),
+        "lucro": Decimal(lucro),
+        "valor_liquido": Decimal(valor_liquido)
     }
 
 # Sistema de autenticação
@@ -691,7 +691,7 @@ def render_fechamento_loterica(spreadsheet):
                         qtd_vend_fed, preco_unit_fed, total_vend_fed,
                         movimentacao_cielo, pagamento_premios, vales_despesas,
                         retirada_cofre, retirada_caixa_interno, dinheiro_gaveta,
-                        float(saldo_anterior), float(saldo_calculado), float(diferenca_caixa)
+                        Decimal(saldo_anterior), Decimal(saldo_calculado),Decimal(diferenca_caixa)
                     ]
                     
                     fechamento_sheet.append_row(novo_fechamento)
@@ -941,7 +941,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            float(valor), 
+                            Decimal(valor), 
                             destino_final, 
                             observacoes
                         ]
@@ -960,10 +960,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                float(valor), 
+                                Decimal(valor), 
                                 0, 
                                 0, 
-                                float(valor), 
+                                Decimal(valor), 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1037,7 +1037,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            float(valor), 
+                            Decimal(valor), 
                             destino_final, 
                             observacoes
                         ]
@@ -1056,10 +1056,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                float(valor), 
+                                Decimal(valor), 
                                 0, 
                                 0, 
-                                float(valor), 
+                                Decimal(valor), 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1351,10 +1351,10 @@ def render_operacoes_caixa(spreadsheet):
                             "Suprimento",
                             "Sistema",
                             "N/A",
-                            float(valor_suprimento),
+                            Decimal(valor_suprimento),
                             0,
                             0,
-                            float(valor_suprimento),
+                            Decimal(valor_suprimento),
                             0,
                             "Concluído",
                             "",
@@ -1486,7 +1486,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
                 if not registro_anterior.empty:
-                    saldo_dia_anterior = float(registro_anterior.iloc[0]["Saldo_Calculado_Dia"])
+                    saldo_dia_anterior = Decimal(registro_anterior.iloc[0]["Saldo_Calculado_Dia"])
         except Exception as e:
             st.warning(f"⚠️ Erro ao buscar saldo do dia anterior: {e}")
 
@@ -1553,13 +1553,13 @@ def render_fechamento_diario_simplificado(spreadsheet):
                     novo_fechamento = [
                         obter_data_brasilia(),
                         st.session_state.nome_usuario,
-                        float(saldo_dia_anterior), # Convertido para float
-                        float(total_saques_cartao), # Convertido para float
-                        float(total_trocas_cheque), # Convertido para float
-                        float(total_suprimentos), # Convertido para float
-                        float(saldo_calculado_dia), # Convertido para float
-                        float(dinheiro_contado), # Convertido para float
-                        float(diferenca), # Convertido para float
+                        Decimal(saldo_dia_anterior), # Convertido para 
+                        Decimal(total_saques_cartao), # Convertido para 
+                        Decimal(total_trocas_cheque), # Convertido para 
+                        Decimal(total_suprimentos), # Convertido para 
+                        Decimal(saldo_calculado_dia), # Convertido para 
+                        Decimal(dinheiro_contado), # Convertido para 
+                        Decimal(diferenca), # 
                         observacoes_fechamento
                     ]
                     fechamento_sheet.append_row(novo_fechamento)
