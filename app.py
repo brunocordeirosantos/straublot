@@ -718,13 +718,13 @@ def render_dashboard_caixa(spreadsheet):
         
     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 # Conversão segura dos valores monetários
-    for col in safe_decimal( ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]):
+    for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
         if col in df_operacoes.columns:
             df_operacoes[col] = df_operacoes[col]
                 
         #
  #Converter colunas numéricas com tratamento de erro
-        for col in safe_decimal( ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]):
+        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
                 df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
         
@@ -733,14 +733,14 @@ def render_dashboard_caixa(spreadsheet):
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
-        saldo_inicial = 0  # Saldo inicial configurado
-        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos.apply(safe_decimal)
+        saldo_inicial = safe_decimal(0)  # Saldo inicial configurado
+        saldo_caixa = safe_decimal( saldo_inicial + total_suprimentos - total_saques_liquidos)
         
         # Operações de hoje
         hoje_str = obter_data_brasilia()
         operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum().apply(safe_decimal)
+        valor_saque_hoje = safe_decimal(operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
         
         # Exibir métricas em cards
         col1, col2, col3, col4 = st.columns(4).apply(safe_decimal)
