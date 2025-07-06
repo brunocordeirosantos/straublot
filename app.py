@@ -705,24 +705,20 @@ def render_fechamento_loterica(spreadsheet):
 # Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
+
+    # Buscar dados da aba "Operacoes"
     operacoes_data = buscar_dados(spreadsheet, "Operacoes")
-    
-# Normalizar os dados brutos de operações antes de criar o dataframe
-operacoes_data = buscar_dados(spreadsheet, "Operacoes")
 
-operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+    # Normalizar os dados brutos de operações antes de criar o dataframe
+    operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
 
-# Criar dataframe com os dados normalizados
-df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+    # Criar dataframe com os dados normalizados
+    df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 
-        
-df_operacoes = pd.DataFrame(operacoes_data_normalizada)
-# Conversão segura dos valores monetários
-for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
-    if col in df_operacoes.columns:
-        df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
-        
-        #
+    # Conversão segura dos valores monetários
+    for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
+        if col in df_operacoes.columns:
+            df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
  #Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
