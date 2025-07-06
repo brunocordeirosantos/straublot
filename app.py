@@ -42,7 +42,7 @@ def obter_data_brasilia():
             return agora.strftime("%Y-%m-%d")
         except:
             pass
-    # Fallback para data local
+    #  Fallback para data local
     return datetime.now().strftime("%Y-%m-%d")
 
 def obter_datetime_brasilia():
