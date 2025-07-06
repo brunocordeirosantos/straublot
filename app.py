@@ -716,9 +716,9 @@ def render_dashboard_caixa(spreadsheet):
         
     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 # Conversão segura dos valores monetários
-for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
-    if col in df_operacoes.columns:
-        df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+    for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
+        if col in df_operacoes.columns:
+            df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
         
         #
  #Converter colunas numéricas com tratamento de erro
