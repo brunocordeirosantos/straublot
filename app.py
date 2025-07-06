@@ -1611,7 +1611,7 @@ def main():
 
 
 # Importar pytz com tratamento de erro
-try:
+    try:
     import pytz
     PYTZ_AVAILABLE = True
 except ImportError:
