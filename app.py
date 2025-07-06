@@ -718,21 +718,20 @@ def render_dashboard_caixa(spreadsheet):
         
     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 # Conversão segura dos valores monetários
-    for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
+    for col in safe_decimal( ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]):
         if col in df_operacoes.columns:
-            df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+            df_operacoes[col] = df_operacoes[col]
                 
         #
  #Converter colunas numéricas com tratamento de erro
-        for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
+        for col in safe_decimal( ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]):
             if col in df_operacoes.columns:
                 df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
         
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum().apply(safe_decimal)
-        
+        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial = 0  # Saldo inicial configurado
         saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos.apply(safe_decimal)
