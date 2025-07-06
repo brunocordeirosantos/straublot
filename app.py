@@ -7,7 +7,7 @@ import os
 from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 
 #  Importar pytz com tratamento de erro
@@ -716,15 +716,21 @@ def render_dashboard_caixa(spreadsheet):
         
         # Normalizar dados
         operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
-        df_operacoes = pd.DataFrame(operacoes_data_normalizada)
         
-        # Converter colunas numéricas com tratamento de erro
+df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+# Conversão segura dos valores monetários
+for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
+    if col in df_operacoes.columns:
+        df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+        
+        #
+ Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
+        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal) == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal).isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
@@ -856,8 +862,8 @@ def render_cofre(spreadsheet):
             df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].apply(safe_decimal).astype(str)
             
-            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
-            saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
+            entradas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Entrada no Cofre"]["Valor"].sum()
+            saidas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Saída do Cofre"]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
         
         # Exibir saldo do cofre
@@ -1632,7 +1638,7 @@ def main():
                 del st.session_state[key]
             st.rerun()
         
-        #  Renderizar página atual
+        # Renderizar página atual
         if st.session_state.pagina_atual == "dashboard_caixa":
             render_dashboard_caixa(spreadsheet)
         elif st.session_state.pagina_atual == "operacoes_caixa":
@@ -1662,9 +1668,6 @@ def obter_horario_brasilia():
 # Função segura para converter em Decimal
 def safe_decimal(valor):
     try:
-        return Decimal(str(valor).replace(",", "."))
-    except (InvalidOperation, TypeError, ValueError):
-        return Decimal("0.00")
         return Decimal(str(valor).replace(",", "."))
     except (InvalidOperation, TypeError, ValueError):
         return Decimal("0.00")
