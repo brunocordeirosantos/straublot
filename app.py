@@ -731,20 +731,20 @@ def render_dashboard_caixa(spreadsheet):
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum().apply(safe_decimal)
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial = 0  # Saldo inicial configurado
-        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+        saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos.apply(safe_decimal)
         
         # Operações de hoje
         hoje_str = obter_data_brasilia()
         operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+        valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum().apply(safe_decimal)
         
         # Exibir métricas em cards
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = st.columns(4).apply(safe_decimal)
         
         with col1:
             st.markdown(f"""
