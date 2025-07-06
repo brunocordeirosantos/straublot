@@ -328,9 +328,9 @@ def normalizar_dados_inteligente(dados):
             continue
             
         try:
-            valor_bruto = Decimal(registro["Valor_Bruto"])
-            taxa_cliente = Decimal(registro["Taxa_Cliente"])
-            valor_liquido = Decimal(registro["Valor_Liquido"])
+            valor_bruto = registro["Valor_Bruto"]
+            taxa_cliente = registro["Taxa_Cliente"]
+            valor_liquido = registro["Valor_Liquido"]
             
             # Se valor bruto é 0, pular validação
             if valor_bruto == 0:
@@ -341,7 +341,7 @@ def normalizar_dados_inteligente(dados):
             fatores_teste = [1, 0.01, 0.1, 10, 100]
             melhor_fator_taxa = 1
             melhor_fator_liquido = 1
-            menor_erro = Decimal("Infinity")
+            menor_erro = "Infinity"
             
             for fator_taxa in fatores_teste:
                 for fator_liquido in fatores_teste:
@@ -374,11 +374,11 @@ def normalizar_dados_inteligente(dados):
             
             # Corrigir outros campos relacionados se existirem
             if "Taxa_Banco" in registro and melhor_fator_taxa != 1:
-                taxa_banco = Decimal(registro.get("Taxa_Banco", 0))
+                taxa_banco = registro.get("Taxa_Banco", 0)
                 registro_corrigido["Taxa_Banco"] = taxa_banco * melhor_fator_taxa
                 
             if "Lucro" in registro and melhor_fator_taxa != 1:
-                lucro = Decimal(registro.get("Lucro", 0))
+                lucro = registro.get("Lucro", 0)
                 registro_corrigido["Lucro"] = lucro * melhor_fator_taxa
                 
         except (ValueError, TypeError):
@@ -407,76 +407,76 @@ def debug_valores(dados, titulo="Debug"):
 
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.01")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)  # 1% sobre o valor
-    taxa_banco = Decimal("1.00")   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.01").quantize("0.01", rounding=ROUND_HALF_UP)  # 1% sobre o valor
+    taxa_banco = "1.00"   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
     lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": Decimal(taxa_cliente),
-        "taxa_banco": Decimal(taxa_banco),
-        "lucro": Decimal(max(Decimal("0"), lucro)),  # Lucro não pode ser negativo
-        "valor_liquido": Decimal(valor_liquido)
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": max(Decimal("0", lucro)),  # Lucro não pode ser negativo
+        "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cartao_credito(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.0533")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = (valor_dec * Decimal("0.0433")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.0533").quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = (valor_dec * "0.0433").quantize("0.01", rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": Decimal(taxa_cliente),
-        "taxa_banco": Decimal(taxa_banco), 
-        "lucro": Decimal(max(Decimal("0"), lucro)), 
-        "valor_liquido":Decimal(valor_liquido)
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco, 
+        "lucro": max(Decimal("0", lucro)), 
+        "valor_liquido":valor_liquido
     }
 
 def calcular_taxa_cheque_vista(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.02")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.02").quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": Decimal(taxa_cliente),
-        "taxa_banco": Decimal(taxa_banco),
-        "lucro": Decimal(lucro),
-        "valor_liquido": Decimal(valor_liquido)
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": lucro,
+        "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
-    valor_dec = Decimal(str(valor))
-    taxa_base = valor_dec * Decimal("0.02")  # 2% base
-    taxa_adicional = valor_dec * Decimal("0.0033") * Decimal(str(dias))  # 0.33% por dia
-    taxa_cliente = (taxa_base + taxa_adicional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_base = valor_dec * "0.02"  # 2% base
+    taxa_adicional = valor_dec * "0.0033" * str(dias)  # 0.33% por dia
+    taxa_cliente = (taxa_base + taxa_adicional).quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": Decimal(taxa_cliente),
-        "taxa_banco": Decimal(taxa_banco),
-        "lucro": Decimal(lucro),
-        "valor_liquido": Decimal(valor_liquido)
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": lucro,
+        "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    valor_dec = Decimal(str(valor))
-    taxa_perc_dec = Decimal(str(taxa_percentual)) / Decimal("100")
-    taxa_cliente = (valor_dec * taxa_perc_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_perc_dec = str(taxa_percentual) / "100"
+    taxa_cliente = (valor_dec * taxa_perc_dec).quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
     
     return {
-        "taxa_cliente": Decimal(taxa_cliente),
-        "taxa_banco": Decimal(taxa_banco),
-        "lucro": Decimal(lucro),
-        "valor_liquido": Decimal(valor_liquido)
+        "taxa_cliente": taxa_cliente,
+        "taxa_banco": taxa_banco,
+        "lucro": lucro,
+        "valor_liquido": valor_liquido
     }
 
 # Sistema de autenticação
@@ -564,20 +564,20 @@ def render_fechamento_loterica(spreadsheet):
                 data_fechamento = st.date_input("Data do Fechamento", obter_date_brasilia())
             
             # Buscar saldo anterior
-            sheet_name = f"Fechamentos_{pdv_selecionado.replace(" ", "")}"
+            sheet_name = f"Fechamentos_{pdv_selecionado}"
             fechamentos_data = buscar_dados(spreadsheet, sheet_name)
             df_fechamentos = pd.DataFrame(fechamentos_data)
             
-            saldo_anterior = Decimal("0")
+            saldo_anterior = "0"
             if not df_fechamentos.empty:
                 try:
                     df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors="coerce").dt.date
-                    df_fechamentos["Saldo_Final_Calculado"]= pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"].apply(safe_decimal), errors="coerce").fillna(0)
+                    df_fechamentos["Saldo_Final_Calculado"]= pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"]., errors="coerce").fillna(0)
                     
                     registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
                     
                     if not registro_anterior.empty:
-                        saldo_anterior = Decimal(str(registro_anterior.iloc[0]["Saldo_Final_Calculado"]))
+                        saldo_anterior = str(registro_anterior.iloc[0]["Saldo_Final_Calculado"])
                 except Exception as e:
                     st.warning("⚠️ Erro ao calcular saldo anterior. Usando saldo zero.")
             
@@ -691,7 +691,7 @@ def render_fechamento_loterica(spreadsheet):
                         qtd_vend_fed, preco_unit_fed, total_vend_fed,
                         movimentacao_cielo, pagamento_premios, vales_despesas,
                         retirada_cofre, retirada_caixa_interno, dinheiro_gaveta,
-                        Decimal(saldo_anterior), Decimal(saldo_calculado),Decimal(diferenca_caixa)
+                        saldo_anterior, saldo_calculado,diferenca_caixa
                     ]
                     
                     fechamento_sheet.append_row(novo_fechamento)
@@ -726,7 +726,7 @@ def render_dashboard_caixa(spreadsheet):
  #Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
-                df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+                df_operacoes[col] = df_operacoes[col].
         
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
@@ -852,14 +852,14 @@ def render_cofre(spreadsheet):
         df_cofre = pd.DataFrame(cofre_data)
         
         # Calcular saldo do cofre
-        saldo_cofre = Decimal("0")
+        saldo_cofre = "0"
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
+            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"]., errors="coerce").fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
             
             entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
             saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
-            saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
+            saldo_cofre = str(entradas) - str(saidas)
         
         # Exibir saldo do cofre
         st.markdown(f"""
@@ -941,7 +941,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            Decimal(valor), 
+                            valor, 
                             destino_final, 
                             observacoes
                         ]
@@ -960,10 +960,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                Decimal(valor), 
+                                valor, 
                                 0, 
                                 0, 
-                                Decimal(valor), 
+                                valor, 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1037,7 +1037,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            Decimal(valor), 
+                            valor, 
                             destino_final, 
                             observacoes
                         ]
@@ -1056,10 +1056,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                Decimal(valor), 
+                                valor, 
                                 0, 
                                 0, 
-                                Decimal(valor), 
+                                valor, 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1351,10 +1351,10 @@ def render_operacoes_caixa(spreadsheet):
                             "Suprimento",
                             "Sistema",
                             "N/A",
-                            Decimal(valor_suprimento),
+                            valor_suprimento,
                             0,
                             0,
-                            Decimal(valor_suprimento),
+                            valor_suprimento,
                             0,
                             "Concluído",
                             "",
@@ -1438,12 +1438,12 @@ def render_operacoes_caixa(spreadsheet):
                         
                         with col_stat2:
                             if "Valor_Bruto" in df_operacoes.columns:
-                                total_movimentado = df_operacoes["Valor_Bruto"].apply(safe_decimal).sum()
+                                total_movimentado = df_operacoes["Valor_Bruto"]..sum()
                                 st.metric("Total Movimentado", f"R$ {total_movimentado:,.2f}")
                         
                         with col_stat3:
                             if "Taxa_Cliente" in df_operacoes.columns:
-                                total_taxas = df_operacoes["Taxa_Cliente"].apply(safe_decimal).sum()
+                                total_taxas = df_operacoes["Taxa_Cliente"]..sum()
                                 st.metric("Total em Taxas", f"R$ {total_taxas:,.2f}")
                     else:
                         st.info("Nenhuma operação encontrada com os filtros aplicados.")
@@ -1481,12 +1481,12 @@ def render_fechamento_diario_simplificado(spreadsheet):
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
                 df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
-                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"].apply(safe_decimal), errors='coerce').fillna(0)
+                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"]., errors='coerce').fillna(0)
                 
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
                 if not registro_anterior.empty:
-                    saldo_dia_anterior = Decimal(registro_anterior.iloc[0]["Saldo_Calculado_Dia"])
+                    saldo_dia_anterior = registro_anterior.iloc[0]["Saldo_Calculado_Dia"]
         except Exception as e:
             st.warning(f"⚠️ Erro ao buscar saldo do dia anterior: {e}")
 
@@ -1553,13 +1553,13 @@ def render_fechamento_diario_simplificado(spreadsheet):
                     novo_fechamento = [
                         obter_data_brasilia(),
                         st.session_state.nome_usuario,
-                        Decimal(saldo_dia_anterior), # Convertido para 
-                        Decimal(total_saques_cartao), # Convertido para 
-                        Decimal(total_trocas_cheque), # Convertido para 
-                        Decimal(total_suprimentos), # Convertido para 
-                        Decimal(saldo_calculado_dia), # Convertido para 
-                        Decimal(dinheiro_contado), # Convertido para 
-                        Decimal(diferenca), # 
+                        saldo_dia_anterior, # Convertido para 
+                        total_saques_cartao, # Convertido para 
+                        total_trocas_cheque, # Convertido para 
+                        total_suprimentos, # Convertido para 
+                        saldo_calculado_dia, # Convertido para 
+                        dinheiro_contado, # Convertido para 
+                        diferenca, # 
                         observacoes_fechamento
                     ]
                     fechamento_sheet.append_row(novo_fechamento)
@@ -1663,9 +1663,9 @@ def obter_horario_brasilia():
 # Função segura para converter em Decimal
 def safe_decimal(valor):
     try:
-        return Decimal(str(valor).replace(",", "."))
+        return str(valor)
     except (InvalidOperation, TypeError, ValueError):
-        return Decimal("0.00")
+        return "0.00"
 
 if __name__ == "__main__":
     main()
