@@ -830,10 +830,7 @@ for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro
                 ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
             </div>
             """, unsafe_allow_html=True)
-        
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar dashboard: {str(e)}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
