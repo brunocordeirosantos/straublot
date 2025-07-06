@@ -706,16 +706,7 @@ def render_fechamento_loterica(spreadsheet):
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     
-    try:
-        HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
-        operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
-        
-        if not operacoes_data:
-            st.info("📊 Nenhuma operação registrada para exibir o dashboard.")
-            return
-        
-        # Normalizar dados
-        operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+
         
 df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 # Conversão segura dos valores monetários
@@ -724,7 +715,7 @@ for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro
         df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
         
         #
- Converter colunas numéricas com tratamento de erro
+ #Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
