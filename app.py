@@ -733,7 +733,7 @@ def render_dashboard_caixa(spreadsheet):
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
-        saldo_inicial =(0)  # Saldo inicial configurado
+        saldo_inicial =2608  # Saldo inicial configurado
         saldo_caixa = ( saldo_inicial + total_suprimentos - total_saques_liquidos)
         
         # Operações de hoje
