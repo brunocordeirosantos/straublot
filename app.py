@@ -706,16 +706,15 @@ def render_fechamento_loterica(spreadsheet):
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     operacoes_data = buscar_dados(spreadsheet, "Operacoes")
-    
-# Normalizar os dados brutos de operações antes de criar o dataframe
 
-operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+# Normalizar os dados brutos de operações antes de criar o dataframe
+    operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
 
 # Criar dataframe com os dados normalizados
-df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+    df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 
         
-df_operacoes = pd.DataFrame(operacoes_data_normalizada)
+    df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 # Conversão segura dos valores monetários
 for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
     if col in df_operacoes.columns:
