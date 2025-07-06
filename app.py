@@ -743,7 +743,7 @@ def render_dashboard_caixa(spreadsheet):
         valor_saque_hoje = safe_decimal(operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
         
         # Exibir métricas em cards
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4 = safe_decimal(st.columns(4))
         
         with col1:
             st.markdown(f"""
@@ -756,7 +756,7 @@ def render_dashboard_caixa(spreadsheet):
         with col2:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <h3>R$ {safe_decimal(valor_saque_hoje):,.2f}</h3>
                 <p>💳 Valor Saque Hoje</p>
             </div>
             """, unsafe_allow_html=True)
@@ -799,13 +799,13 @@ def render_dashboard_caixa(spreadsheet):
             df_recente = df_operacoes[df_operacoes["Data"] >= data_limite_pandas]
             
             if not df_recente.empty:
-                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
+                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")safe_decimal(["Valor_Liquido"].sum().reset_index())
                 
                 fig = px.bar(
                     resumo_por_tipo, 
                     x="Tipo_Operacao", 
-                    y="Valor_Liquido",
-                    title="Valor Líquido por Tipo de Operação",
+                    y=safe_decimal("Valor_Liquido"),
+                    title=safe_decimal("Valor Líquido por Tipo de Operação"),
                     labels={
                         "Tipo_Operacao": "Tipo de Operação", 
                         "Valor_Liquido": "Valor Líquido Total (R$)"
