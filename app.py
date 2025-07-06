@@ -1577,22 +1577,22 @@ def main():
     try:
         if not verificar_login():
             return
-        
+
         # Conectar ao Google Sheets
         spreadsheet = conectar_google_sheets()
         if not spreadsheet:
             st.error("❌ Não foi possível conectar ao Google Sheets. Verifique as credenciais.")
             return
-        
+
         # Interface principal baseada no tipo de usuário
         st.sidebar.title("📋 Menu Principal")
         st.sidebar.success(f"✅ {st.session_state.nome_usuario}")
         st.sidebar.markdown("---")
-        
+
         # Menu baseado no perfil
         if st.session_state.tipo_usuario == "👑 Gerente":
             st.title("👑 Dashboard Gerencial - Sistema Unificado")
-            
+
             opcoes_menu = {
                 "📊 Dashboard Caixa": "dashboard_caixa",
                 "💳 Operações Caixa": "operacoes_caixa", 
@@ -1600,23 +1600,52 @@ def main():
                 "📋 Fechamento Lotérica": "fechamento_loterica",
                 "🗓️ Fechamento Diário Caixa Interno": "fechamento_diario_caixa_interno"
             }
-            
+
         elif st.session_state.tipo_usuario == "💳 Operador Caixa":
             st.title("💳 Sistema Caixa Interno")
-            
+
             opcoes_menu = {
                 "📊 Dashboard Caixa": "dashboard_caixa",
                 "💳 Operações Caixa": "operacoes_caixa",
-# Importar pytz com tratamento de erro
-    try:
-        import pytz
-    PYTZ_AVAILABLE = True
-        except ImportError:
-    PYTZ_AVAILABLE = False
-        st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
+            }
 
-# Função para obter hora de Brasília com fallback
-    def obter_horario_brasilia():
+        # Simulação de uso da função auxiliar
+        horario = obter_horario_brasilia()
+        st.sidebar.markdown(f"🕒 Horário: {horario}")
+
+        # Exemplo de DataFrame de operações
+        df_operacoes = pd.DataFrame({
+            "Valor_Bruto": ["1515", "2024,77", "NaN"],
+            "Taxa_Cliente": ["15,15", "40,5", ""],
+            "Taxa_Banco": ["0.01", "0", "nan"]
+        })
+
+        # Conversão de colunas para Decimal
+        for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco"]:
+            df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+
+        # Cálculo das colunas resultantes
+        df_operacoes["Valor_Liquido"] = df_operacoes["Valor_Bruto"] - df_operacoes["Taxa_Cliente"] - df_operacoes["Taxa_Banco"]
+        df_operacoes["Lucro"] = df_operacoes["Taxa_Cliente"]
+
+        # Exibe a tabela formatada
+        st.table(df_operacoes)
+
+    except Exception as e:
+        st.error(f"Erro na execução do sistema: {str(e)}")
+
+
+# Importar pytz com fallback
+try:
+    import pytz
+    PYTZ_AVAILABLE = True
+except ImportError:
+    PYTZ_AVAILABLE = False
+    st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
+
+
+# Função auxiliar para obter o horário de Brasília
+def obter_horario_brasilia():
     if PYTZ_AVAILABLE:
         try:
             tz_brasilia = pytz.timezone("America/Sao_Paulo")
@@ -1626,82 +1655,10 @@ def main():
             pass
     return datetime.now().strftime("%H:%M:%S")
 
-# Função segura para converter em Decimal
-    def safe_decimal(valor):
+
+# Função segura para converter valores em Decimal
+def safe_decimal(valor):
     try:
         return Decimal(str(valor).replace(",", "."))
-        except (InvalidOperation, TypeError, ValueError):
+    except (InvalidOperation, TypeError, ValueError):
         return Decimal("0.00")
-
-# Exemplo de DataFrame de operações
-    df_operacoes = pd.DataFrame({
-    "Valor_Bruto": ["1515", "2024,77", "NaN"],
-    "Taxa_Cliente": ["15,15", "40,5", ""],
-    "Taxa_Banco": ["0.01", "0", "nan"]
-})
-
-# Conversão de colunas para Decimal
-for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco"]:
-    df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
-
-# Cálculos com Decimal
-df_operacoes["Valor_Liquido"] = df_operacoes["Valor_Bruto"] - df_operacoes["Taxa_Cliente"] - df_operacoes["Taxa_Banco"]
-df_operacoes["Lucro"] = df_operacoes["Valor_Bruto"] - df_operacoes["Valor_Liquido"]
-
-# Arredondamento
-df_operacoes["Valor_Liquido"] = df_operacoes["Valor_Liquido"].apply(lambda x: x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-df_operacoes["Lucro"] = df_operacoes["Lucro"].apply(lambda x: x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-# Exibição no Streamlit
-st.write(df_operacoes)
-
-                "🗓️ Fechamento Diário Caixa Interno": "fechamento_diario_caixa_interno"
-            }
-            
-        else:  # Operador Lotérica
-            st.title("🎰 Sistema Lotérica")
-            
-            opcoes_menu = {
-                "📋 Fechamento Lotérica": "fechamento_loterica"
-            }
-        
-        # Navegação
-        if "pagina_atual" not in st.session_state:
-            st.session_state.pagina_atual = list(opcoes_menu.values())[0]
-        
-        for nome_opcao, chave_opcao in opcoes_menu.items():
-            if st.sidebar.button(nome_opcao, use_container_width=True):
-                st.session_state.pagina_atual = chave_opcao
-                st.rerun()
-        
-        st.sidebar.markdown("---")
-        if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-        
-        # Renderizar página atual
-        if st.session_state.pagina_atual == "dashboard_caixa":
-            render_dashboard_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "operacoes_caixa":
-            render_operacoes_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "cofre":
-            render_cofre(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_loterica":
-            render_fechamento_loterica(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_diario_caixa_interno":
-            render_fechamento_diario_simplificado(spreadsheet)
-    
-    except Exception as e:
-        st.error(f"❌ Erro crítico no sistema: {str(e)}")
-        st.info("🔄 Recarregue a página para tentar novamente.")
-        st.exception(e)
-
-if __name__ == "__main__":
-    main()
-
-
-
-
-
-
