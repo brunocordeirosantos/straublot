@@ -724,7 +724,7 @@ def render_dashboard_caixa(spreadsheet):
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] = = "Suprimento"]["Valor_Bruto"].sum()
+        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal).isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
