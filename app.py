@@ -569,7 +569,7 @@ def render_fechamento_loterica(spreadsheet):
             saldo_anterior = Decimal("0")
             if not df_fechamentos.empty:
                 try:
-                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"]), errors="coerce").dt.date
+                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors="coerce").dt.date
                     df_fechamentos["Saldo_Final_Calculado"]= pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"].apply(safe_decimal), errors="coerce").fillna(0)
                     
                     registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
