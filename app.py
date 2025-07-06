@@ -706,6 +706,11 @@ def render_fechamento_loterica(spreadsheet):
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     
+# Normalizar os dados brutos de operações antes de criar o dataframe
+operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
+
+# Criar dataframe com os dados normalizados
+df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 
         
 df_operacoes = pd.DataFrame(operacoes_data_normalizada)
