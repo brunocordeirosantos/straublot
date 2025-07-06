@@ -743,7 +743,7 @@ def render_dashboard_caixa(spreadsheet):
         valor_saque_hoje = safe_decimal(operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
         
         # Exibir métricas em cards
-        col1, col2, col3, col4 = safe_decimal(st.columns(4))
+        col1, col2, col3, col4 = (st.columns(4))
         
         with col1:
             st.markdown(f"""
