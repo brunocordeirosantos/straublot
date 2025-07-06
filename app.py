@@ -1632,7 +1632,7 @@ def main():
                 del st.session_state[key]
             st.rerun()
         
-        # Renderizar página atual
+        #  Renderizar página atual
         if st.session_state.pagina_atual == "dashboard_caixa":
             render_dashboard_caixa(spreadsheet)
         elif st.session_state.pagina_atual == "operacoes_caixa":
