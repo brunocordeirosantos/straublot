@@ -726,7 +726,7 @@ def render_dashboard_caixa(spreadsheet):
  #Converter colunas numéricas com tratamento de erro
         for col in ["Valor_Bruto", "Valor_Liquido", "Taxa_Cliente", "Taxa_Banco", "Lucro"]:
             if col in df_operacoes.columns:
-                df_operacoes[col] = df_operacoes[col].
+                df_operacoes[col] = df_operacoes[col]
         
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
