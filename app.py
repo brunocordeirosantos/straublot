@@ -12,7 +12,7 @@ import hashlib
 
 
 
-#  Importar pytz com tratamento de erro
+#  I mportar pytz com tratamento de erro
 try:
     import pytz
     PYTZ_AVAILABLE = True
@@ -407,74 +407,75 @@ def debug_valores(dados, titulo="Debug"):
 
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.01")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("1.00")  # Correto: Decimal, não string
-    lucro = taxa_cliente - taxa_banco
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.01").quantize("0.01", rounding=ROUND_HALF_UP)  # 1% sobre o valor
+    taxa_banco = "1.00"   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
+    lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
     valor_liquido = valor_dec - taxa_cliente
-
+    
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0"), lucro),  # Correto uso do max
+        "lucro": max(Decimal("0", lucro)),  # Lucro não pode ser negativo
         "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cartao_credito(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.0533")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = (valor_dec * Decimal("0.0433")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.0533").quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = (valor_dec * "0.0433").quantize("0.01", rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
     valor_liquido = valor_dec - taxa_cliente
-
+    
     return {
         "taxa_cliente": taxa_cliente,
-        "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0"), lucro),
-        "valor_liquido": valor_liquido
+        "taxa_banco": taxa_banco, 
+        "lucro": max(Decimal("0", lucro)), 
+        "valor_liquido":valor_liquido
     }
 
 def calcular_taxa_cheque_vista(valor):
-    valor_dec = Decimal(str(valor))
-    taxa_cliente = (valor_dec * Decimal("0.02")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_cliente = (valor_dec * "0.02").quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-
+    
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0"), lucro),
+        "lucro": lucro,
         "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
-    valor_dec = Decimal(str(valor))
-    taxa_percentual = Decimal("0.02") + Decimal("0.0033") * Decimal(dias)
-    taxa_cliente = (valor_dec * taxa_percentual).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_base = valor_dec * "0.02"  # 2% base
+    taxa_adicional = valor_dec * "0.0033" * str(dias)  # 0.33% por dia
+    taxa_cliente = (taxa_base + taxa_adicional).quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-
+    
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0"), lucro),
+        "lucro": lucro,
         "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    valor_dec = Decimal(str(valor))
-    taxa_decimal = Decimal(str(taxa_percentual)) / Decimal("100")
-    taxa_cliente = (valor_dec * taxa_decimal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    taxa_banco = Decimal("0.00")
+    valor_dec = str(valor)
+    taxa_perc_dec = str(taxa_percentual) / "100"
+    taxa_cliente = (valor_dec * taxa_perc_dec).quantize("0.01", rounding=ROUND_HALF_UP)
+    taxa_banco = "0.00"
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-
+    
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0"), lucro),
+        "lucro": lucro,
         "valor_liquido": valor_liquido
     }
 
@@ -1148,7 +1149,7 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"] / Decimal(str(valor)))*100:.2f}%")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
@@ -1196,11 +1197,11 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 "",
-                                f"{(sim_data["dados"]["taxa_cliente"] / Decimal(str(sim_data["valor_bruto"])))*100:.2f}%",
+                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
                                 sim_data["observacoes"]
                             ]
                             
-                            worksheet.append_row(nova_operacao)
+                            worksheet.append_row([f"{x:.2f}" if isinstance(x, Decimal) else x for x in nova_operacao])
                             st.success(f"✅ {sim_data["tipo"]} de R$ {sim_data["valor_bruto"]:,.2f} registrado com sucesso!")
                             
                             # Limpar simulação
@@ -1262,7 +1263,7 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"] / Decimal(str(valor)))*100:.2f}%")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
@@ -1313,11 +1314,11 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 sim_data["data_vencimento"],
-                                f"{(sim_data["dados"]["taxa_cliente"] / Decimal(str(sim_data["valor_bruto"])))*100:.2f}%",
+                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
                                 sim_data["observacoes"]
                             ]
                             
-                            worksheet.append_row(nova_operacao)
+                            worksheet.append_row([f"{x:.2f}" if isinstance(x, Decimal) else x for x in nova_operacao])
                             st.success(f"✅ {sim_data["tipo"]} de R$ {sim_data["valor_bruto"]:,.2f} registrado com sucesso!")
                             
                             # Limpar simulação
@@ -1361,7 +1362,7 @@ def render_operacoes_caixa(spreadsheet):
                             f"Origem: {origem_suprimento}. {observacoes_sup}"
                         ]
                         
-                        worksheet.append_row(nova_operacao)
+                        worksheet.append_row([f"{x:.2f}" if isinstance(x, Decimal) else x for x in nova_operacao])
                         st.success(f"✅ Suprimento de R$ {valor_suprimento:,.2f} registrado com sucesso!")
                         st.cache_data.clear()
                     except Exception as e:
