@@ -12,7 +12,7 @@ import hashlib
 
 
 
-#  Importar pytz com tratamento de erro
+#  I mportar pytz com tratamento de erro
 try:
     import pytz
     PYTZ_AVAILABLE = True
