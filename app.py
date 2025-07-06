@@ -7,9 +7,9 @@ import os
 from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from decimal import Decimal, ROUND_HALF_UP
-import hashlib
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+import hashlib
+
 
 
 #  Importar pytz com tratamento de erro
