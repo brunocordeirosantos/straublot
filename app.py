@@ -708,7 +708,6 @@ def render_dashboard_caixa(spreadsheet):
     operacoes_data = buscar_dados(spreadsheet, "Operacoes")
     
 # Normalizar os dados brutos de operações antes de criar o dataframe
-operacoes_data = buscar_dados(spreadsheet, "Operacoes")
 
 operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
 
