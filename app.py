@@ -853,8 +853,8 @@ def render_cofre(spreadsheet):
         # Calcular saldo do cofre
         saldo_cofre = Decimal("0")
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"].apply(safe_decimal) = pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
-            df_cofre["Tipo_Transacao"].apply(safe_decimal) = df_cofre["Tipo_Transacao"].apply(safe_decimal).astype(str)
+            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
+            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].apply(safe_decimal).astype(str)
             
             entradas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Entrada no Cofre"]["Valor"].sum()
             saidas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Saída do Cofre"]["Valor"].sum()
