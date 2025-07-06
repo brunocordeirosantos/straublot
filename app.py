@@ -1607,19 +1607,16 @@ def main():
             opcoes_menu = {
                 "📊 Dashboard Caixa": "dashboard_caixa",
                 "💳 Operações Caixa": "operacoes_caixa",
-
-
-
 # Importar pytz com tratamento de erro
     try:
-    import pytz
+        import pytz
     PYTZ_AVAILABLE = True
-except ImportError:
+        except ImportError:
     PYTZ_AVAILABLE = False
-    st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
+        st.warning("⚠️ Biblioteca pytz não encontrada. Usando horário UTC.")
 
 # Função para obter hora de Brasília com fallback
-def obter_horario_brasilia():
+    def obter_horario_brasilia():
     if PYTZ_AVAILABLE:
         try:
             tz_brasilia = pytz.timezone("America/Sao_Paulo")
@@ -1630,14 +1627,14 @@ def obter_horario_brasilia():
     return datetime.now().strftime("%H:%M:%S")
 
 # Função segura para converter em Decimal
-def safe_decimal(valor):
+    def safe_decimal(valor):
     try:
         return Decimal(str(valor).replace(",", "."))
-    except (InvalidOperation, TypeError, ValueError):
+        except (InvalidOperation, TypeError, ValueError):
         return Decimal("0.00")
 
 # Exemplo de DataFrame de operações
-df_operacoes = pd.DataFrame({
+    df_operacoes = pd.DataFrame({
     "Valor_Bruto": ["1515", "2024,77", "NaN"],
     "Taxa_Cliente": ["15,15", "40,5", ""],
     "Taxa_Banco": ["0.01", "0", "nan"]
