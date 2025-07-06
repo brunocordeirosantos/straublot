@@ -1148,7 +1148,7 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"] / Decimal(str(valor)))*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
@@ -1196,7 +1196,7 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 "",
-                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
+                                f"{(sim_data["dados"]["taxa_cliente"] / Decimal(str(sim_data["valor_bruto"])))*100:.2f}%",
                                 sim_data["observacoes"]
                             ]
                             
@@ -1262,7 +1262,7 @@ def render_operacoes_caixa(spreadsheet):
                         
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"]/valor)*100:.2f}%")
+                            st.metric("Taxa Percentual", f"{(calc["taxa_cliente"] / Decimal(str(valor)))*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc["taxa_cliente"]:,.2f}")
                         
                         with col_res2:
@@ -1313,7 +1313,7 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 sim_data["data_vencimento"],
-                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
+                                f"{(sim_data["dados"]["taxa_cliente"] / Decimal(str(sim_data["valor_bruto"])))*100:.2f}%",
                                 sim_data["observacoes"]
                             ]
                             
