@@ -1438,12 +1438,12 @@ def render_operacoes_caixa(spreadsheet):
                         
                         with col_stat2:
                             if "Valor_Bruto" in df_operacoes.columns:
-                                total_movimentado = df_operacoes["Valor_Bruto"]..sum()
+                                total_movimentado = df_operacoes["Valor_Bruto"].sum()
                                 st.metric("Total Movimentado", f"R$ {total_movimentado:,.2f}")
                         
                         with col_stat3:
                             if "Taxa_Cliente" in df_operacoes.columns:
-                                total_taxas = df_operacoes["Taxa_Cliente"]..sum()
+                                total_taxas = df_operacoes["Taxa_Cliente"].sum()
                                 st.metric("Total em Taxas", f"R$ {total_taxas:,.2f}")
                     else:
                         st.info("Nenhuma operação encontrada com os filtros aplicados.")
@@ -1481,7 +1481,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
                 df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
-                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"]., errors='coerce').fillna(0)
+                df_fechamentos["Saldo_Calculado_Dia"] = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"], errors='coerce').fillna(0)
                 
                 registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
