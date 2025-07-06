@@ -720,7 +720,7 @@ def render_dashboard_caixa(spreadsheet):
 # Conversão segura dos valores monetários
     for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
         if col in df_operacoes.columns:
-            df_operacoes[col] = df_operacoes[col].apply(safe_decimal)
+            df_operacoes[col] = df_operacoes[col]
         
         #
  #Converter colunas numéricas com tratamento de erro
@@ -729,9 +729,9 @@ def render_dashboard_caixa(spreadsheet):
                 df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
         
         # Calcular métricas
-        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal) == "Suprimento"]["Valor_Bruto"].sum()
+        total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
-        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal).isin(tipos_de_saida)]["Valor_Liquido"].sum()
+        total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial = 0  # Saldo inicial configurado
@@ -856,10 +856,10 @@ def render_cofre(spreadsheet):
         saldo_cofre = Decimal("0")
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
             df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
-            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].apply(safe_decimal).astype(str)
+            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
             
-            entradas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Entrada no Cofre"]["Valor"].sum()
-            saidas = df_cofre[df_cofre["Tipo_Transacao"].apply(safe_decimal) == "Saída do Cofre"]["Valor"].sum()
+            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
+            saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
         
         # Exibir saldo do cofre
