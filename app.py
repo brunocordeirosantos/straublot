@@ -569,10 +569,10 @@ def render_fechamento_loterica(spreadsheet):
             saldo_anterior = Decimal("0")
             if not df_fechamentos.empty:
                 try:
-                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"].apply(safe_decimal), errors="coerce").dt.date
+                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"]), errors="coerce").dt.date
                     df_fechamentos["Saldo_Final_Calculado"]= pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"].apply(safe_decimal), errors="coerce").fillna(0)
                     
-                    registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"].apply(safe_decimal) == data_anterior]
+                    registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
                     
                     if not registro_anterior.empty:
                         saldo_anterior = Decimal(str(registro_anterior.iloc[0]["Saldo_Final_Calculado"]))
@@ -734,7 +734,7 @@ def render_dashboard_caixa(spreadsheet):
         
         # Operações de hoje
         hoje_str = obter_data_brasilia()
-        operacoes_de_hoje = df_operacoes[df_operacoes["Data"].apply(safe_decimal) == hoje_str]
+        operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
         valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         
@@ -781,7 +781,7 @@ def render_dashboard_caixa(spreadsheet):
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
         try:
-            df_operacoes["Data"].apply(safe_decimal) = pd.to_datetime(df_operacoes["Data"].apply(safe_decimal), errors="coerce")
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
             df_operacoes.dropna(subset=["Data"], inplace=True)
             
             # Converter datetime de Brasília para pandas datetime com tratamento de erro
@@ -792,7 +792,7 @@ def render_dashboard_caixa(spreadsheet):
                 # Fallback se houver erro
                 data_limite_pandas = pd.to_datetime((datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
             
-            df_recente = df_operacoes[df_operacoes["Data"].apply(safe_decimal) >= data_limite_pandas]
+            df_recente = df_operacoes[df_operacoes["Data"] >= data_limite_pandas]
             
             if not df_recente.empty:
                 resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
@@ -1401,16 +1401,16 @@ def render_operacoes_caixa(spreadsheet):
                     
                     # Aplicar filtros
                     if tipo_operacao_filtro != "Todos":
-                        df_operacoes = df_operacoes[df_operacoes["Tipo_Operacao"].apply(safe_decimal) == tipo_operacao_filtro]
+                        df_operacoes = df_operacoes[df_operacoes["Tipo_Operacao"] == tipo_operacao_filtro]
                     
                     if st.session_state.get("mostrar_filtro_data", False) and "data_inicio" in locals():
                         try:
-                            df_operacoes["Data"].apply(safe_decimal) = pd.to_datetime(df_operacoes["Data"].apply(safe_decimal), errors="coerce")
+                            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
                             data_inicio_pd = pd.to_datetime(data_inicio)
                             data_fim_pd = pd.to_datetime(data_fim)
                             df_operacoes = df_operacoes[
-                                (df_operacoes["Data"].apply(safe_decimal) >= data_inicio_pd) & 
-                                (df_operacoes["Data"].apply(safe_decimal) <= data_fim_pd)
+                                (df_operacoes["Data"] >= data_inicio_pd) & 
+                                (df_operacoes["Data"] <= data_fim_pd)
                             ]
                         except Exception as e:
                             st.warning("⚠️ Erro ao aplicar filtro de data.")
@@ -1479,10 +1479,10 @@ def render_fechamento_diario_simplificado(spreadsheet):
             fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Diario_Caixa_Interno")
             if fechamentos_data:
                 df_fechamentos = pd.DataFrame(fechamentos_data)
-                df_fechamentos["Data_Fechamento"].apply(safe_decimal) = pd.to_datetime(df_fechamentos["Data_Fechamento"].apply(safe_decimal), errors='coerce').dt.date
+                df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors='coerce').dt.date
                 df_fechamentos["Saldo_Calculado_Dia"].apply(safe_decimal) = pd.to_numeric(df_fechamentos["Saldo_Calculado_Dia"].apply(safe_decimal), errors='coerce').fillna(0)
                 
-                registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"].apply(safe_decimal) == ontem]
+                registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == ontem]
                 
                 if not registro_anterior.empty:
                     saldo_dia_anterior = float(registro_anterior.iloc[0]["Saldo_Calculado_Dia"])
@@ -1503,9 +1503,9 @@ def render_fechamento_diario_simplificado(spreadsheet):
             for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
                 if col in df_operacoes.columns:
                     df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0)
-            df_operacoes["Data"].apply(safe_decimal) = pd.to_datetime(df_operacoes["Data"].apply(safe_decimal), errors="coerce").dt.date
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce").dt.date
             df_operacoes.dropna(subset=["Data"], inplace=True)
-            operacoes_hoje = df_operacoes[df_operacoes["Data"].apply(safe_decimal) == hoje]
+            operacoes_hoje = df_operacoes[df_operacoes["Data"] == hoje]
 
         # 3. Calcular Totais do Dia
         tipos_saque_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
