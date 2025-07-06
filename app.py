@@ -856,8 +856,8 @@ def render_cofre(spreadsheet):
             df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"].apply(safe_decimal), errors="coerce").fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].apply(safe_decimal).astype(str)
             
-            entradas = df_cofre[df_cofre["Tipo_Transacao"] = = "Entrada no Cofre"]["Valor"].sum()
-            saidas = df_cofre[df_cofre["Tipo_Transacao"] = = "Saída do Cofre"]["Valor"].sum()
+            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
+            saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
         
         # Exibir saldo do cofre
