@@ -730,7 +730,7 @@ def render_dashboard_caixa(spreadsheet):
         
         # Calcular métricas
         total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
-        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
+        tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
         saldo_inicial =2608  # Saldo inicial configurado
@@ -1390,7 +1390,7 @@ def render_operacoes_caixa(spreadsheet):
                             data_fim = obter_date_brasilia()
                 
                 with col_filtro2:
-                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Suprimento"])
+                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado","Cheque com taxa manual", "Suprimento"])
                 
                 # Buscar e exibir dados
                 operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
@@ -1510,7 +1510,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
 
         # 3. Calcular Totais do Dia
         tipos_saque_cartao = ["Saque Cartão Débito", "Saque Cartão Crédito"]
-        tipos_troca_cheque = ["Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
+        tipos_troca_cheque = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
         tipo_suprimento = "Suprimento"
 
         total_saques_cartao = operacoes_hoje[operacoes_hoje["Tipo_Operacao"].isin(tipos_saque_cartao)]["Valor_Liquido"].sum()
