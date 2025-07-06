@@ -1390,7 +1390,7 @@ def render_operacoes_caixa(spreadsheet):
                             data_fim = obter_date_brasilia()
                 
                 with col_filtro2:
-                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado","Cheque com taxa manual", "Suprimento"])
+                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado","Cheque com Taxa Manual", "Suprimento"])
                 
                 # Buscar e exibir dados
                 operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
