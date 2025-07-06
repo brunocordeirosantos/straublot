@@ -748,7 +748,7 @@ def render_dashboard_caixa(spreadsheet):
         with col1:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <h3>R$ {safe_decimal(saldo_caixa:),.2f}</h3>
                 <p>💰 Saldo do Caixa</p>
             </div>
             """, unsafe_allow_html=True)
