@@ -733,14 +733,14 @@ def render_dashboard_caixa(spreadsheet):
         tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Troca Cheque com Taxa Manual"]
         total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
         # Saldo do caixa (saldo inicial + suprimentos - saques líquidos)
-        saldo_inicial = safe_decimal(0)  # Saldo inicial configurado
-        saldo_caixa = safe_decimal( saldo_inicial + total_suprimentos - total_saques_liquidos)
+        saldo_inicial =(0)  # Saldo inicial configurado
+        saldo_caixa = ( saldo_inicial + total_suprimentos - total_saques_liquidos)
         
         # Operações de hoje
         hoje_str = obter_data_brasilia()
         operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
         operacoes_hoje_count = len(operacoes_de_hoje)
-        valor_saque_hoje = safe_decimal(operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
+        valor_saque_hoje = (operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
         
         # Exibir métricas em cards
         col1, col2, col3, col4 = (st.columns(4))
@@ -748,7 +748,7 @@ def render_dashboard_caixa(spreadsheet):
         with col1:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                <h3>R$ {safe_decimal(saldo_caixa):,.2f}</h3>
+                <h3>R$ {(saldo_caixa):,.2f}</h3>
                 <p>💰 Saldo do Caixa</p>
             </div>
             """, unsafe_allow_html=True)
@@ -756,7 +756,7 @@ def render_dashboard_caixa(spreadsheet):
         with col2:
             st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <h3>R$ {safe_decimal(valor_saque_hoje):,.2f}</h3>
+                <h3>R$ {(valor_saque_hoje):,.2f}</h3>
                 <p>💳 Valor Saque Hoje</p>
             </div>
             """, unsafe_allow_html=True)
@@ -804,8 +804,8 @@ def render_dashboard_caixa(spreadsheet):
                 fig = px.bar(
                     resumo_por_tipo, 
                     x="Tipo_Operacao", 
-                    y=safe_decimal("Valor_Liquido"),
-                    title=safe_decimal("Valor Líquido por Tipo de Operação"),
+                    y=("Valor_Liquido"),
+                    title=("Valor Líquido por Tipo de Operação"),
                     labels={
                         "Tipo_Operacao": "Tipo de Operação", 
                         "Valor_Liquido": "Valor Líquido Total (R$)"
@@ -1659,13 +1659,6 @@ def obter_horario_brasilia():
         return agora.strftime("%H:%M:%S")
     except Exception:
         return datetime.now().strftime("%H:%M:%S")
-
-# Função segura para converter em Decimal
-def safe_decimal(valor):
-    try:
-        return str(valor)
-    except (InvalidOperation, TypeError, ValueError):
-        return "0.00"
 
 if __name__ == "__main__":
     main()
