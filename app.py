@@ -799,7 +799,7 @@ def render_dashboard_caixa(spreadsheet):
             df_recente = df_operacoes[df_operacoes["Data"] >= data_limite_pandas]
             
             if not df_recente.empty:
-                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")safe_decimal(["Valor_Liquido"].sum().reset_index())
+                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
                 
                 fig = px.bar(
                     resumo_por_tipo, 
