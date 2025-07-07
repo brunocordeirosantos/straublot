@@ -866,7 +866,7 @@ def render_cofre(spreadsheet):
             saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
 
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
-    except Exception as e:
+        except Exception as e:
         st.warning(f"Erro ao calcular saldo: {e}")
         saldo_cofre = Decimal("0.00")
         
