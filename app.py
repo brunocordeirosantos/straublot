@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import hashlib
-
+import decimal
 
 
 #  I mportar pytz com tratamento de erro
@@ -407,7 +407,7 @@ def debug_valores(dados, titulo="Debug"):
 
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
-    valor_dec = str(valor)
+    valor_dec = decimal(valor)
     taxa_cliente = (valor_dec * "0.01").quantize("0.01", rounding=ROUND_HALF_UP)  # 1% sobre o valor
     taxa_banco = "1.00"   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
     lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
@@ -421,7 +421,7 @@ def calcular_taxa_cartao_debito(valor):
     }
 
 def calcular_taxa_cartao_credito(valor):
-    valor_dec = str(valor)
+    valor_dec = decimal(valor)
     taxa_cliente = (valor_dec * "0.0533").quantize("0.01", rounding=ROUND_HALF_UP)
     taxa_banco = (valor_dec * "0.0433").quantize("0.01", rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
@@ -435,7 +435,7 @@ def calcular_taxa_cartao_credito(valor):
     }
 
 def calcular_taxa_cheque_vista(valor):
-    valor_dec = str(valor)
+    valor_dec = decimal(valor)
     taxa_cliente = (valor_dec * "0.02").quantize("0.01", rounding=ROUND_HALF_UP)
     taxa_banco = "0.00"
     lucro = taxa_cliente
@@ -449,7 +449,7 @@ def calcular_taxa_cheque_vista(valor):
     }
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
-    valor_dec = str(valor)
+    valor_dec = decimal(valor)
     taxa_base = valor_dec * "0.02"  # 2% base
     taxa_adicional = valor_dec * "0.0033" * str(dias)  # 0.33% por dia
     taxa_cliente = (taxa_base + taxa_adicional).quantize("0.01", rounding=ROUND_HALF_UP)
@@ -465,7 +465,7 @@ def calcular_taxa_cheque_pre_datado(valor, dias):
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    valor_dec = str(valor)
+    valor_dec = decimal(valor)
     taxa_perc_dec = str(taxa_percentual) / "100"
     taxa_cliente = (valor_dec * taxa_perc_dec).quantize("0.01", rounding=ROUND_HALF_UP)
     taxa_banco = "0.00"
