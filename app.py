@@ -892,7 +892,7 @@ def render_cofre(spreadsheet):
             with st.form("form_mov_cofre", clear_on_submit=True):
                 # O tipo_mov já foi definido fora, então o usamos aqui dentro
                 
-                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key="valor_cofre")
+                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0# key removido "valor_cofre")
                 
                 # O restante da lógica condicional permanece o mesmo
                 destino_final = ""
@@ -932,9 +932,9 @@ def render_cofre(spreadsheet):
                     )
 
                                
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
+                observacoes = st.text_area("Observações Adicionais"# key removido "obs_cofre_form")
                 
-                submitted = st.form_submit_button("💾 Salvar Movimentação", key="form_mov_cofre", use_container_width=True)
+                submitted = st.form_submit_button("💾 Salvar Movimentação"# key removido "form_mov_cofre", use_container_width=True)
                 
                 if submitted:
                     try:
@@ -1027,10 +1027,10 @@ def render_cofre(spreadsheet):
 
                 
                 # Observações
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
+                observacoes = st.text_area("Observações Adicionais"# key removido "obs_cofre_form")
                 
                 # Botão de submissão
-                submitted = st.form_submit_button("💾 Salvar Movimentação", key="form_mov_cofre", use_container_width=True)
+                submitted = st.form_submit_button("💾 Salvar Movimentação"# key removido "form_mov_cofre", use_container_width=True)
                 
                 if submitted:
                     try:
