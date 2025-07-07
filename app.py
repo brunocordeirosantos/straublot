@@ -406,16 +406,22 @@ def debug_valores(dados, titulo="Debug"):
 
 # Funções de cálculo corrigidas
 def calcular_taxa_cartao_debito(valor):
-    valor_dec = Decimal(valor)
-    taxa_cliente = (valor_dec * "0.01").quantize("0.01", rounding=ROUND_HALF_UP)  # 1% sobre o valor
-    taxa_banco = "1.00"   # Taxa fixa de R$ 1,00 que o banco cobra da empresa
-    lucro = taxa_cliente - taxa_banco  # Lucro = taxa cliente - taxa banco
-    valor_liquido = valor_dec - taxa_cliente
+    # Garante que valor está formatado corretamente para Decimal
+    valor_dec = Decimal(str(valor).replace(",", "."))
     
+    taxa_percentual = Decimal("0.01")
+    taxa_cliente = (valor_dec * taxa_percentual).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    
+    taxa_banco = Decimal("1.00")
+    lucro = taxa_cliente - taxa_banco
+    lucro = max(Decimal("0.00"), lucro)  # Lucro não pode ser negativo
+    
+    valor_liquido = valor_dec - taxa_cliente
+
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
-        "lucro": max(Decimal("0", lucro)),  # Lucro não pode ser negativo
+        "lucro": lucro,
         "valor_liquido": valor_liquido
     }
 
