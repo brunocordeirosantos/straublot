@@ -69,9 +69,9 @@ def obter_date_brasilia():
     return date.today()
 
 # Configuração da página
-st.set_page_config(page_title="Sistema Lotérica", page_icon="💰", layout="wide")
+st.set_page_config(
     page_title="Sistema Unificado - Lotérica & Caixa Interno",
-    page_icon="🏧",
+    page_icon="🧾",
     layout="wide",
     initial_sidebar_state="expanded"
 )
