@@ -867,8 +867,8 @@ def render_cofre(spreadsheet):
 
         saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
     except Exception as e:
-        st.warning(f"Erro ao calcular saldo: {e}")
-        saldo_cofre = Decimal("0.00")
+            st.warning(f"Erro ao calcular saldo: {e}")
+            saldo_cofre = Decimal("0.00")
         
         # Exibir saldo do cofre
         st.markdown(f"""
@@ -878,12 +878,12 @@ def render_cofre(spreadsheet):
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("---")
+    st.markdown("---")
         
         # Tabs para organizar a interface
-        tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
+    tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
         
-        with tab1:
+    with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
             # --- NOVO CÓDIGO: Mover o selectbox para fora do formulário ---
