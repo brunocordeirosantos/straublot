@@ -1104,13 +1104,7 @@ def render_cofre(spreadsheet):
                 except Exception as e:
                     st.warning("⚠️ Erro ao ordenar dados. Exibindo sem ordenação.")
                     st.dataframe(df_cofre, use_container_width=True)
-            else:
-                st.info("Nenhuma movimentação registrada no cofre.")
-    
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
-
+          
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
     st.subheader("💳 Operações do Caixa Interno")
