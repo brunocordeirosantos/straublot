@@ -599,7 +599,7 @@ with tab1:
 
         with col_conf:
             confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
-with tab2:
+    with tab2:
         render_troca_cheques()
     
     with tab3:
