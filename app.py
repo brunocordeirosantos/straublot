@@ -426,26 +426,26 @@ def calcular_taxa_cartao_debito(valor):
     }
 
 def calcular_taxa_cartao_credito(valor):
-    valor_dec = Decimal(valor)
-    taxa_cliente = (valor_dec * "0.0533").quantize("0.01", rounding=ROUND_HALF_UP)
-    taxa_banco = (valor_dec * "0.0433").quantize("0.01", rounding=ROUND_HALF_UP)
+    valor_dec = Decimal(str(valor))
+    taxa_cliente = (valor_dec * Decimal("0.0533")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = (valor_dec * Decimal("0.0433")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     lucro = taxa_cliente - taxa_banco
     valor_liquido = valor_dec - taxa_cliente
-    
+
     return {
         "taxa_cliente": taxa_cliente,
-        "taxa_banco": taxa_banco, 
-        "lucro": max(Decimal("0", lucro)), 
-        "valor_liquido":valor_liquido
+        "taxa_banco": taxa_banco,
+        "lucro": lucro if lucro > Decimal("0") else Decimal("0.00"),
+        "valor_liquido": valor_liquido
     }
 
 def calcular_taxa_cheque_vista(valor):
-    valor_dec = Decimal(valor)
-    taxa_cliente = (valor_dec * "0.02").quantize("0.01", rounding=ROUND_HALF_UP)
-    taxa_banco = "0.00"
+    valor_dec = Decimal(str(valor))
+    taxa_cliente = (valor_dec * Decimal("0.02")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-    
+
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
@@ -454,14 +454,14 @@ def calcular_taxa_cheque_vista(valor):
     }
 
 def calcular_taxa_cheque_pre_datado(valor, dias):
-    valor_dec = Decimal(valor)
-    taxa_base = valor_dec * "0.02"  # 2% base
-    taxa_adicional = valor_dec * "0.0033" * str(dias)  # 0.33% por dia
-    taxa_cliente = (taxa_base + taxa_adicional).quantize("0.01", rounding=ROUND_HALF_UP)
-    taxa_banco = "0.00"
+    valor_dec = Decimal(str(valor))
+    taxa_base = valor_dec * Decimal("0.02")  # 2%
+    taxa_adicional = valor_dec * Decimal("0.0033") * Decimal(dias)  # 0.33% por dia
+    taxa_cliente = (taxa_base + taxa_adicional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-    
+
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
@@ -470,13 +470,13 @@ def calcular_taxa_cheque_pre_datado(valor, dias):
     }
 
 def calcular_taxa_cheque_manual(valor, taxa_percentual):
-    valor_dec = Decimal(valor)
-    taxa_perc_dec = str(taxa_percentual) / "100"
-    taxa_cliente = (valor_dec * taxa_perc_dec).quantize("0.01", rounding=ROUND_HALF_UP)
-    taxa_banco = "0.00"
+    valor_dec = Decimal(str(valor))
+    taxa_perc_dec = Decimal(str(taxa_percentual)) / Decimal("100")
+    taxa_cliente = (valor_dec * taxa_perc_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    taxa_banco = Decimal("0.00")
     lucro = taxa_cliente
     valor_liquido = valor_dec - taxa_cliente
-    
+
     return {
         "taxa_cliente": taxa_cliente,
         "taxa_banco": taxa_banco,
