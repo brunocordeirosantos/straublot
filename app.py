@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import hashlib
-
+import uuid
 
 #  I mportar pytz com tratamento de erro
 try:
@@ -932,7 +932,7 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}" # Chave dinâmica
                     )
 
                                
@@ -1026,7 +1026,7 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 819 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}"  # Chave dinâmica
                     )
 
                 
