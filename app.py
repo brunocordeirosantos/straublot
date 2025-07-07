@@ -856,15 +856,17 @@ def render_cofre(spreadsheet):
         cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
         df_cofre = pd.DataFrame(cofre_data)
         
-        # Calcular saldo do cofre
-        saldo_cofre = "0"
-        if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
-            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
-            
-            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
-            saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
-            saldo_cofre = str(entradas) - str(saidas)
+       # Calcular saldo do cofre
+saldo_cofre = Decimal("0.00")
+if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
+        df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
+        df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
+
+        entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
+        saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
+    
+        saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
+
         
         # Exibir saldo do cofre
         st.markdown(f"""
@@ -1204,9 +1206,7 @@ def render_operacoes_caixa(spreadsheet):
     "",
     f"{(sim_data['dados']['taxa_cliente'] / Decimal(str(sim_data['valor_bruto']))) * Decimal('100'):.2f}%",
     sim_data["observacoes"]
-]
-
-                            
+]                            
                             worksheet.append_row([f"{x:.2f}" if isinstance(x, Decimal) else x for x in nova_operacao])
                             st.success(f"✅ {sim_data["tipo"]} de R$ {sim_data["valor_bruto"]:,.2f} registrado com sucesso!")
                             
