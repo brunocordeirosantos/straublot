@@ -1090,7 +1090,7 @@ def render_cofre(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
         
-        with tab2:
+    with tab2:
             st.markdown("#### Histórico de Movimentações")
             
             if not df_cofre.empty:
