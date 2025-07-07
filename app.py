@@ -936,7 +936,7 @@ def render_cofre(spreadsheet):
                     )
 
                                
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
                 
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
                 
@@ -1031,7 +1031,7 @@ def render_cofre(spreadsheet):
 
                 
                 # Observações
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_resumo")
                 
                 # Botão de submissão
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
