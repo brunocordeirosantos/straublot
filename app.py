@@ -1,12 +1,14 @@
 import streamlit as st
-import pandas as pd
 import gspread
-from google.oauth2.service_account 
-import Credentials
-from datetime import datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
-import pytz
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
 import json
+import os
+from datetime import datetime, date, timedelta
+import plotly.express as px
+import plotly.graph_objects as go
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+import hashlib
 
 #  Importar pytz com tratamento de erro
 try:
