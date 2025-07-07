@@ -849,80 +849,98 @@ def render_cofre(spreadsheet):
     st.subheader("🏦 Gestão do Cofre")
     
     try:
+        # Headers para o cofre
         HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
+        
+        # Buscar dados do cofre
         cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
         df_cofre = pd.DataFrame(cofre_data)
-
+        
+        # Calcular saldo do cofre
         saldo_cofre = Decimal("0")
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
+            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"], errors='coerce').fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
+            
             entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
             saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
-
+        
+        # Exibir saldo do cofre
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);">
             <h3>R$ {saldo_cofre:,.2f}</h3>
             <p>🔒 Saldo Atual do Cofre</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         st.markdown("---")
+        
+        # Tabs para organizar a interface
         tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
-
+        
         with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
+            # --- NOVO CÓDIGO: Mover o selectbox para fora do formulário ---
             tipo_mov = st.selectbox(
                 "Tipo de Movimentação",
                 ["Entrada no Cofre", "Saída do Cofre"],
-                key="tipo_mov_cofre_dinamico"
+                key="tipo_mov_cofre_dinamico"  # Usar uma nova chave para evitar conflitos
             )
 
-            with st.form(key=f"form_mov_cofre_{uuid.uuid4().hex}", clear_on_submit=True):
-                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key=f"valor_cofre_{uuid.uuid4().hex}")
+            with st.form("form_mov_cofre", clear_on_submit=True):
+                # O tipo_mov já foi definido fora, então o usamos aqui dentro
+                
+                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key="valor_cofre")
+                
+                # O restante da lógica condicional permanece o mesmo
                 destino_final = ""
-
+                
                 if tipo_mov == "Saída do Cofre":
                     tipo_saida = st.selectbox(
                         "Tipo de Saída:", 
                         ["Transferência para Caixa", "Pagamento de Despesa"],
-                        key=f"tipo_saida_cofre_{uuid.uuid4().hex}"
+                        key=f"tipo_saida_cofre_{tipo_mov}" # Chave dinâmica
                     )
+                    
                     if tipo_saida == "Transferência para Caixa":
                         destino_caixa = st.selectbox(
                             "Transferir para:", 
                             ["Caixa Interno", "Caixa Lotérica"],
-                            key=f"destino_caixa_cofre_{uuid.uuid4().hex}"
+                            key=f"destino_caixa_cofre_{tipo_saida}" # Chave dinâmica
                         )
+                        
                         if destino_caixa == "Caixa Lotérica":
                             destino_pdv = st.selectbox(
                                 "Selecione o PDV:", 
                                 ["PDV 1", "PDV 2"],
-                                key=f"destino_pdv_cofre_{uuid.uuid4().hex}"
+                                key=f"destino_pdv_cofre_{destino_caixa}" # Chave dinâmica
                             )
                             destino_final = f"{destino_caixa} - {destino_pdv}"
-                        else:
+                        else: # Este else corresponde ao if da linha 740
                             destino_final = destino_caixa
-                    else:
+                    else: # ESTE else CORRESPONDE AO if DA LINHA 733 (tipo_saida == "Transferência para Caixa")
                         destino_final = st.text_input(
                             "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
-                            key=f"descricao_despesa_cofre_{uuid.uuid4().hex}"
+                            key="descricao_despesa_cofre"
                         )
-                else:
-                    destino_final = st.selectbox(
+                else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
+                    destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        ["Banco", "Loterica"],
-                        key=f"origem_entrada_cofre_{uuid.uuid4().hex}"
+                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}" # Chave dinâmica
                     )
 
-                observacoes = st.text_area("Observações Adicionais", key=f"obs_cofre_{uuid.uuid4().hex}")
-                submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
-
+                               
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
+                
+                submitted = st.form_submit_button("💾 Salvar Movimentação", key="form_mov_cofre", use_container_width=True)
+                
                 if submitted:
                     try:
+                        # Salvar no Google Sheets
                         cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
+                        
                         nova_mov_cofre = [
                             obter_data_brasilia(), 
                             obter_horario_brasilia(), 
@@ -932,11 +950,14 @@ def render_cofre(spreadsheet):
                             destino_final, 
                             observacoes
                         ]
+                        
                         cofre_sheet.append_row(nova_mov_cofre)
-
+                        
+                        # Se for saída para caixa interno, criar suprimento automaticamente
                         if tipo_mov == "Saída do Cofre" and destino_final == "Caixa Interno":
                             HEADERS_CAIXA = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
                             caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
+                            
                             nova_operacao_caixa = [
                                 obter_data_brasilia(), 
                                 obter_horario_brasilia(), 
@@ -954,24 +975,129 @@ def render_cofre(spreadsheet):
                                 "0.00%", 
                                 f"Transferência do Cofre para: {destino_final}"
                             ]
+                            
                             caixa_sheet.append_row(nova_operacao_caixa)
-                            st.success(f"✅ Suprimento criado no Caixa Interno com valor R$ {valor:,.2f}")
+                            st.success(f"✅ Saída de R$ {valor:,.2f} do cofre registrada e suprimento criado no Caixa Interno!")
+                        
+                        elif tipo_mov == "Saída do Cofre" and "Caixa Lotérica" in destino_final:
+                            st.info(f"Saída para {destino_final} registrada. A integração de suprimento com o caixa da lotérica será implementada futuramente.")
+                            st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
                         else:
-                            st.success(f"✅ Movimentação de R$ {valor:,.2f} registrada com sucesso!")
+                            st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
+                        
+                        # Limpar cache para atualizar dados
                         st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
+                
+                if tipo_mov == "Saída do Cofre":
+                    tipo_saida = st.selectbox(
+                        "Tipo de Saída:", 
+                        ["Transferência para Caixa", "Pagamento de Despesa"],
+                        key=f"tipo_saida_cofre_{tipo_mov}" # Chave dinâmica
+                    )
+                    
+                    if tipo_saida == "Transferência para Caixa":
+                        destino_caixa = st.selectbox(
+                            "Transferir para:", 
+                            ["Caixa Interno", "Caixa Lotérica"],
+                            key=f"destino_caixa_cofre_{tipo_saida}" # Chave dinâmica
+                        )
+                        
+                        # --- CORREÇÃO DE INDENTAÇÃO AQUI ---
+                        if destino_caixa == "Caixa Lotérica":
+                            destino_pdv = st.selectbox(
+                                "Selecione o PDV:", 
+                                ["PDV 1", "PDV 2"],
+                                key=f"destino_pdv_cofre_{destino_caixa}" # Chave dinâmica
+                            )
+                            destino_final = f"{destino_caixa} - {destino_pdv}"
+                        else: # Este else corresponde ao if da linha 834
+                            destino_final = destino_caixa
+                    else: # Este else corresponde ao if da linha 826 (tipo_saida == "Transferência para Caixa")
+                        destino_final = st.text_input(
+                            "Descrição da Despesa (Ex: Aluguel, Fornecedor X)",
+                            key="descricao_despesa_cofre"
+                        )
+                else: # Este else corresponde ao if da linha 819 (tipo_mov == "Saída do Cofre")
+                    destino_final = st.text_input(
+                        "Origem da Entrada (Ex: Banco, Sócio)",
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                    )
 
+                
+                # Observações
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
+                
+                # Botão de submissão
+                submitted = st.form_submit_button("💾 Salvar Movimentação", key="form_mov_cofre", use_container_width=True)
+                
+                if submitted:
+                    try:
+                        # Salvar no Google Sheets
+                        cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
+                        
+                        nova_mov_cofre = [
+                            obter_data_brasilia(), 
+                            obter_horario_brasilia(), 
+                            st.session_state.nome_usuario, 
+                            tipo_mov, 
+                            float(valor), 
+                            destino_final, 
+                            observacoes
+                        ]
+                        
+                        cofre_sheet.append_row(nova_mov_cofre)
+                        
+                        # Se for saída para caixa interno, criar suprimento automaticamente
+                        if tipo_mov == "Saída do Cofre" and destino_final == "Caixa Interno":
+                            HEADERS_CAIXA = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
+                            caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
+                            
+                            nova_operacao_caixa = [
+                                obter_data_brasilia(), 
+                                obter_horario_brasilia(), 
+                                st.session_state.nome_usuario, 
+                                "Suprimento", 
+                                "Sistema", 
+                                "N/A", 
+                                float(valor), 
+                                0, 
+                                0, 
+                                float(valor), 
+                                0, 
+                                "Concluído", 
+                                "", 
+                                "0.00%", 
+                                f"Transferência do Cofre para: {destino_final}"
+                            ]
+                            
+                            caixa_sheet.append_row(nova_operacao_caixa)
+                            st.success(f"✅ Saída de R$ {valor:,.2f} do cofre registrada e suprimento criado no Caixa Interno!")
+                        
+                        elif tipo_mov == "Saída do Cofre" and "Caixa Lotérica" in destino_final:
+                            st.info(f"Saída para {destino_final} registrada. A integração de suprimento com o caixa da lotérica será implementada futuramente.")
+                            st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
+                        else:
+                            st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada com sucesso!")
+                        
+                        # Limpar cache para atualizar dados
+                        st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
+        
         with tab2:
             st.markdown("#### Histórico de Movimentações")
+            
             if not df_cofre.empty:
+                # Ordenar por data e hora (mais recente primeiro)
                 try:
                     if "Data" in df_cofre.columns and "Hora" in df_cofre.columns:
                         df_cofre_sorted = df_cofre.sort_values(by=["Data", "Hora"], ascending=False)
                         st.dataframe(df_cofre_sorted, use_container_width=True)
                     else:
                         st.dataframe(df_cofre, use_container_width=True)
-                except Exception:
+                except Exception as e:
                     st.warning("⚠️ Erro ao ordenar dados. Exibindo sem ordenação.")
                     st.dataframe(df_cofre, use_container_width=True)
             else:
@@ -979,7 +1105,8 @@ def render_cofre(spreadsheet):
     
     except Exception as e:
         st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
-        st.info("🔄 Recarregue a página ou verifique a conexão.")
+        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
         
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
