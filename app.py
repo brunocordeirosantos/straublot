@@ -859,7 +859,7 @@ def render_cofre(spreadsheet):
         # Calcular saldo do cofre
         saldo_cofre = Decimal("0")
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"]= pd.to_numeric(df_cofre["Valor"], errors='coerce').fillna(0)
+            df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
             
             entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
@@ -892,7 +892,7 @@ def render_cofre(spreadsheet):
             with st.form("form_mov_cofre", clear_on_submit=True):
                 # O tipo_mov já foi definido fora, então o usamos aqui dentro
                 
-                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0# key removido "valor_cofre")
+                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, key="valor_cofre")
                 
                 # O restante da lógica condicional permanece o mesmo
                 destino_final = ""
@@ -928,13 +928,13 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}" # Chave dinâmica
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
 
                                
-                observacoes = st.text_area("Observações Adicionais"# key removido "obs_cofre_form")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
                 
-                submitted = st.form_submit_button("💾 Salvar Movimentação"# key removido "form_mov_cofre", use_container_width=True)
+                submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
                 
                 if submitted:
                     try:
@@ -1027,10 +1027,10 @@ def render_cofre(spreadsheet):
 
                 
                 # Observações
-                observacoes = st.text_area("Observações Adicionais"# key removido "obs_cofre_form")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
                 
                 # Botão de submissão
-                submitted = st.form_submit_button("💾 Salvar Movimentação"# key removido "form_mov_cofre", use_container_width=True)
+                submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
                 
                 if submitted:
                     try:
@@ -1106,7 +1106,6 @@ def render_cofre(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
-
         
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
