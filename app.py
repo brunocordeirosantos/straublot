@@ -1322,8 +1322,8 @@ def render_operacoes_caixa(spreadsheet):
                                 sim_data["dados"]["lucro"],
                                 "Concluído",
                                 sim_data["data_vencimento"],
-                                f"{(sim_data["dados"]["taxa_cliente"]/sim_data["valor_bruto"])*100:.2f}%",
-                                sim_data["observacoes"]
+                                f"{(sim_data['dados']['taxa_cliente'] / Decimal(str(sim_data['valor_bruto'])) * Decimal('100')).quantize(Decimal('0.01'))}%",
+        sim_data["observacoes"]
                             ]
                             
                             worksheet.append_row([f"{x:.2f}" if isinstance(x, Decimal) else x for x in nova_operacao])
