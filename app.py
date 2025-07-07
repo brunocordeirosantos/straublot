@@ -871,7 +871,7 @@ def render_cofre(spreadsheet):
             saldo_cofre = Decimal("0.00")
         
         # Exibir saldo do cofre
-        st.markdown(f"""
+            st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);">
             <h3>R$ {saldo_cofre:,.2f}</h3>
             <p>🔒 Saldo Atual do Cofre</p>
