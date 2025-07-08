@@ -856,34 +856,30 @@ def render_cofre(spreadsheet):
         cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
         df_cofre = pd.DataFrame(cofre_data)
         
-       # Calcular saldo do cofre
-        saldo_cofre = Decimal("0.00")
+        # Calcular saldo do cofre
+        saldo_cofre = Decimal("0")
         if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
             df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
             df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
-
+            
             entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
             saidas = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
-
-        saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
-    except Exception as e:
-            st.warning(f"Erro ao calcular saldo: {e}")
-            saldo_cofre = Decimal("0.00")
+            saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
         
         # Exibir saldo do cofre
-            st.markdown(f"""
+        st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);">
             <h3>R$ {saldo_cofre:,.2f}</h3>
             <p>🔒 Saldo Atual do Cofre</p>
         </div>
         """, unsafe_allow_html=True)
         
-    st.markdown("---")
+        st.markdown("---")
         
         # Tabs para organizar a interface
-    tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
+        tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
         
-    with tab1:
+        with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
             # --- NOVO CÓDIGO: Mover o selectbox para fora do formulário ---
@@ -932,11 +928,11 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}" # Chave dinâmica
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
 
                                
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_form")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
                 
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
                 
@@ -950,7 +946,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            valor, 
+                            float(valor), 
                             destino_final, 
                             observacoes
                         ]
@@ -969,10 +965,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                valor, 
+                                float(valor), 
                                 0, 
                                 0, 
-                                valor, 
+                                float(valor), 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1026,12 +1022,12 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 819 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}_{uuid.uuid4().hex}"  # Chave dinâmica
+                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
                     )
 
                 
                 # Observações
-                observacoes = st.text_area("Observações Adicionais", key="obs_cofre_resumo")
+                observacoes = st.text_area("Observações Adicionais", key="obs_cofre")
                 
                 # Botão de submissão
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
@@ -1046,7 +1042,7 @@ def render_cofre(spreadsheet):
                             obter_horario_brasilia(), 
                             st.session_state.nome_usuario, 
                             tipo_mov, 
-                            valor, 
+                            float(valor), 
                             destino_final, 
                             observacoes
                         ]
@@ -1065,10 +1061,10 @@ def render_cofre(spreadsheet):
                                 "Suprimento", 
                                 "Sistema", 
                                 "N/A", 
-                                valor, 
+                                float(valor), 
                                 0, 
                                 0, 
-                                valor, 
+                                float(valor), 
                                 0, 
                                 "Concluído", 
                                 "", 
@@ -1090,7 +1086,7 @@ def render_cofre(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
         
-    with tab2:
+        with tab2:
             st.markdown("#### Histórico de Movimentações")
             
             if not df_cofre.empty:
@@ -1104,7 +1100,13 @@ def render_cofre(spreadsheet):
                 except Exception as e:
                     st.warning("⚠️ Erro ao ordenar dados. Exibindo sem ordenação.")
                     st.dataframe(df_cofre, use_container_width=True)
-          
+            else:
+                st.info("Nenhuma movimentação registrada no cofre.")
+    
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
+        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+        
 # Função para operações do caixa interno
 def render_operacoes_caixa(spreadsheet):
     st.subheader("💳 Operações do Caixa Interno")
