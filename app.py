@@ -928,7 +928,7 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 725 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                        key=f"input_origem_entrada_cofre_{st.session_state.tipo_movimentacao_cofre.replace(' ', '_')}"
                     )
 
                                
@@ -1022,7 +1022,7 @@ def render_cofre(spreadsheet):
                 else: # Este else corresponde ao if da linha 819 (tipo_mov == "Saída do Cofre")
                     destino_final = st.text_input(
                         "Origem da Entrada (Ex: Banco, Sócio)",
-                        key=f"origem_entrada_cofre_{tipo_mov}" # Chave dinâmica
+                        key=f"input_origem_entrada_cofre_{st.session_state.tipo_movimentacao_cofre.replace(' ', '_')}"
                     )
 
                 
