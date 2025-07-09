@@ -1533,10 +1533,8 @@ def main():
         if "pagina_atual" not in st.session_state:
             st.session_state.pagina_atual = list(opcoes_menu.values())[0]
         
-        for nome_opcao, chave_opcao in opcoes_menu.items():
-            if st.sidebar.button(nome_opcao, use_container_width=True):
-                st.session_state.pagina_atual = chave_opcao
-                st.rerun()
+        pagina_escolhida = st.sidebar.radio("📌 Navegação", list(opcoes_menu.keys()), index=0)
+        st.session_state.pagina_atual = opcoes_menu[pagina_escolhida]
         
         st.sidebar.markdown("---")
         if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
