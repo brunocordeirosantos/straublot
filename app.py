@@ -747,45 +747,7 @@ def render_dashboard_caixa(spreadsheet):
         operacoes_hoje_count = len(operacoes_de_hoje)
         valor_saque_hoje = (operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum())
         
-        # Exibir métricas em cards
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                <h3>R$ {(saldo_caixa):,.2f}</h3>
-                <p>💰 Saldo do Caixa</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <h3>R$ {(valor_saque_hoje):,.2f}</h3>
-                <p>💳 Valor Saque Hoje</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <h3>{operacoes_hoje_count}</h3>
-                <p>📋 Operações Hoje</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
-            status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
-            st.markdown(f"""
-            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
-                <h3>{status_texto}</h3>
-                <p>🚦 Status Caixa</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
+               
         # Gráfico de resumo de operações
         st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
         
