@@ -1555,7 +1555,6 @@ def main():
             render_fechamento_loterica(spreadsheet)
         elif st.session_state.pagina_atual == "fechamento_diario_caixa_interno":
             render_fechamento_diario_simplificado(spreadsheet)
-
     except Exception as e:
         st.error(f"❌ Erro crítico no sistema: {str(e)}")
         st.info("🔄 Recarregue a página para tentar novamente.")
