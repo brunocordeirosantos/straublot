@@ -1547,18 +1547,18 @@ def main():
                 st.stop()
 
 # --- Dispatcher único: garante UMA página por ciclo ---
-def _render_page(page_key: str):
-    PAGES = {
+    def _render_page(page_key: str):
+        PAGES = {
         "dashboard_caixa": render_dashboard_caixa,
         "operacoes_caixa": render_operacoes_caixa,
         "cofre": render_cofre,
         "fechamento_loterica": render_fechamento_loterica,
         "fechamento_diario_caixa_interno": render_fechamento_diario_simplificado,
-    }
-    fn = PAGES.get(page_key, render_dashboard_caixa)
-    return fn(spreadsheet)
+         }
+        fn = PAGES.get(page_key, render_dashboard_caixa)
+        return fn(spreadsheet)
 
-_render_page(st.session_state.pagina_atual)
+    _render_page(st.session_state.pagina_atual)
 # ------------------------------------------------------
 
 # Função para obter hora de Brasília com fallback
