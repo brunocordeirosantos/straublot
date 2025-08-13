@@ -541,173 +541,193 @@ def verificar_login():
         return False
     return True
 
-# Função para fechamento da lotérica
+# ------------------------------------------------------------
+# Fechamento de Caixa da Lotérica (PDV1/PDV2)
+# ------------------------------------------------------------
 def render_fechamento_loterica(spreadsheet):
     st.subheader("📋 Fechamento de Caixa Lotérica")
-    
+
     try:
         HEADERS_FECHAMENTO = [
-            "Data_Fechamento", "PDV", "Operador", 
+            "Data_Fechamento", "PDV", "Operador",
             "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
             "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha",
             "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal",
             "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
             "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
             "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
-            "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", 
+            "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas",
             "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
             "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
         ]
-        
+
         with st.form("form_fechamento_pdv", clear_on_submit=False):
             st.markdown("#### Lançar Fechamento Diário do PDV")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                pdv_selecionado = st.selectbox("Selecione o PDV", ["PDV 1", "PDV 2"])
-            with col2:
-                data_fechamento = st.date_input("Data do Fechamento", obter_date_brasilia())
-            
-            # Buscar saldo anterior
-            sheet_name = f"Fechamentos_{pdv_selecionado}"
-            fechamentos_data = buscar_dados(spreadsheet, sheet_name)
-            df_fechamentos = pd.DataFrame(fechamentos_data)
-            
-            saldo_anterior = "0"
-            if not df_fechamentos.empty:
-                try:
-                    df_fechamentos["Data_Fechamento"] = pd.to_datetime(df_fechamentos["Data_Fechamento"], errors="coerce").dt.date
-                    df_fechamentos["Saldo_Final_Calculado"]= pd.to_numeric(df_fechamentos["Saldo_Final_Calculado"], errors="coerce").fillna(0)
-                    
-                    registro_anterior = df_fechamentos[df_fechamentos["Data_Fechamento"] == data_anterior]
-                    
-                    if not registro_anterior.empty:
-                        saldo_anterior = str(registro_anterior.iloc[0]["Saldo_Final_Calculado"])
-                except Exception as e:
-                    st.warning("⚠️ Erro ao calcular saldo anterior. Usando saldo zero.")
-            
-            st.info(f"💰 Saldo anterior ({data_fechamento - timedelta(days=1)}): R$ {saldo_anterior:,.2f}")
-            
-            # Seção de Compras
+
+            c1, c2 = st.columns(2)
+            with c1:
+                pdv_selecionado = st.selectbox("Selecione o PDV", ["PDV 1", "PDV 2"], key="pdv_sel_fech")
+            with c2:
+                data_fechamento = st.date_input("Data do Fechamento", value=obter_date_brasilia(), key="data_fech_lot")
+
+            # ---- Nome real da planilha (corrige o espaço) ----
+            pdv_to_sheet = {"PDV 1": "Fechamentos_PDV1", "PDV 2": "Fechamentos_PDV2"}
+            sheet_name = pdv_to_sheet.get(pdv_selecionado, "Fechamentos_PDV1")
+
+            # ---- Buscar saldo do dia anterior com tolerância ----
+            saldo_anterior = 0.0
+            data_anterior = data_fechamento - timedelta(days=1)
+            try:
+                fechamentos_data = buscar_dados(spreadsheet, sheet_name)
+                df_fech = pd.DataFrame(fechamentos_data)
+
+                if not df_fech.empty:
+                    df_fech["Data_Fechamento"] = pd.to_datetime(df_fech["Data_Fechamento"], errors="coerce").dt.date
+                    df_fech["Saldo_Final_Calculado"] = pd.to_numeric(df_fech["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
+
+                    # 1) tenta o registro exatamente do dia anterior
+                    reg = df_fech[df_fech["Data_Fechamento"] == data_anterior]
+                    # 2) senão, pega o último antes da data do fechamento
+                    if reg.empty:
+                        prev = df_fech[df_fech["Data_Fechamento"] < data_fechamento]
+                        if not prev.empty:
+                            reg = prev.sort_values("Data_Fechamento").tail(1)
+                    if not reg.empty:
+                        saldo_anterior = float(reg.iloc[0]["Saldo_Final_Calculado"])
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao buscar dados de {sheet_name}: {e}")
+
+            st.info(f"💰 Saldo anterior ({data_anterior.strftime('%d/%m/%Y')}): R$ {saldo_anterior:,.2f}")
+
+            # ===================== COMPRAS ======================
             st.markdown("### 🛒 Compras do Dia")
-            col_comp1, col_comp2, col_comp3 = st.columns(3)
-            
-            with col_comp1:
+            cc1, cc2, cc3 = st.columns(3)
+
+            with cc1:
                 st.markdown("**Bolão**")
                 qtd_comp_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_bolao")
-                custo_unit_bolao = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_bolao")
-                total_comp_bolao = qtd_comp_bolao * custo_unit_bolao
-                st.write(f"Total: R$ {total_comp_bolao:.2f}")
-            
-            with col_comp2:
+                custo_unit_bolao = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_bolao")
+                total_comp_bolao = float(qtd_comp_bolao) * float(custo_unit_bolao)
+                st.write(f"Total: R$ {total_comp_bolao:,.2f}")
+
+            with cc2:
                 st.markdown("**Raspadinha**")
                 qtd_comp_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_rasp")
-                custo_unit_rasp = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_rasp")
-                total_comp_rasp = qtd_comp_rasp * custo_unit_rasp
-                st.write(f"Total: R$ {total_comp_rasp:.2f}")
-            
-            with col_comp3:
+                custo_unit_rasp = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_rasp")
+                total_comp_rasp = float(qtd_comp_rasp) * float(custo_unit_rasp)
+                st.write(f"Total: R$ {total_comp_rasp:,.2f}")
+
+            with cc3:
                 st.markdown("**Loteria Federal**")
                 qtd_comp_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_fed")
-                custo_unit_fed = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, key="custo_fed")
-                total_comp_fed = qtd_comp_fed * custo_unit_fed
-                st.write(f"Total: R$ {total_comp_fed:.2f}")
-            
-            # Seção de Vendas
+                custo_unit_fed = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_fed")
+                total_comp_fed = float(qtd_comp_fed) * float(custo_unit_fed)
+                st.write(f"Total: R$ {total_comp_fed:,.2f}")
+
+            # ===================== VENDAS =======================
             st.markdown("### 💰 Vendas do Dia")
-            col_vend1, col_vend2, col_vend3 = st.columns(3)
-            
-            with col_vend1:
+            cv1, cv2, cv3 = st.columns(3)
+
+            with cv1:
                 st.markdown("**Bolão**")
                 qtd_vend_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_bolao")
-                preco_unit_bolao = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_bolao")
-                total_vend_bolao = qtd_vend_bolao * preco_unit_bolao
-                st.write(f"Total: R$ {total_vend_bolao:.2f}")
-            
-            with col_vend2:
+                preco_unit_bolao = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_bolao")
+                total_vend_bolao = float(qtd_vend_bolao) * float(preco_unit_bolao)
+                st.write(f"Total: R$ {total_vend_bolao:,.2f}")
+
+            with cv2:
                 st.markdown("**Raspadinha**")
                 qtd_vend_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_rasp")
-                preco_unit_rasp = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_rasp")
-                total_vend_rasp = qtd_vend_rasp * preco_unit_rasp
-                st.write(f"Total: R$ {total_vend_rasp:.2f}")
-            
-            with col_vend3:
+                preco_unit_rasp = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_rasp")
+                total_vend_rasp = float(qtd_vend_rasp) * float(preco_unit_rasp)
+                st.write(f"Total: R$ {total_vend_rasp:,.2f}")
+
+            with cv3:
                 st.markdown("**Loteria Federal**")
                 qtd_vend_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_fed")
-                preco_unit_fed = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, key="preco_fed")
-                total_vend_fed = qtd_vend_fed * preco_unit_fed
-                st.write(f"Total: R$ {total_vend_fed:.2f}")
-            
-            # Outras movimentações
+                preco_unit_fed = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_fed")
+                total_vend_fed = float(qtd_vend_fed) * float(preco_unit_fed)
+                st.write(f"Total: R$ {total_vend_fed:,.2f}")
+
+            # ================== OUTRAS MOVIMENTAÇÕES ==================
             st.markdown("### 🔄 Outras Movimentações")
-            col_mov1, col_mov2 = st.columns(2)
-            
-            with col_mov1:
-                movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", step=0.01)
-                pagamento_premios = st.number_input("Pagamento de Prêmios (R$)", step=0.01)
-                vales_despesas = st.number_input("Vales e Despesas (R$)", step=0.01)
-            
-            with col_mov2:
-                retirada_cofre = st.number_input("Retirada para Cofre (R$)", step=0.01)
-                retirada_caixa_interno = st.number_input("Retirada para Caixa Interno (R$)", step=0.01)
-                dinheiro_gaveta = st.number_input("Dinheiro na Gaveta (R$)", step=0.01)
-            
-            # Cálculos automáticos
-            total_entradas = total_vend_bolao + total_vend_rasp + total_vend_fed + movimentacao_cielo
-            total_saidas = total_comp_bolao + total_comp_rasp + total_comp_fed + pagamento_premios + vales_despesas + retirada_cofre + retirada_caixa_interno
-            
-            saldo_calculado = saldo_anterior + total_entradas - total_saidas
-            diferenca_caixa = dinheiro_gaveta - saldo_calculado
-            
-            # Resumo
+            mo1, mo2 = st.columns(2)
+            with mo1:
+                movimentacao_cielo   = st.number_input("Movimentação Cielo (R$)",   min_value=0.0, step=0.01, format="%.2f", key="mov_cielo")
+                pagamento_premios    = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, step=0.01, format="%.2f", key="pag_premios")
+                vales_despesas       = st.number_input("Vales e Despesas (R$)",      min_value=0.0, step=0.01, format="%.2f", key="vales")
+            with mo2:
+                retirada_cofre        = st.number_input("Retirada para Cofre (R$)",      min_value=0.0, step=0.01, format="%.2f", key="ret_cofre")
+                retirada_caixa_interno= st.number_input("Retirada para Caixa Interno (R$)", min_value=0.0, step=0.01, format="%.2f", key="ret_caixa_int")
+                dinheiro_gaveta       = st.number_input("Dinheiro na Gaveta (R$)",      min_value=0.0, step=0.01, format="%.2f", key="din_gaveta")
+
+            # ======================= CÁLCULOS ========================
+            total_entradas = float(total_vend_bolao + total_vend_rasp + total_vend_fed + movimentacao_cielo)
+            total_saidas   = float(total_comp_bolao + total_comp_rasp + total_comp_fed +
+                                   pagamento_premios + vales_despesas + retirada_cofre + retirada_caixa_interno)
+
+            saldo_calculado = float(saldo_anterior + total_entradas - total_saidas)
+            diferenca_caixa = float(dinheiro_gaveta - saldo_calculado)
+
+            # ======================== RESUMO =========================
             st.markdown("### 📊 Resumo do Fechamento")
-            col_res1, col_res2, col_res3 = st.columns(3)
-            
-            with col_res1:
-                st.metric("Total Entradas", f"R$ {total_entradas:.2f}")
-                st.metric("Saldo Anterior", f"R$ {saldo_anterior:.2f}")
-            
-            with col_res2:
-                st.metric("Total Saídas", f"R$ {total_saidas:.2f}")
-                st.metric("Saldo Calculado", f"R$ {saldo_calculado:.2f}")
-            
-            with col_res3:
-                st.metric("Dinheiro na Gaveta", f"R$ {dinheiro_gaveta:.2f}")
-                
-                if diferenca_caixa == 0:
-                    st.success(f"✅ Caixa Fechado: R$ {diferenca_caixa:.2f}")
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                st.metric("Total Entradas", f"R$ {total_entradas:,.2f}")
+                st.metric("Saldo Anterior", f"R$ {saldo_anterior:,.2f}")
+            with r2:
+                st.metric("Total Saídas", f"R$ {total_saidas:,.2f}")
+                st.metric("Saldo Calculado", f"R$ {saldo_calculado:,.2f}")
+            with r3:
+                st.metric("Dinheiro na Gaveta", f"R$ {dinheiro_gaveta:,.2f}")
+                if abs(diferenca_caixa) < 0.005:
+                    st.success(f"✅ Caixa Fechado: R$ {diferenca_caixa:,.2f}")
                 elif diferenca_caixa > 0:
-                    st.warning(f"⚠️ Sobra: R$ {diferenca_caixa:.2f}")
+                    st.warning(f"⚠️ Sobra: R$ {diferenca_caixa:,.2f}")
                 else:
-                    st.error(f"❌ Falta: R$ {abs(diferenca_caixa):.2f}")
-            
-            # Salvar fechamento
+                    st.error(f"❌ Falta: R$ {abs(diferenca_caixa):,.2f}")
+
+            # ================== SALVAR FECHAMENTO ====================
             if st.form_submit_button("💾 Salvar Fechamento", use_container_width=True):
                 try:
-                    fechamento_sheet = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
-                    
-                    novo_fechamento = [
-                        str(data_fechamento), pdv_selecionado, st.session_state.nome_usuario,
-                        qtd_comp_bolao, custo_unit_bolao, total_comp_bolao,
-                        qtd_comp_rasp, custo_unit_rasp, total_comp_rasp,
-                        qtd_comp_fed, custo_unit_fed, total_comp_fed,
-                        qtd_vend_bolao, preco_unit_bolao, total_vend_bolao,
-                        qtd_vend_rasp, preco_unit_rasp, total_vend_rasp,
-                        qtd_vend_fed, preco_unit_fed, total_vend_fed,
-                        movimentacao_cielo, pagamento_premios, vales_despesas,
-                        retirada_cofre, retirada_caixa_interno, dinheiro_gaveta,
-                        saldo_anterior, saldo_calculado,diferenca_caixa
+                    # Prevenir duplicidade (mesmo PDV e data)
+                    try:
+                        exist = buscar_dados(spreadsheet, sheet_name)
+                        df_exist = pd.DataFrame(exist)
+                        dup = False
+                        if not df_exist.empty:
+                            df_exist["Data_Fechamento"] = pd.to_datetime(df_exist["Data_Fechamento"], errors="coerce").dt.date
+                            cond = (df_exist["Data_Fechamento"] == data_fechamento) & (df_exist["PDV"] == pdv_selecionado)
+                            dup = cond.any()
+                        if dup:
+                            st.error("❌ Já existe fechamento para este PDV nesta data.")
+                            return
+                    except Exception:
+                        pass
+
+                    ws = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
+                    row = [
+                        str(data_fechamento), pdv_selecionado, st.session_state.get("nome_usuario", "Operador"),
+                        int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
+                        int(qtd_comp_rasp),  float(custo_unit_rasp),  float(total_comp_rasp),
+                        int(qtd_comp_fed),   float(custo_unit_fed),   float(total_comp_fed),
+                        int(qtd_vend_bolao), float(preco_unit_bolao), float(total_vend_bolao),
+                        int(qtd_vend_rasp),  float(preco_unit_rasp),  float(total_vend_rasp),
+                        int(qtd_vend_fed),   float(preco_unit_fed),   float(total_vend_fed),
+                        float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas),
+                        float(retirada_cofre), float(retirada_caixa_interno), float(dinheiro_gaveta),
+                        float(saldo_anterior), float(saldo_calculado), float(diferenca_caixa)
                     ]
-                    
-                    fechamento_sheet.append_row(novo_fechamento)
+                    ws.append_row(row)
                     st.success(f"✅ Fechamento do {pdv_selecionado} salvo com sucesso!")
                     st.cache_data.clear()
                 except Exception as e:
-                    st.error(f"❌ Erro ao salvar fechamento: {str(e)}")
-    
+                    st.error(f"❌ Erro ao salvar fechamento: {e}")
+
     except Exception as e:
-        st.error(f"❌ Erro ao carregar fechamento da lotérica: {str(e)}")
+        st.error(f"❌ Erro ao carregar fechamento da lotérica: {e}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 # ------------------------------------------------------------
 # Operações do Caixa Interno (rota "operacoes_caixa")
