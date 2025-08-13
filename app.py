@@ -1562,12 +1562,12 @@ def main():
 # ------------------------------------------------------
 
 # Função para obter hora de Brasília com fallback
-def obter_horario_brasilia():
-    try:
-        import pytz
-        tz_brasilia = pytz.timezone("America/Sao_Paulo")
-        agora = datetime.now(tz_brasilia)
-        return agora.strftime("%H:%M:%S")
+        def obter_horario_brasilia():
+        try:
+            import pytz
+            tz_brasilia = pytz.timezone("America/Sao_Paulo")
+            agora = datetime.now(tz_brasilia)
+            return agora.strftime("%H:%M:%S")
     except Exception:
         return datetime.now().strftime("%H:%M:%S")
 
