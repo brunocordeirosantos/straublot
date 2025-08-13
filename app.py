@@ -1544,21 +1544,24 @@ def main():
                 del st.session_state[key]
             st.rerun()
         
-        # Renderizar página atual
-        if st.session_state.pagina_atual == "dashboard_caixa":
-            render_dashboard_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "operacoes_caixa":
-            render_operacoes_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "cofre":
-            render_cofre(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_loterica":
-            render_fechamento_loterica(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_diario_caixa_interno":
-            render_fechamento_diario_simplificado(spreadsheet)
-    except Exception as e:
-        st.error(f"❌ Erro crítico no sistema: {str(e)}")
-        st.info("🔄 Recarregue a página para tentar novamente.")
-        st.exception(e)
+       st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
+    st.stop()  # garante que nada abaixo rode neste ciclo
+
+# --- Dispatch único: renderiza somente UMA página por ciclo ---
+PAGES = {
+    "dashboard_caixa": render_dashboard_caixa,
+    "operacoes_caixa": render_operacoes_caixa,
+    "cofre": render_cofre,
+    "fechamento_loterica": render_fechamento_loterica,
+    "fechamento_diario_caixa_interno": render_fechamento_diario_simplificado,
+}
+PAGES.get(st.session_state.pagina_atual, render_dashboard_caixa)(spreadsheet)
+# --------------------------------------------------------------
+
 
 # Função para obter hora de Brasília com fallback
 def obter_horario_brasilia():
