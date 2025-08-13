@@ -710,6 +710,7 @@ def render_fechamento_loterica(spreadsheet):
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
 # Função principal do dashboard do caixa
+def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
     operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
 
