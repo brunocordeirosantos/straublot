@@ -1544,18 +1544,7 @@ def main():
                 del st.session_state[key]
             st.rerun()
         
-        # Renderizar página atual
-        if st.session_state.pagina_atual == "dashboard_caixa":
-            render_dashboard_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "operacoes_caixa":
-            render_operacoes_caixa(spreadsheet)
-        elif st.session_state.pagina_atual == "cofre":
-            render_cofre(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_loterica":
-            render_fechamento_loterica(spreadsheet)
-        elif st.session_state.pagina_atual == "fechamento_diario_caixa_interno":
-            render_fechamento_diario_simplificado(spreadsheet)
-
+       
     except Exception as e:
         st.error(f"❌ Erro crítico no sistema: {str(e)}")
         st.info("🔄 Recarregue a página para tentar novamente.")
