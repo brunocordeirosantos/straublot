@@ -727,6 +727,303 @@ def render_fechamento_loterica(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar fechamento da lotérica: {e}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+# ------------------------------------------------------------
+# 📈 Gestão Lotérica — Estoque + Relatórios + Sincronização
+# ------------------------------------------------------------
+def render_gestao_loterica(spreadsheet):
+    st.subheader("📈 Gestão Lotérica — Estoque & Relatórios")
+
+    # Planilhas utilizadas
+    SHEET_MOV = "Estoque_Loterica_Mov"
+    FECH_PDV = {"PDV 1": "Fechamentos_PDV1", "PDV 2": "Fechamentos_PDV2"}
+    PRODUTOS = ["Bolão", "Raspadinha", "Loteria Federal"]
+
+    # Headers da planilha de movimentos de estoque
+    HEADERS_MOV = [
+        "Data", "Hora", "PDV", "Produto", "Tipo_Mov",  # Entrada | Venda | Ajuste+ | Ajuste-
+        "Qtd", "Valor_Unit", "Valor_Total", "Obs",
+        "Origem", "Chave_Sync"  # para evitar duplicidade na sincronização
+    ]
+
+    # garante existência da planilha de movimentos
+    try:
+        get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
+    except Exception as e:
+        st.error(f"❌ Não foi possível garantir a planilha de movimentos: {e}")
+        return
+
+    # util: carrega movimentos como dataframe já tipado
+    def _load_mov():
+        dados = buscar_dados(spreadsheet, SHEET_MOV) or []
+        df = pd.DataFrame(dados)
+        if df.empty:
+            df = pd.DataFrame(columns=HEADERS_MOV)
+        # Tipagem
+        for c in ["Qtd", "Valor_Unit", "Valor_Total"]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        return df
+
+    # util: calcula saldo por PDV/Produto
+    def _saldo_estoque(df_mov):
+        if df_mov.empty:
+            return pd.DataFrame(columns=["PDV", "Produto", "Saldo_Qtd", "Custo_Médio"])
+        df = df_mov.copy()
+        # fator de movimento
+        df["fator"] = 0
+        df.loc[df["Tipo_Mov"].isin(["Entrada", "Ajuste+"]), "fator"] = 1
+        df.loc[df["Tipo_Mov"].isin(["Venda", "Ajuste-"]), "fator"] = -1
+        df["Mov_Qtd"] = df["Qtd"] * df["fator"]
+
+        # custo médio aproximado por PDV/produto (considera apenas entradas/ajuste+)
+        df_ent = df[df["fator"] == 1].groupby(["PDV", "Produto"], as_index=False)[["Qtd", "Valor_Total"]].sum()
+        if not df_ent.empty:
+            df_ent["Custo_Médio"] = (df_ent["Valor_Total"] / df_ent["Qtd"]).replace([np.inf, -np.inf], 0).fillna(0)
+        else:
+            df_ent = pd.DataFrame(columns=["PDV", "Produto", "Qtd", "Valor_Total", "Custo_Médio"])
+
+        df_saldo = df.groupby(["PDV", "Produto"], as_index=False)["Mov_Qtd"].sum().rename(columns={"Mov_Qtd": "Saldo_Qtd"})
+        df_saldo = df_saldo.merge(df_ent[["PDV", "Produto", "Custo_Médio"]], on=["PDV", "Produto"], how="left").fillna({"Custo_Médio": 0})
+        return df_saldo
+
+    import numpy as np
+    from datetime import timedelta
+
+    tab1, tab2, tab3 = st.tabs(["📦 Estoque", "📊 Relatórios", "🔄 Sincronização"])
+
+    # ---------------------- TAB 1 — ESTOQUE ----------------------
+    with tab1:
+        st.markdown("#### 📦 Estoque Atual por PDV/Produto")
+
+        df_mov = _load_mov()
+        # filtros
+        c1, c2 = st.columns(2)
+        with c1:
+            filtro_pdv = st.selectbox("Filtrar por PDV", ["Todos"] + list(FECH_PDV.keys()), key="flt_pdv_est")
+        with c2:
+            filtro_prod = st.selectbox("Filtrar por Produto", ["Todos"] + PRODUTOS, key="flt_prod_est")
+
+        df_fil = df_mov.copy()
+        if filtro_pdv != "Todos":
+            df_fil = df_fil[df_fil["PDV"] == filtro_pdv]
+        if filtro_prod != "Todos":
+            df_fil = df_fil[df_fil["Produto"] == filtro_prod]
+
+        df_saldo = _saldo_estoque(df_fil)
+        if df_saldo.empty:
+            st.info("Nenhum movimento de estoque lançado ainda.")
+        else:
+            colA, colB, colC = st.columns(3)
+            with colA: st.metric("Itens (linhas) no estoque", len(df_saldo))
+            with colB: st.metric("Soma de quantidades", f"{df_saldo['Saldo_Qtd'].sum():,.0f}")
+            with colC:
+                valor_custo = (df_saldo["Saldo_Qtd"] * df_saldo["Custo_Médio"]).sum()
+                st.metric("Valor de custo estimado", f"R$ {valor_custo:,.2f}")
+
+            st.dataframe(df_saldo.sort_values(["PDV", "Produto"]), use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### ✍️ Ajuste Manual de Estoque")
+
+        with st.form("form_ajuste_estoque", clear_on_submit=True):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                aj_pdv = st.selectbox("PDV", list(FECH_PDV.keys()), key="aj_pdv")
+            with c2:
+                aj_prod = st.selectbox("Produto", PRODUTOS, key="aj_prod")
+            with c3:
+                aj_tipo = st.selectbox("Tipo de Ajuste", ["Ajuste+", "Ajuste-"], key="aj_tipo")
+
+            c4, c5 = st.columns(2)
+            with c4:
+                aj_qtd = st.number_input("Quantidade", min_value=0.0, step=1.0, format="%.0f", key="aj_qtd")
+            with c5:
+                aj_val = st.number_input("Valor Unitário (R$) (apenas p/ Ajuste+)", min_value=0.0, step=0.01, format="%.2f", key="aj_vu")
+
+            aj_obs = st.text_input("Observações (opcional)", key="aj_obs")
+            btn_aj = st.form_submit_button("💾 Registrar Ajuste", use_container_width=True)
+
+            if btn_aj:
+                try:
+                    if aj_tipo == "Ajuste-" and aj_qtd <= 0:
+                        st.error("Informe quantidade > 0.")
+                    else:
+                        ws = get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
+                        now_d = obter_data_brasilia()
+                        now_h = obter_horario_brasilia()
+                        valor_total = float(aj_qtd) * float(aj_val) if aj_tipo == "Ajuste+" else 0.0
+                        row = [
+                            now_d, now_h, aj_pdv, aj_prod, aj_tipo,
+                            float(aj_qtd), float(aj_val), float(valor_total),
+                            aj_obs, "AJUSTE_MANUAL", ""
+                        ]
+                        ws.append_row(row)
+                        st.success("✅ Ajuste registrado.")
+                        st.cache_data.clear()
+                        st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro ao registrar ajuste: {e}")
+
+    # -------------------- TAB 2 — RELATÓRIOS ---------------------
+    with tab2:
+        st.markdown("#### 📊 Relatórios de Compras, Vendas e Margem")
+        # período
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            pdv_r = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="rel_pdv")
+        with c2:
+            ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="rel_ini")
+        with c3:
+            fim = st.date_input("Fim", value=obter_date_brasilia(), key="rel_fim")
+
+        # buscar fechamentos dos PDVs e consolidar
+        frames = []
+        for pdv, sheet in FECH_PDV.items():
+            try:
+                dados = buscar_dados(spreadsheet, sheet) or []
+                df = pd.DataFrame(dados)
+                if df.empty:
+                    continue
+                df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+                mask = (df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)
+                df = df[mask]
+                df["PDV"] = pdv  # garante coluna
+                frames.append(df)
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao buscar {sheet}: {e}")
+
+        if not frames:
+            st.info("Sem dados no período selecionado.")
+        else:
+            df_all = pd.concat(frames, ignore_index=True)
+
+            # Seleção por PDV
+            if pdv_r != "Todos":
+                df_all = df_all[df_all["PDV"] == pdv_r]
+
+            # Tipagem
+            cols_num = [
+                "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
+                "Qtd_Compra_Raspadinha","Custo_Unit_Raspadinha","Total_Compra_Raspadinha",
+                "Qtd_Compra_LoteriaFederal","Custo_Unit_LoteriaFederal","Total_Compra_LoteriaFederal",
+                "Qtd_Venda_Bolao","Preco_Unit_Bolao","Total_Venda_Bolao",
+                "Qtd_Venda_Raspadinha","Preco_Unit_Raspadinha","Total_Venda_Raspadinha",
+                "Qtd_Venda_LoteriaFederal","Preco_Unit_LoteriaFederal","Total_Venda_LoteriaFederal",
+            ]
+            for c in cols_num:
+                if c in df_all.columns:
+                    df_all[c] = pd.to_numeric(df_all[c], errors="coerce").fillna(0.0)
+
+            # KPIs agregados
+            total_compra = df_all[["Total_Compra_Bolao","Total_Compra_Raspadinha","Total_Compra_LoteriaFederal"]].sum().sum()
+            total_venda  = df_all[["Total_Venda_Bolao","Total_Venda_Raspadinha","Total_Venda_LoteriaFederal"]].sum().sum()
+            margem_bruta = total_venda - total_compra
+
+            k1, k2, k3 = st.columns(3)
+            with k1: st.metric("Total Compras", f"R$ {total_compra:,.2f}")
+            with k2: st.metric("Total Vendas", f"R$ {total_venda:,.2f}")
+            with k3:
+                pct = (margem_bruta/total_venda*100) if total_venda > 0 else 0.0
+                st.metric("Margem Bruta", f"R$ {margem_bruta:,.2f}", f"{pct:.1f}%")
+
+            # Quebra por produto
+            resumo = pd.DataFrame({
+                "Produto": ["Bolão","Raspadinha","Loteria Federal"],
+                "Compra_R$":[df_all["Total_Compra_Bolao"].sum(),
+                             df_all["Total_Compra_Raspadinha"].sum(),
+                             df_all["Total_Compra_LoteriaFederal"].sum()],
+                "Venda_R$":[df_all["Total_Venda_Bolao"].sum(),
+                            df_all["Total_Venda_Raspadinha"].sum(),
+                            df_all["Total_Venda_LoteriaFederal"].sum()],
+            })
+            resumo["Margem_R$"] = resumo["Venda_R$"] - resumo["Compra_R$"]
+            st.dataframe(resumo, use_container_width=True)
+
+            # gráfico simples
+            try:
+                import plotly.express as px
+                df_melt = resumo.melt(id_vars="Produto", value_vars=["Compra_R$","Venda_R$","Margem_R$"], var_name="Tipo", value_name="Valor")
+                fig = px.bar(df_melt, x="Produto", y="Valor", color="Tipo", barmode="group", text_auto=".2f",
+                             title="Compras x Vendas x Margem por Produto")
+                fig.update_layout(height=420, showlegend=True, font=dict(family="Inter, sans-serif"))
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception:
+                pass
+
+    # ------------------- TAB 3 — SINCRONIZAÇÃO -------------------
+    with tab3:
+        st.markdown("#### 🔄 Sincronizar Estoque a partir dos Fechamentos")
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            pdv_sinc = st.selectbox("PDV", list(FECH_PDV.keys()), key="sinc_pdv")
+        with s2:
+            ini_s = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="sinc_ini")
+        with s3:
+            fim_s = st.date_input("Fim", value=obter_date_brasilia(), key="sinc_fim")
+
+        if st.button("⚙️ Sincronizar estoque com base nos fechamentos", use_container_width=True):
+            try:
+                sheet = FECH_PDV[pdv_sinc]
+                dados = buscar_dados(spreadsheet, sheet) or []
+                df = pd.DataFrame(dados)
+                if df.empty:
+                    st.info("Nenhum fechamento encontrado.")
+                    return
+
+                df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+                mask = (df["Data_Fechamento"] >= ini_s) & (df["Data_Fechamento"] <= fim_s)
+                df = df[mask]
+                if df.empty:
+                    st.info("Sem fechamentos no período informado.")
+                    return
+
+                # carregar movimentos existentes p/ dedupe
+                df_mov_exist = _load_mov()
+                chaves_exist = set(df_mov_exist.get("Chave_Sync", []).tolist())
+
+                ws = get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
+                add_count = 0
+
+                for _, row in df.iterrows():
+                    data = str(row.get("Data_Fechamento"))
+                    hora = obter_horario_brasilia()
+                    # Entradas = compras
+                    compras = [
+                        ("Bolão",           float(row.get("Qtd_Compra_Bolao", 0)),           float(row.get("Custo_Unit_Bolao", 0))),
+                        ("Raspadinha",      float(row.get("Qtd_Compra_Raspadinha", 0)),     float(row.get("Custo_Unit_Raspadinha", 0))),
+                        ("Loteria Federal", float(row.get("Qtd_Compra_LoteriaFederal", 0)), float(row.get("Custo_Unit_LoteriaFederal", 0))),
+                    ]
+                    # Saídas = vendas
+                    vendas = [
+                        ("Bolão",           float(row.get("Qtd_Venda_Bolao", 0)),           float(row.get("Preco_Unit_Bolao", 0))),
+                        ("Raspadinha",      float(row.get("Qtd_Venda_Raspadinha", 0)),     float(row.get("Preco_Unit_Raspadinha", 0))),
+                        ("Loteria Federal", float(row.get("Qtd_Venda_LoteriaFederal", 0)), float(row.get("Preco_Unit_LoteriaFederal", 0))),
+                    ]
+
+                    # compras → Entrada
+                    for prod, qtd, vu in compras:
+                        if qtd > 0:
+                            chave = f"{data}|{pdv_sinc}|{prod}|ENT|{qtd}|{vu}"
+                            if chave not in chaves_exist:
+                                ws.append_row([data, hora, pdv_sinc, prod, "Entrada",
+                                               float(qtd), float(vu), float(qtd*vu), "sync-fech", sheet, chave])
+                                chaves_exist.add(chave)
+                                add_count += 1
+
+                    # vendas → Venda (saída)
+                    for prod, qtd, vu in vendas:
+                        if qtd > 0:
+                            chave = f"{data}|{pdv_sinc}|{prod}|SAI|{qtd}|{vu}"
+                            if chave not in chaves_exist:
+                                ws.append_row([data, hora, pdv_sinc, prod, "Venda",
+                                               float(qtd), float(vu), float(qtd*vu), "sync-fech", sheet, chave])
+                                chaves_exist.add(chave)
+                                add_count += 1
+
+                st.success(f"✅ Sincronização concluída: {add_count} movimentos incluídos.")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"❌ Erro na sincronização: {e}")
 
 
 # ------------------------------------------------------------
@@ -1404,6 +1701,7 @@ def main():
                 "🏦 Gestão do Cofre": "cofre",
                 "📋 Fechamento Lotérica": "fechamento_loterica",
                 "🗓️ Fechamento Diário Caixa Interno": "fechamento_diario_caixa_interno",
+                "📈 Gestão Lotérica": "gestao_loterica",
             }
         elif st.session_state.tipo_usuario == "💳 Operador Caixa":
             st.title("💳 Sistema Caixa Interno")
@@ -1441,6 +1739,7 @@ def main():
                 "cofre": "render_cofre",
                 "fechamento_loterica": "render_fechamento_loterica",
                 "fechamento_diario_caixa_interno": "render_fechamento_diario_simplificado",
+                "gestao_loterica": "render_gestao_loterica", 
             }
             fn_name = name_map.get(page_key, "render_dashboard_caixa")
             fn = globals().get(fn_name)
