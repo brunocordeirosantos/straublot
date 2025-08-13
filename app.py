@@ -789,7 +789,8 @@ def render_gestao_loterica(spreadsheet):
     import numpy as np
     from datetime import timedelta
 
-    tab1, tab2, tab3 = st.tabs(["📦 Estoque", "📊 Relatórios", "🔄 Sincronização"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📦 Estoque", "📊 Relatórios", "🧾 Conferência de Fechamentos", "🔄 Sincronização"])
+
 
     # ---------------------- TAB 1 — ESTOQUE ----------------------
     with tab1:
@@ -950,8 +951,127 @@ def render_gestao_loterica(spreadsheet):
             except Exception:
                 pass
 
-    # ------------------- TAB 3 — SINCRONIZAÇÃO -------------------
+        # ----------------- TAB 3 — CONFERÊNCIA DE FECHAMENTOS -----------------
     with tab3:
+        import plotly.express as px
+        from datetime import timedelta
+
+        st.markdown("#### 🧾 Conferência de Fechamentos")
+
+        # Filtros
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            pdv_conf = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="conf_pdv")
+        with c2:
+            conf_ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="conf_ini")
+        with c3:
+            conf_fim = st.date_input("Fim", value=obter_date_brasilia(), key="conf_fim")
+
+        # Carregar dados dos PDVs conforme filtro
+        frames = []
+        for pdv, sheet in FECH_PDV.items():
+            if pdv_conf != "Todos" and pdv != pdv_conf:
+                continue
+            try:
+                dados = buscar_dados(spreadsheet, sheet) or []
+                df = pd.DataFrame(dados)
+                if df.empty:
+                    continue
+                df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+                df = df[(df["Data_Fechamento"] >= conf_ini) & (df["Data_Fechamento"] <= conf_fim)]
+                if df.empty:
+                    continue
+                df["PDV"] = pdv  # garante coluna PDV consistente
+                frames.append(df)
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao buscar {sheet}: {e}")
+
+        if not frames:
+            st.info("Sem fechamentos no período selecionado.")
+        else:
+            df_all = pd.concat(frames, ignore_index=True)
+
+            # Tipagem de numéricos
+            num_cols = [
+                "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
+                "Qtd_Compra_Raspadinha","Custo_Unit_Raspadinha","Total_Compra_Raspadinha",
+                "Qtd_Compra_LoteriaFederal","Custo_Unit_LoteriaFederal","Total_Compra_LoteriaFederal",
+                "Qtd_Venda_Bolao","Preco_Unit_Bolao","Total_Venda_Bolao",
+                "Qtd_Venda_Raspadinha","Preco_Unit_Raspadinha","Total_Venda_Raspadinha",
+                "Qtd_Venda_LoteriaFederal","Preco_Unit_LoteriaFederal","Total_Venda_LoteriaFederal",
+                "Movimentacao_Cielo","Pagamento_Premios","Vales_Despesas",
+                "Retirada_Cofre","Retirada_CaixaInterno","Dinheiro_Gaveta_Final",
+                "Saldo_Anterior","Saldo_Final_Calculado","Diferenca_Caixa"
+            ]
+            for c in num_cols:
+                if c in df_all.columns:
+                    df_all[c] = pd.to_numeric(df_all[c], errors="coerce").fillna(0.0)
+
+            # Cálculos agregados (período/PDV)
+            total_compras = 0.0
+            if {"Total_Compra_Bolao","Total_Compra_Raspadinha","Total_Compra_LoteriaFederal"}.issubset(df_all.columns):
+                total_compras = df_all[["Total_Compra_Bolao","Total_Compra_Raspadinha","Total_Compra_LoteriaFederal"]].sum().sum()
+
+            total_vendas = 0.0
+            if {"Total_Venda_Bolao","Total_Venda_Raspadinha","Total_Venda_LoteriaFederal"}.issubset(df_all.columns):
+                total_vendas = df_all[["Total_Venda_Bolao","Total_Venda_Raspadinha","Total_Venda_LoteriaFederal"]].sum().sum()
+
+            total_entradas = total_vendas + float(df_all.get("Movimentacao_Cielo", pd.Series([0])).sum())
+            total_saidas = total_compras + float(df_all.get("Pagamento_Premios", pd.Series([0])).sum()) \
+                           + float(df_all.get("Vales_Despesas", pd.Series([0])).sum()) \
+                           + float(df_all.get("Retirada_Cofre", pd.Series([0])).sum()) \
+                           + float(df_all.get("Retirada_CaixaInterno", pd.Series([0])).sum())
+
+            saldo_calc_soma = float(df_all.get("Saldo_Final_Calculado", pd.Series([0])).sum())
+            din_gaveta_soma = float(df_all.get("Dinheiro_Gaveta_Final", pd.Series([0])).sum())
+            diferenca_soma   = float(df_all.get("Diferenca_Caixa", pd.Series([din_gaveta_soma - saldo_calc_soma])).sum())
+
+            # Cards
+            k1, k2, k3, k4 = st.columns(4)
+            with k1: st.metric("Total Entradas", f"R$ {total_entradas:,.2f}")
+            with k2: st.metric("Total Saídas", f"R$ {total_saidas:,.2f}")
+            with k3: st.metric("Saldo Final (soma)", f"R$ {saldo_calc_soma:,.2f}")
+            with k4: st.metric("Diferença (soma)", f"R$ {diferenca_soma:,.2f}")
+
+            # Tabela (ordenada por data desc / PDV)
+            try:
+                df_view = df_all.sort_values(by=["Data_Fechamento","PDV"], ascending=[False, True])
+            except Exception:
+                df_view = df_all
+            st.dataframe(df_view, use_container_width=True)
+
+            # Gráfico — Maiores movimentações no período (Top 10)
+            cat_vals = []
+            def _sum(col): 
+                return float(df_all.get(col, pd.Series([0])).sum())
+
+            cat_vals.extend([
+                ("Compra Bolão",            _sum("Total_Compra_Bolao")),
+                ("Compra Raspadinha",       _sum("Total_Compra_Raspadinha")),
+                ("Compra Loteria Federal",  _sum("Total_Compra_LoteriaFederal")),
+                ("Venda Bolão",             _sum("Total_Venda_Bolao")),
+                ("Venda Raspadinha",        _sum("Total_Venda_Raspadinha")),
+                ("Venda Loteria Federal",   _sum("Total_Venda_LoteriaFederal")),
+                ("Movimentação Cielo",      _sum("Movimentacao_Cielo")),
+                ("Pagamento de Prêmios",    _sum("Pagamento_Premios")),
+                ("Vales/Despesas",          _sum("Vales_Despesas")),
+                ("Retirada para Cofre",     _sum("Retirada_Cofre")),
+                ("Retirada Caixa Interno",  _sum("Retirada_CaixaInterno")),
+            ])
+            df_cat = pd.DataFrame(cat_vals, columns=["Categoria","Valor"])
+            df_cat = df_cat[df_cat["Valor"] != 0].sort_values("Valor", ascending=False)
+
+            if df_cat.empty:
+                st.info("Sem movimentações para o gráfico neste período.")
+            else:
+                fig = px.bar(df_cat.head(10), x="Categoria", y="Valor", text_auto=".2f",
+                             title="Maiores movimentações no período (Top 10)")
+                fig.update_layout(height=420, showlegend=False, font=dict(family="Inter, sans-serif"))
+                st.plotly_chart(fig, use_container_width=True)
+
+
+    # ------------------- TAB 3 — SINCRONIZAÇÃO -------------------
+    with tab4:
         st.markdown("#### 🔄 Sincronizar Estoque a partir dos Fechamentos")
         s1, s2, s3 = st.columns(3)
         with s1:
