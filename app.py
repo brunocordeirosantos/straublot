@@ -1539,12 +1539,12 @@ def main():
                 st.rerun()
         
         st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Sair do Sistema", key="btn_sair", use_container_width=True):
+        if st.sidebar.button("🚪 Sair do Sistema", key="btn_sair", use_container_width=True):
     # limpa tudo e encerra o ciclo atual imediatamente
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
-    st.rerun()
-    st.stop()
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+                st.rerun()
+                st.stop()
 
 # --- Dispatcher único: garante UMA página por ciclo ---
 def _render_page(page_key: str):
@@ -1560,8 +1560,6 @@ def _render_page(page_key: str):
 
 _render_page(st.session_state.pagina_atual)
 # ------------------------------------------------------
-
-
 
 # Função para obter hora de Brasília com fallback
 def obter_horario_brasilia():
