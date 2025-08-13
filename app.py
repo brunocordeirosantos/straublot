@@ -11,7 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 import hashlib
 import uuid
 
-#  I mportar pytz com tratamento de erro
+#Importar pytz com tratamento de erro
 try:
     import pytz
     PYTZ_AVAILABLE = True
@@ -1561,17 +1561,6 @@ def main():
         _render_page(st.session_state.pagina_atual)
     except Exception as e:
         st.error(f"❌ Erro durante execução: {e}")
-
-# (Se você quiser declarar helpers aqui, ok — mas SEM recuo)
-def obter_horario_brasilia():
-    try:
-        import pytz, datetime
-        tz_brasilia = pytz.timezone("America/Sao_Paulo")
-        agora = datetime.datetime.now(tz_brasilia)
-        return agora.strftime("%H:%M:%S")
-    except Exception:
-        import datetime
-        return datetime.datetime.now().strftime("%H:%M:%S")
 
 if __name__ == "__main__":
     main()
