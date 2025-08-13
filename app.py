@@ -1539,28 +1539,28 @@ def main():
                 st.rerun()
         
         st.sidebar.markdown("---")
-        if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-        
-       st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
+if st.sidebar.button("🚪 Sair do Sistema", key="btn_sair", use_container_width=True):
+    # limpa tudo e encerra o ciclo atual imediatamente
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
     st.rerun()
-    st.stop()  # garante que nada abaixo rode neste ciclo
+    st.stop()
 
-# --- Dispatch único: renderiza somente UMA página por ciclo ---
-PAGES = {
-    "dashboard_caixa": render_dashboard_caixa,
-    "operacoes_caixa": render_operacoes_caixa,
-    "cofre": render_cofre,
-    "fechamento_loterica": render_fechamento_loterica,
-    "fechamento_diario_caixa_interno": render_fechamento_diario_simplificado,
-}
-PAGES.get(st.session_state.pagina_atual, render_dashboard_caixa)(spreadsheet)
-# --------------------------------------------------------------
+# --- Dispatcher único: garante UMA página por ciclo ---
+def _render_page(page_key: str):
+    PAGES = {
+        "dashboard_caixa": render_dashboard_caixa,
+        "operacoes_caixa": render_operacoes_caixa,
+        "cofre": render_cofre,
+        "fechamento_loterica": render_fechamento_loterica,
+        "fechamento_diario_caixa_interno": render_fechamento_diario_simplificado,
+    }
+    fn = PAGES.get(page_key, render_dashboard_caixa)
+    return fn(spreadsheet)
+
+_render_page(st.session_state.pagina_atual)
+# ------------------------------------------------------
+
 
 
 # Função para obter hora de Brasília com fallback
