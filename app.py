@@ -1083,7 +1083,7 @@ def main():
             st.title("🎰 Sistema Lotérica")
             opcoes_menu = {"📋 Fechamento Lotérica": "fechamento_loterica"}
 
-        # Navegação
+                # Navegação
         if "pagina_atual" not in st.session_state:
             st.session_state.pagina_atual = list(opcoes_menu.values())[0]
 
@@ -1094,25 +1094,29 @@ def main():
 
         st.sidebar.markdown("---")
         if st.sidebar.button("🚪 Sair do Sistema", key="btn_sair", use_container_width=True):
+            # limpa tudo e encerra o ciclo atual imediatamente
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
             st.stop()
 
-        # Dispatcher único: garante UMA página por ciclo
+        # Dispatcher único (lazy): resolve por NOME e só chama se existir
         def _render_page(page_key: str):
-            PAGES = {
-                "dashboard_caixa": render_dashboard_caixa,
-                "operacoes_caixa": render_operacoes_caixa,
-                "cofre": render_cofre,
-                "fechamento_loterica": render_fechamento_loterica,
-                "fechamento_diario_caixa_interno": render_fechamento_diario_simplificado,
+            name_map = {
+                "dashboard_caixa": "render_dashboard_caixa",
+                "operacoes_caixa": "render_operacoes_caixa",
+                "cofre": "render_cofre",
+                "fechamento_loterica": "render_fechamento_loterica",
+                "fechamento_diario_caixa_interno": "render_fechamento_diario_simplificado",
             }
-            fn = PAGES.get(page_key, render_dashboard_caixa)
+            fn_name = name_map.get(page_key, "render_dashboard_caixa")
+            fn = globals().get(fn_name)
+            if fn is None:
+                st.error(f"⚠️ Página '{page_key}' inválida (função '{fn_name}' não encontrada).")
+                return
             return fn(spreadsheet)
 
         _render_page(st.session_state.pagina_atual)
-
     except Exception as e:
         st.error(f"❌ Erro durante execução: {e}")
 
