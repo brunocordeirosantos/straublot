@@ -1860,7 +1860,6 @@ def render_cofre(spreadsheet):
         st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
-
 # (demais funções inalteradas…)
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
