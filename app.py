@@ -1701,7 +1701,7 @@ def render_cofre(spreadsheet):
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
 def render_fechamento_diario_simplificado(spreadsheet):
-    st.subheader("🗓️ Fechamento do Caixa Interno")
+    st.subheader("🗓️ Fechamento Caixa Interno")
 
     # --- Config (ajuste se quiser saldo inicial no 1º dia) ---
     SALDO_INICIAL_PADRAO = 2608.0  # usado só se não houver fechamento anterior
@@ -1890,7 +1890,7 @@ def main():
                 "💳 Operações Caixa": "operacoes_caixa",
                 "🏦 Gestão do Cofre": "cofre",
                 "📋 Fechamento Lotérica": "fechamento_loterica",
-                "🗓️ Fechamento Diário Caixa Interno": "fechamento_diario_caixa_interno",
+                "🗓️ Fechamento Caixa Interno": "fechamento_diario_caixa_interno",
                 "📈 Gestão Lotérica": "gestao_loterica",
             }
         elif st.session_state.tipo_usuario == "💳 Operador Caixa":
@@ -1898,7 +1898,7 @@ def main():
             opcoes_menu = {
                 "📊 Dashboard Caixa": "dashboard_caixa",
                 "💳 Operações Caixa": "operacoes_caixa",
-                "🗓️ Fechamento Diário Caixa Interno": "fechamento_diario_caixa_interno",
+                "🗓️ Fechamento Caixa Interno": "fechamento_diario_caixa_interno",
             }
         else:  # Operador Lotérica
             st.title("🎰 Sistema Lotérica")
