@@ -1885,8 +1885,7 @@ def render_gestao_caixa_interno(spreadsheet):
     def _load_df():
         values = ws.get_all_values()
         if not values or len(values) < 2:
-            df = pd.DataFrame(columns=HEADERS + ["_row"])
-            return df
+            return pd.DataFrame(columns=HEADERS + ["_row"])
 
         hdr = values[0]
         rows = values[1:]
@@ -1907,48 +1906,47 @@ def render_gestao_caixa_interno(spreadsheet):
     # -------------------- HISTÓRICO --------------------
     with tab_hist:
         df = _load_df()
-
         if df.empty:
             st.info("Nenhum fechamento registrado ainda.")
-            return
+        else:
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                modo = st.radio("Filtro", ["Por dia", "Período"], horizontal=True, key="flt_gci_modo")
+            with c2:
+                if modo == "Por dia":
+                    dia = st.date_input("Data", value=df["Data_Fechamento"].max(), key="flt_gci_dia")
+                else:
+                    ini = st.date_input("Início", value=df["Data_Fechamento"].min(), key="flt_gci_ini")
+            with c3:
+                if modo == "Período":
+                    fim = st.date_input("Fim", value=df["Data_Fechamento"].max(), key="flt_gci_fim")
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            modo = st.radio("Filtro", ["Por dia", "Período"], horizontal=True, key="flt_gci_modo")
-        with c2:
             if modo == "Por dia":
-                dia = st.date_input("Data", value=df["Data_Fechamento"].max(), key="flt_gci_dia")
+                df_f = df[df["Data_Fechamento"] == (dia or df["Data_Fechamento"].max())]
             else:
-                ini = st.date_input("Início", value=df["Data_Fechamento"].min(), key="flt_gci_ini")
-        with c3:
-            if modo == "Período":
-                fim = st.date_input("Fim", value=df["Data_Fechamento"].max(), key="flt_gci_fim")
+                df_f = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
 
-        if modo == "Por dia":
-            df_f = df[df["Data_Fechamento"] == (dia or df["Data_Fechamento"].max())]
-        else:
-            df_f = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
+            if df_f.empty:
+                st.info("Sem registros no filtro selecionado.")
+            else:
+                # KPIs
+                k1, k2, k3, k4 = st.columns(4)
+                with k1: st.metric("Fechamentos", len(df_f))
+                with k2: st.metric("Saques (Σ)", f"R$ {df_f['Total_Saques_Cartao'].sum():,.2f}")
+                with k3: st.metric("Cheques (Σ)", f"R$ {df_f['Total_Trocas_Cheque'].sum():,.2f}")
+                with k4: st.metric("Suprimentos (Σ)", f"R$ {df_f['Total_Suprimentos'].sum():,.2f}")
 
-        if df_f.empty:
-            st.info("Sem registros no filtro selecionado.")
-        else:
-            # KPIs rápidos
-            k1, k2, k3, k4 = st.columns(4)
-            with k1: st.metric("Fechamentos", len(df_f))
-            with k2: st.metric("Saques (Σ)", f"R$ {df_f['Total_Saques_Cartao'].sum():,.2f}")
-            with k3: st.metric("Cheques (Σ)", f"R$ {df_f['Total_Trocas_Cheque'].sum():,.2f}")
-            with k4: st.metric("Suprimentos (Σ)", f"R$ {df_f['Total_Suprimentos'].sum():,.2f}")
-
-            st.markdown("#### Registros")
-            cols_show = [
-                "Data_Fechamento","Operador","Saldo_Dia_Anterior",
-                "Total_Saques_Cartao","Total_Trocas_Cheque","Total_Suprimentos",
-                "Saldo_Calculado_Dia","Dinheiro_Contado_Gaveta","Diferenca_Caixa","Observacoes_Fechamento"
-            ]
-            st.dataframe(
-                df_f.sort_values(["Data_Fechamento","Operador"], ascending=[False, True])[cols_show],
-                use_container_width=True
-            )
+                st.markdown("#### Registros")
+                cols_show = [
+                    "Data_Fechamento","Operador","Saldo_Dia_Anterior",
+                    "Total_Saques_Cartao","Total_Trocas_Cheque","Total_Suprimentos",
+                    "Saldo_Calculado_Dia","Dinheiro_Contado_Gaveta","Diferenca_Caixa",
+                    "Observacoes_Fechamento"
+                ]
+                st.dataframe(
+                    df_f.sort_values(["Data_Fechamento","Operador"], ascending=[False, True])[cols_show],
+                    use_container_width=True
+                )
 
     # ----------------- EDITAR / REMOVER ----------------
     with tab_edit:
@@ -1957,7 +1955,6 @@ def render_gestao_caixa_interno(spreadsheet):
             st.info("Nenhum fechamento para editar/remover.")
             return
 
-        # opções com info e linha real
         df_sorted = df.sort_values("Data_Fechamento", ascending=False).copy()
         df_sorted["label"] = df_sorted.apply(
             lambda r: f"{r['Data_Fechamento']} | {r['Operador']} | Saldo: R$ {r['Saldo_Calculado_Dia']:,.2f} (linha {r['_row']})",
@@ -1965,17 +1962,21 @@ def render_gestao_caixa_interno(spreadsheet):
         )
         mapa_row = {r["label"]: int(r["_row"]) for _, r in df_sorted.iterrows()}
         escolha = st.selectbox("Selecione o registro", list(mapa_row.keys()))
-
         if not escolha:
             st.stop()
 
         row_idx = mapa_row[escolha]
         reg = df[df["_row"] == row_idx].iloc[0]
 
-        # cheque de duplicidade por data (aviso)
+        # aviso de duplicidade por data
         dup = df[(df["Data_Fechamento"] == reg["Data_Fechamento"]) & (df["_row"] != row_idx)]
         if not dup.empty:
             st.warning(f"⚠️ Existem {len(dup)} outro(s) registro(s) na mesma data ({reg['Data_Fechamento']}).")
+
+        # variáveis de controle dos botões (para existirem fora do form)
+        salvar = False
+        remover = False
+        confirma_del = False
 
         st.markdown("#### Editar registro")
         with st.form("form_edit_fechamento", clear_on_submit=False):
@@ -2004,20 +2005,24 @@ def render_gestao_caixa_interno(spreadsheet):
                 dinheiro = st.number_input("Dinheiro Contado na Gaveta (R$)",
                                            value=float(reg["Dinheiro_Contado_Gaveta"]), step=10.0, format="%.2f")
 
-            # diferença é recalculada para consistência
             diferenca = float(dinheiro) - float(saldo_calc)
             st.info(f"🔎 Diferença recalculada: R$ {diferenca:,.2f}")
 
             obs = st.text_area("Observações do Fechamento", value=str(reg.get("Observacoes_Fechamento", "")))
 
-            col_btn1, col_btn2, col_btn3 = st.columns([1,1,2])
-            salvar = col_btn1.form_submit_button("💾 Salvar alterações", use_container_width=True)
-            # remover precisa de confirmação
+            col_btn1, col_btn2, _ = st.columns([1, 1, 2])
+            salvar  = col_btn1.form_submit_button("💾 Salvar alterações", use_container_width=True)
+
+            # ATENÇÃO: dentro do form, use form_submit_button (nunca st.button)
             with col_btn2:
                 confirma_del = st.checkbox("Confirmar exclusão")
-                remover = st.button("🗑️ Remover registro", use_container_width=True, disabled=not confirma_del)
+                remover = st.form_submit_button(
+                    "🗑️ Remover registro",
+                    use_container_width=True,
+                    disabled=not confirma_del
+                )
 
-        # SALVAR
+        # ---- ações pós-submit (fora do form) ----
         if salvar:
             try:
                 # monta a linha no exato order dos HEADERS
@@ -2033,7 +2038,6 @@ def render_gestao_caixa_interno(spreadsheet):
                     float(diferenca),
                     obs
                 ]
-                # A{row}:J{row}
                 ws.update(f"A{row_idx}:J{row_idx}", [linha])
                 st.success("✅ Registro atualizado com sucesso!")
                 st.cache_data.clear()
@@ -2041,7 +2045,6 @@ def render_gestao_caixa_interno(spreadsheet):
             except Exception as e:
                 st.error(f"❌ Erro ao atualizar: {e}")
 
-        # REMOVER
         if remover and confirma_del:
             try:
                 ws.delete_rows(row_idx)
@@ -2050,6 +2053,7 @@ def render_gestao_caixa_interno(spreadsheet):
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Erro ao remover: {e}")
+
 
 # Função principal do sistema
 def main():
