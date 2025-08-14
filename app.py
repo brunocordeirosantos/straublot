@@ -1864,6 +1864,192 @@ def render_fechamento_diario_simplificado(spreadsheet):
         st.error(f"❌ Erro ao carregar fechamento de caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
+# ------------------------------------------------------------
+# 🛠️ Gestão do Caixa Interno — Fechamentos (Histórico + Edição)
+# ------------------------------------------------------------
+def render_gestao_caixa_interno(spreadsheet):
+    st.subheader("🛠️ Gestão do Caixa Interno — Fechamentos")
+
+    SHEET = "Fechamento_Diario_Caixa_Interno"
+    HEADERS = [
+        "Data_Fechamento", "Operador", "Saldo_Dia_Anterior",
+        "Total_Saques_Cartao", "Total_Trocas_Cheque", "Total_Suprimentos",
+        "Saldo_Calculado_Dia", "Dinheiro_Contado_Gaveta", "Diferenca_Caixa",
+        "Observacoes_Fechamento"
+    ]
+
+    # garante a planilha
+    ws = get_or_create_worksheet(spreadsheet, SHEET, HEADERS)
+
+    # util: carregar DF com índice real da linha (_row) para editar/remover
+    def _load_df():
+        values = ws.get_all_values()
+        if not values or len(values) < 2:
+            df = pd.DataFrame(columns=HEADERS + ["_row"])
+            return df
+
+        hdr = values[0]
+        rows = values[1:]
+        df = pd.DataFrame(rows, columns=hdr)
+        df["_row"] = list(range(2, 2 + len(df)))  # linha real na planilha (1 = cabeçalho)
+
+        # normalização
+        df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+        for c in ["Saldo_Dia_Anterior","Total_Saques_Cartao","Total_Trocas_Cheque",
+                  "Total_Suprimentos","Saldo_Calculado_Dia","Dinheiro_Contado_Gaveta",
+                  "Diferenca_Caixa"]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        return df
+
+    tab_hist, tab_edit = st.tabs(["📜 Histórico", "✏️ Editar / Remover"])
+
+    # -------------------- HISTÓRICO --------------------
+    with tab_hist:
+        df = _load_df()
+
+        if df.empty:
+            st.info("Nenhum fechamento registrado ainda.")
+            return
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            modo = st.radio("Filtro", ["Por dia", "Período"], horizontal=True, key="flt_gci_modo")
+        with c2:
+            if modo == "Por dia":
+                dia = st.date_input("Data", value=df["Data_Fechamento"].max(), key="flt_gci_dia")
+            else:
+                ini = st.date_input("Início", value=df["Data_Fechamento"].min(), key="flt_gci_ini")
+        with c3:
+            if modo == "Período":
+                fim = st.date_input("Fim", value=df["Data_Fechamento"].max(), key="flt_gci_fim")
+
+        if modo == "Por dia":
+            df_f = df[df["Data_Fechamento"] == (dia or df["Data_Fechamento"].max())]
+        else:
+            df_f = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
+
+        if df_f.empty:
+            st.info("Sem registros no filtro selecionado.")
+        else:
+            # KPIs rápidos
+            k1, k2, k3, k4 = st.columns(4)
+            with k1: st.metric("Fechamentos", len(df_f))
+            with k2: st.metric("Saques (Σ)", f"R$ {df_f['Total_Saques_Cartao'].sum():,.2f}")
+            with k3: st.metric("Cheques (Σ)", f"R$ {df_f['Total_Trocas_Cheque'].sum():,.2f}")
+            with k4: st.metric("Suprimentos (Σ)", f"R$ {df_f['Total_Suprimentos'].sum():,.2f}")
+
+            st.markdown("#### Registros")
+            cols_show = [
+                "Data_Fechamento","Operador","Saldo_Dia_Anterior",
+                "Total_Saques_Cartao","Total_Trocas_Cheque","Total_Suprimentos",
+                "Saldo_Calculado_Dia","Dinheiro_Contado_Gaveta","Diferenca_Caixa","Observacoes_Fechamento"
+            ]
+            st.dataframe(
+                df_f.sort_values(["Data_Fechamento","Operador"], ascending=[False, True])[cols_show],
+                use_container_width=True
+            )
+
+    # ----------------- EDITAR / REMOVER ----------------
+    with tab_edit:
+        df = _load_df()
+        if df.empty:
+            st.info("Nenhum fechamento para editar/remover.")
+            return
+
+        # opções com info e linha real
+        df_sorted = df.sort_values("Data_Fechamento", ascending=False).copy()
+        df_sorted["label"] = df_sorted.apply(
+            lambda r: f"{r['Data_Fechamento']} | {r['Operador']} | Saldo: R$ {r['Saldo_Calculado_Dia']:,.2f} (linha {r['_row']})",
+            axis=1
+        )
+        mapa_row = {r["label"]: int(r["_row"]) for _, r in df_sorted.iterrows()}
+        escolha = st.selectbox("Selecione o registro", list(mapa_row.keys()))
+
+        if not escolha:
+            st.stop()
+
+        row_idx = mapa_row[escolha]
+        reg = df[df["_row"] == row_idx].iloc[0]
+
+        # cheque de duplicidade por data (aviso)
+        dup = df[(df["Data_Fechamento"] == reg["Data_Fechamento"]) & (df["_row"] != row_idx)]
+        if not dup.empty:
+            st.warning(f"⚠️ Existem {len(dup)} outro(s) registro(s) na mesma data ({reg['Data_Fechamento']}).")
+
+        st.markdown("#### Editar registro")
+        with st.form("form_edit_fechamento", clear_on_submit=False):
+            data_edt = st.date_input("Data do Fechamento", value=reg["Data_Fechamento"])
+            operador = st.text_input("Operador", value=str(reg["Operador"]))
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                saldo_ant = st.number_input("Saldo do Dia Anterior (R$)", value=float(reg["Saldo_Dia_Anterior"]),
+                                            step=10.0, format="%.2f")
+            with c2:
+                saques = st.number_input("Total Saques Cartão (R$)", value=float(reg["Total_Saques_Cartao"]),
+                                         step=10.0, format="%.2f")
+            with c3:
+                cheques = st.number_input("Total Trocas Cheque (R$)", value=float(reg["Total_Trocas_Cheque"]),
+                                          step=10.0, format="%.2f")
+
+            c4, c5, c6 = st.columns(3)
+            with c4:
+                supr = st.number_input("Total Suprimentos (R$)", value=float(reg["Total_Suprimentos"]),
+                                       step=10.0, format="%.2f")
+            with c5:
+                saldo_calc = st.number_input("Saldo Calculado do Dia (R$)",
+                                             value=float(reg["Saldo_Calculado_Dia"]), step=10.0, format="%.2f")
+            with c6:
+                dinheiro = st.number_input("Dinheiro Contado na Gaveta (R$)",
+                                           value=float(reg["Dinheiro_Contado_Gaveta"]), step=10.0, format="%.2f")
+
+            # diferença é recalculada para consistência
+            diferenca = float(dinheiro) - float(saldo_calc)
+            st.info(f"🔎 Diferença recalculada: R$ {diferenca:,.2f}")
+
+            obs = st.text_area("Observações do Fechamento", value=str(reg.get("Observacoes_Fechamento", "")))
+
+            col_btn1, col_btn2, col_btn3 = st.columns([1,1,2])
+            salvar = col_btn1.form_submit_button("💾 Salvar alterações", use_container_width=True)
+            # remover precisa de confirmação
+            with col_btn2:
+                confirma_del = st.checkbox("Confirmar exclusão")
+                remover = st.button("🗑️ Remover registro", use_container_width=True, disabled=not confirma_del)
+
+        # SALVAR
+        if salvar:
+            try:
+                # monta a linha no exato order dos HEADERS
+                linha = [
+                    str(data_edt),
+                    operador,
+                    float(saldo_ant),
+                    float(saques),
+                    float(cheques),
+                    float(supr),
+                    float(saldo_calc),
+                    float(dinheiro),
+                    float(diferenca),
+                    obs
+                ]
+                # A{row}:J{row}
+                ws.update(f"A{row_idx}:J{row_idx}", [linha])
+                st.success("✅ Registro atualizado com sucesso!")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Erro ao atualizar: {e}")
+
+        # REMOVER
+        if remover and confirma_del:
+            try:
+                ws.delete_rows(row_idx)
+                st.success("🗑️ Registro removido com sucesso!")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Erro ao remover: {e}")
 
 # Função principal do sistema
 def main():
@@ -1891,6 +2077,7 @@ def main():
                 "🏦 Gestão do Cofre": "cofre",
                 "📋 Fechamento Lotérica": "fechamento_loterica",
                 "🗓️ Fechamento Caixa Interno": "fechamento_diario_caixa_interno",
+                "🛠️ Gestão Caixa Interno": "gestao_caixa_interno",
                 "📈 Gestão Lotérica": "gestao_loterica",
             }
         elif st.session_state.tipo_usuario == "💳 Operador Caixa":
@@ -1929,6 +2116,7 @@ def main():
                 "cofre": "render_cofre",
                 "fechamento_loterica": "render_fechamento_loterica",
                 "fechamento_diario_caixa_interno": "render_fechamento_diario_simplificado",
+                "gestao_caixa_interno": "render_gestao_caixa_interno",
                 "gestao_loterica": "render_gestao_loterica", 
             }
             fn_name = name_map.get(page_key, "render_dashboard_caixa")
