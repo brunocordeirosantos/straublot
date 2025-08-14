@@ -1208,9 +1208,9 @@ def render_operacoes_caixa(spreadsheet):
                         with c4:
                             st.metric("💵 Valor a Entregar", f"R$ {float(calc['valor_liquido']):,.2f}")
                             if tipo_cartao == "Débito":
-                                st.info("💡 Taxa ao cliente: 1% — Custo banco fixo R$ 1,00.")
+                                st.info("💡 Taxa ao cliente: 1% ")
                             else:
-                                st.info("💡 Taxa ao cliente: 5,33% — Custo banco 4,33%.")
+                                st.info("💡 Taxa ao cliente: 5,33%")
 
                         st.session_state.simulacao_cartao = {
                             "tipo": f"Saque Cartão {tipo_cartao}",
