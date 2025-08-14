@@ -1459,101 +1459,128 @@ def render_operacoes_caixa(spreadsheet):
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
 
-# Função principal do dashboard do caixa
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
 
-    # 1) Buscar e normalizar
-    operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
+    # 1) Buscar e normalizar dados de operações
+    operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa") or []
     operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
     df_operacoes = pd.DataFrame(operacoes_data_normalizada)
 
-    # 2) Tipos numéricos (fora de qualquer loop de render!)
+    # Tipagem defensiva
     if not df_operacoes.empty:
-        for c in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
-            if c in df_operacoes.columns:
-                df_operacoes[c] = pd.to_numeric(df_operacoes[c], errors="coerce").fillna(0.0)
-    else:
-        # Evita KeyError quando não houver dados
-        df_operacoes = pd.DataFrame(columns=[
-            "Data","Hora","Operador","Tipo_Operacao","Cliente","CPF",
-            "Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro",
-            "Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"
-        ])
+        for col in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
+            if col in df_operacoes.columns:
+                df_operacoes[col] = pd.to_numeric(df_operacoes[col], errors="coerce").fillna(0.0)
+        try:
+            df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce").dt.date
+        except Exception:
+            pass
 
-    # 3) Métricas (uma única vez)
-    total_suprimentos = df_operacoes[df_operacoes["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum()
-    tipos_de_saida = ["Saque Cartão Débito", "Saque Cartão Crédito", "Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
-    total_saques_liquidos = df_operacoes[df_operacoes["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+    # ================== CÁLCULO NOVO DO SALDO ==================
+    # Categorias canônicas
+    TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito"]
+    TIPOS_CHEQUE = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
 
-    # Saldo do caixa = saldo inicial + suprimentos - saques líquidos
-    saldo_inicial = 2608  # valor atual configurado
-    saldo_caixa = saldo_inicial + total_suprimentos - total_saques_liquidos
+    # 1) Saldo do dia anterior (último fechamento <= ontem)
+    saldo_anterior = 0.0
+    try:
+        fech_data = buscar_dados(spreadsheet, "Fechamento_Diario_Caixa_Interno") or []
+        if fech_data:
+            df_fech = pd.DataFrame(fech_data)
+            df_fech["Data_Fechamento"] = pd.to_datetime(df_fech["Data_Fechamento"], errors="coerce").dt.date
+            df_fech["Saldo_Calculado_Dia"] = pd.to_numeric(df_fech.get("Saldo_Calculado_Dia", 0), errors="coerce").fillna(0.0)
 
-    # Operações de hoje
-    hoje_str = obter_data_brasilia()
-    operacoes_de_hoje = df_operacoes[df_operacoes["Data"] == hoje_str]
-    operacoes_hoje_count = len(operacoes_de_hoje)
-    valor_saque_hoje = operacoes_de_hoje[operacoes_de_hoje["Tipo_Operacao"].isin(tipos_de_saida)]["Valor_Liquido"].sum()
+            hoje_dt  = obter_date_brasilia()
+            ontem_dt = hoje_dt - timedelta(days=1)
 
-    # 4) Cards (render uma vez)
+            prev = df_fech[df_fech["Data_Fechamento"] <= ontem_dt].sort_values("Data_Fechamento").tail(1)
+            if not prev.empty:
+                saldo_anterior = float(prev.iloc[0]["Saldo_Calculado_Dia"])
+    except Exception:
+        pass  # se der erro, mantém 0.0
+
+    # 2) Somente operações de HOJE
+    hoje_dt = obter_date_brasilia()
+    ops_hoje = df_operacoes[df_operacoes["Data"] == hoje_dt] if not df_operacoes.empty else pd.DataFrame()
+
+    suprimentos_hoje = ops_hoje[ops_hoje["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum() if not ops_hoje.empty else 0.0
+    saques_hoje      = ops_hoje[ops_hoje["Tipo_Operacao"].isin(TIPOS_SAQUE)]["Valor_Liquido"].sum() if not ops_hoje.empty else 0.0
+    cheques_hoje     = ops_hoje[ops_hoje["Tipo_Operacao"].isin(TIPOS_CHEQUE)]["Valor_Liquido"].sum() if not ops_hoje.empty else 0.0
+
+    # 3) Saldo final do card
+    saldo_caixa = float(saldo_anterior + suprimentos_hoje - (saques_hoje + cheques_hoje))
+
+    # Métricas auxiliares para os cards
+    operacoes_hoje_count = int(len(ops_hoje))
+    valor_saque_hoje = float(sakes if (sakes := saques_hoje + cheques_hoje) else 0.0)  # saída total do dia
+    # ============================================================
+
+    # ----------------- CARDS DE MÉTRICAS -----------------
     col1, col2, col3, col4 = st.columns(4)
 
-    grad_saldo = "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)" if saldo_caixa >= 0 \
-                 else "linear-gradient(135deg, #f85032 0%, #e73827 100%)"
     with col1:
-        st.markdown(f"""
-        <div class="metric-card" style="background: {grad_saldo};">
-            <h3>R$ {saldo_caixa:,.2f}</h3>
-            <p>💰 Saldo do Caixa</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h3>R$ {saldo_caixa:,.2f}</h3>
+                <p>💰 Saldo do Caixa</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with col2:
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-            <h3>R$ {valor_saque_hoje:,.2f}</h3>
-            <p>💳 Valor Saque Hoje</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h3>R$ {valor_saque_hoje:,.2f}</h3>
+                <p>💳 Valor Saque Hoje</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with col3:
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-            <h3>{operacoes_hoje_count}</h3>
-            <p>📋 Operações Hoje</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <h3>{operacoes_hoje_count}</h3>
+                <p>📋 Operações Hoje</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with col4:
-        status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
         status_cor = "#38ef7d" if saldo_caixa > 2000 else "#f5576c"
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
-            <h3>{status_texto}</h3>
-            <p>🚦 Status Caixa</p>
-        </div>
-        """, unsafe_allow_html=True)
+        status_texto = "Normal" if saldo_caixa > 2000 else "Baixo"
+        st.markdown(
+            f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {status_cor} 0%, {status_cor} 100%);">
+                <h3>{status_texto}</h3>
+                <p>🚦 Status Caixa</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
-    # 5) Gráfico (render uma vez)
+    # ----------------- GRÁFICO (últimos 7 dias) -----------------
     st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
     try:
-        if "Data" in df_operacoes.columns:
-            df_plot = df_operacoes.copy()
-            df_plot["Data"] = pd.to_datetime(df_plot["Data"], errors="coerce")
-            df_plot.dropna(subset=["Data"], inplace=True)
+        if df_operacoes.empty:
+            st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
+        else:
+            # janela de 7 dias
+            data_limite = obter_date_brasilia() - timedelta(days=7)
+            df_recente = df_operacoes.copy()
+            df_recente = df_recente[df_recente["Data"] >= data_limite]
 
-            try:
-                data_limite = obter_datetime_brasilia() - timedelta(days=7)
-                data_limite_pandas = pd.to_datetime(data_limite.strftime("%Y-%m-%d"))
-            except Exception:
-                data_limite_pandas = pd.to_datetime((datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"))
-
-            df_recente = df_plot[df_plot["Data"] >= data_limite_pandas]
-
-            if not df_recente.empty:
+            if df_recente.empty:
+                st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
+            else:
                 resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
                 fig = px.bar(
                     resumo_por_tipo,
@@ -1562,31 +1589,32 @@ def render_dashboard_caixa(spreadsheet):
                     title="Valor Líquido por Tipo de Operação",
                     labels={"Tipo_Operacao": "Tipo de Operação", "Valor_Liquido": "Valor Líquido Total (R$)"},
                     color="Tipo_Operacao",
-                    text_auto=".2f"
+                    text_auto=".2f",
                 )
-                fig.update_layout(showlegend=False, height=400, font=dict(family="Inter, sans-serif"))
+                fig.update_layout(showlegend=False, height=420, font=dict(family="Inter, sans-serif"))
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
-        else:
-            st.info("📊 Nenhum dado de Data disponível para o gráfico.")
     except Exception:
         st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
 
-    # 6) Alerta (uma vez)
+    # ----------------- ALERTAS DE SALDO -----------------
     if saldo_caixa < 1000:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-            🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                🚨 <strong>Atenção!</strong> Saldo do caixa está muito baixo. Solicite suprimento urgente.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     elif saldo_caixa < 2000:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-            ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
-        </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(
+            """
+            <div style="background: linear-gradient(135deg, #ffa726 0%, #ff9800 100%); padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                ⚠️ <strong>Aviso:</strong> Saldo do caixa está baixo. Considere solicitar suprimento.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
