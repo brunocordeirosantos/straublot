@@ -1151,7 +1151,19 @@ def render_gestao_loterica(spreadsheet):
 # ------------------------------------------------------------
 def render_operacoes_caixa(spreadsheet):
     from decimal import Decimal
+    from uuid import uuid4
+    from datetime import timedelta  # usado no tab Histórico
     st.subheader("💳 Operações do Caixa Interno")
+
+    # Cabeçalho da planilha de operações do Cofre (usado quando origem = Cofre)
+    HEADERS_COFRE = [
+        "Data", "Hora", "Operador", "Tipo", "Categoria",
+        "Origem", "Destino", "Valor", "Observacoes", "Status", "Vinculo_ID"
+    ]
+
+    # Helper: gerar ID curto para vincular Suprimento <-> Cofre
+    def _gerar_id(prefix="ID"):
+        return f"{prefix}-{uuid4().hex[:8]}"
 
     try:
         HEADERS = [
@@ -1369,7 +1381,7 @@ def render_operacoes_caixa(spreadsheet):
                         st.error(f"❌ Erro ao salvar operação: {e}")
 
         # --------------------------------------------------------
-        # TAB 3 — Suprimento
+        # TAB 3 — Suprimento (com baixa automática do Cofre)
         # --------------------------------------------------------
         with tab3:
             st.markdown("### 🔄 Suprimento do Caixa")
@@ -1385,16 +1397,51 @@ def render_operacoes_caixa(spreadsheet):
                 observ = st.text_area("Observações do Suprimento")
 
                 if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
+                    sup_id = _gerar_id("SUPR")
                     try:
+                        # 1) Se origem for Cofre → cria saída no cofre (transferência)
+                        created_cofre = False
+                        if str(origem).lower().startswith("cofre"):
+                            try:
+                                ws_cofre = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
+                                cofre_row = [
+                                    obter_data_brasilia(),
+                                    obter_horario_brasilia(),
+                                    operador,
+                                    "Saída",
+                                    "Transferência para Caixa Interno",
+                                    origem,
+                                    "Caixa Interno",
+                                    float(valor_sup),
+                                    f"Gerado automaticamente por Suprimento ({sup_id}).",
+                                    "Concluído",
+                                    sup_id,
+                                ]
+                                ws_cofre.append_row(cofre_row)
+                                created_cofre = True
+                            except Exception as e:
+                                st.warning(f"⚠️ Suprimento criado, mas não foi possível debitar o Cofre agora: {e}")
+
+                        # 2) Registrar o Suprimento em Operacoes_Caixa
                         ws = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
+                        observ_full = f"Origem: {origem}. " + (f"Vinculo_Cofre_ID: {sup_id}. " if str(origem).lower().startswith("cofre") else "") + (observ or "")
                         row = [
                             obter_data_brasilia(), obter_horario_brasilia(), operador,
                             "Suprimento", "Sistema", "N/A",
                             float(valor_sup), 0.0, 0.0, float(valor_sup), 0.0,
-                            "Concluído", "", "0.00%", f"Origem: {origem}. {observ or ''}"
+                            "Concluído", "", "0.00%", observ_full
                         ]
                         ws.append_row(row)
-                        st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado!")
+
+                        # 3) Mensagem final
+                        if str(origem).lower().startswith("cofre"):
+                            if created_cofre:
+                                st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado e Cofre debitado (ID {sup_id}).")
+                            else:
+                                st.warning(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado. ⚠️ Cofre **não** debitado — tente reprocessar.")
+                        else:
+                            st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado!")
+
                         st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Erro ao registrar suprimento: {e}")
