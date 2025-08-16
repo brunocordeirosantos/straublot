@@ -549,7 +549,7 @@ def render_fechamento_loterica(spreadsheet):
     import pandas as pd
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalho exato solicitado
+    # Cabeçalho exato (agora com Pix_Saida)
     HEADERS_FECHAMENTO = [
         "Data_Fechamento", "PDV", "Operador",
         "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
@@ -558,7 +558,7 @@ def render_fechamento_loterica(spreadsheet):
         "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
         "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
         "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
-        "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas",
+        "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", "Pix_Saida",
         "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
         "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
     ]
@@ -574,7 +574,7 @@ def render_fechamento_loterica(spreadsheet):
             return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
-        """Lê Movimentacoes_PDV e soma 'Saída p/ Caixa Interno' no dia para o PDV."""
+        """Soma 'Saída p/ Caixa Interno' no dia para o PDV a partir de Movimentacoes_PDV."""
         total = 0.0
         ids = []
         try:
@@ -605,10 +605,7 @@ def render_fechamento_loterica(spreadsheet):
             ws_name = _sheet_for_pdv(pdv)
             dados = buscar_dados(spreadsheet, ws_name) or []
             df = pd.DataFrame(dados)
-            if df.empty:
-                return 0.0
-            # normaliza
-            if "Data_Fechamento" not in df.columns:
+            if df.empty or "Data_Fechamento" not in df.columns:
                 return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[df["PDV"].astype(str).eq(pdv)]
@@ -617,7 +614,6 @@ def render_fechamento_loterica(spreadsheet):
                 return 0.0
             if "Saldo_Final_Calculado" in df.columns:
                 df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
-                # pega o último pela data
                 df = df.sort_values("Data_Fechamento")
                 return float(df["Saldo_Final_Calculado"].iloc[-1])
             return 0.0
@@ -708,15 +704,15 @@ def render_fechamento_loterica(spreadsheet):
     with om3:
         vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-    rt1, rt2 = st.columns(2)
-    with rt1:
+    om4, om5 = st.columns(2)
+    with om4:
+        pix_saida = st.number_input("PIX Saída (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with om5:
         retirada_cofre = st.number_input("Retirada para Cofre (R$)", min_value=0.0, step=50.0, format="%.2f")
 
     # ===== Sangrias automáticas → Retirada_CaixaInterno =====
     total_sangrias_pdv, ids_sangria = _get_sangrias_do_dia(pdv, data_alvo)
-    with rt2:
-        st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
-
+    st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
     st.caption("IDs de vínculo das sangrias do dia:")
     if ids_sangria:
         st.code(", ".join(ids_sangria))
@@ -726,14 +722,15 @@ def render_fechamento_loterica(spreadsheet):
     saldo_anterior = _get_saldo_anterior(pdv, data_alvo)
     dg_final = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-    # Cálculo do saldo final (foco no caixa em dinheiro)
+    # Cálculo do saldo final (caixa em dinheiro)
     saldo_final_calc = (
         _to_float(saldo_anterior)
-        + ( _to_float(total_vendas) - _to_float(movimentacao_cielo) )
+        + (_to_float(total_vendas) - _to_float(movimentacao_cielo))
         - _to_float(pagamento_premios)
         - _to_float(vales_despesas)
+        - _to_float(pix_saida)             # <-- PIX desconta do caixa
         - _to_float(retirada_cofre)
-        - _to_float(total_sangrias_pdv)
+        - _to_float(total_sangrias_pdv)    # Retirada_CaixaInterno
     )
     diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
 
@@ -744,8 +741,8 @@ def render_fechamento_loterica(spreadsheet):
         st.metric("Total de Vendas", f"R$ {total_vendas:,.2f}")
         st.metric("Saldo Anterior", f"R$ {saldo_anterior:,.2f}")
     with r2:
-        st.metric("Saídas (Prêmios+Despesas+Retiradas)", 
-                  f"R$ {(pagamento_premios + vales_despesas + retirada_cofre + total_sangrias_pdv):,.2f}")
+        total_saidas = pagamento_premios + vales_despesas + pix_saida + retirada_cofre + total_sangrias_pdv
+        st.metric("Saídas (Prêmios+Despesas+PIX+Retiradas)", f"R$ {total_saidas:,.2f}")
         st.metric("Cielo (não entra em caixa)", f"R$ {movimentacao_cielo:,.2f}")
     with r3:
         st.metric("Saldo Final Calculado", f"R$ {saldo_final_calc:,.2f}")
@@ -765,7 +762,7 @@ def render_fechamento_loterica(spreadsheet):
                 int(qtd_venda_bolao), float(preco_unit_bolao), float(total_venda_bolao),
                 int(qtd_venda_rasp), float(preco_unit_rasp), float(total_venda_rasp),
                 int(qtd_venda_fed), float(preco_unit_fed), float(total_venda_fed),
-                float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas),
+                float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas), float(pix_saida),
                 float(retirada_cofre), float(total_sangrias_pdv), float(dg_final),
                 float(saldo_anterior), float(saldo_final_calc), float(diferenca)
             ]
@@ -775,6 +772,7 @@ def render_fechamento_loterica(spreadsheet):
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 # ------------------------------------------------------------
