@@ -549,7 +549,7 @@ def render_fechamento_loterica(spreadsheet):
     import pandas as pd
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalho exato (agora com Pix_Saida)
+    # Cabeçalho exato solicitado (mantido para conciliação/estoque)
     HEADERS_FECHAMENTO = [
         "Data_Fechamento", "PDV", "Operador",
         "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
@@ -563,7 +563,7 @@ def render_fechamento_loterica(spreadsheet):
         "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
     ]
 
-    # Helpers
+    # ---------- helpers ----------
     def _sheet_for_pdv(pdv):
         return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
 
@@ -574,7 +574,7 @@ def render_fechamento_loterica(spreadsheet):
             return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
-        """Soma 'Saída p/ Caixa Interno' no dia para o PDV a partir de Movimentacoes_PDV."""
+        """Soma 'Saída p/ Caixa Interno' no dia (PDV+Data) em Movimentacoes_PDV."""
         total = 0.0
         ids = []
         try:
@@ -600,7 +600,7 @@ def render_fechamento_loterica(spreadsheet):
         return total, ids
 
     def _get_saldo_anterior(pdv, data_alvo):
-        """Busca o último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
+        """Busca último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
         try:
             ws_name = _sheet_for_pdv(pdv)
             dados = buscar_dados(spreadsheet, ws_name) or []
@@ -620,7 +620,7 @@ def render_fechamento_loterica(spreadsheet):
         except Exception:
             return 0.0
 
-    # ---------------- UI principal ----------------
+    # ---------- UI ----------
     c1, c2 = st.columns(2)
     with c1:
         pdv = st.selectbox("PDV", ["PDV 1", "PDV 2"])
@@ -642,25 +642,9 @@ def render_fechamento_loterica(spreadsheet):
         total_comp_bolao = qtd_comp_bolao * custo_unit_bolao
         st.metric("Total Compra Bolão", f"R$ {total_comp_bolao:,.2f}")
 
-    # Compras de Raspadinha e Loteria Federal — travadas aqui (lançadas pela Gestão)
-    st.caption("🛈 Compras de Raspadinha e Loteria Federal são registradas na Gestão. Aqui permanecem 0 para conciliação.")
-    cr1, cr2, cr3 = st.columns(3)
-    with cr1:
-        qtd_comp_rasp = st.number_input("Qtd Compra Raspadinha (un)", min_value=0, step=1, format="%d", value=0, disabled=True)
-    with cr2:
-        custo_unit_rasp = st.number_input("Custo Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f", value=0.0, disabled=True)
-    with cr3:
-        total_comp_rasp = 0.0
-        st.metric("Total Compra Raspadinha", f"R$ {total_comp_rasp:,.2f}")
-
-    cl1, cl2, cl3 = st.columns(3)
-    with cl1:
-        qtd_comp_fed = st.number_input("Qtd Compra Loteria Federal (un)", min_value=0, step=1, format="%d", value=0, disabled=True)
-    with cl2:
-        custo_unit_fed = st.number_input("Custo Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f", value=0.0, disabled=True)
-    with cl3:
-        total_comp_fed = 0.0
-        st.metric("Total Compra Loteria Federal", f"R$ {total_comp_fed:,.2f}")
+    # Aviso: compras de Raspadinha/Loteria Federal são feitas na Gestão
+    st.info("🛈 Compras de **Raspadinha** e **Loteria Federal** devem ser lançadas em **Gestão da Lotérica**. "
+            "Neste fechamento, esses campos são gravados como 0 (mantidos apenas para conciliação de estoque).")
 
     st.markdown("---")
     st.markdown("### Vendas (estoque e faturamento)")
@@ -728,7 +712,7 @@ def render_fechamento_loterica(spreadsheet):
         + (_to_float(total_vendas) - _to_float(movimentacao_cielo))
         - _to_float(pagamento_premios)
         - _to_float(vales_despesas)
-        - _to_float(pix_saida)             # <-- PIX desconta do caixa
+        - _to_float(pix_saida)             # PIX sai do caixa
         - _to_float(retirada_cofre)
         - _to_float(total_sangrias_pdv)    # Retirada_CaixaInterno
     )
@@ -748,17 +732,36 @@ def render_fechamento_loterica(spreadsheet):
         st.metric("Saldo Final Calculado", f"R$ {saldo_final_calc:,.2f}")
         st.metric("Diferença do Caixa", f"R$ {diferenca:,.2f}")
 
-    # Salvar
+    # ---------- Salvar (com BLOQUEIO de duplicidade PDV+Data) ----------
     if st.button("💾 Salvar Fechamento", use_container_width=True):
         try:
             ws_name = _sheet_for_pdv(pdv)
+            # garante a guia e cabeçalho
             ws = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_FECHAMENTO)
 
+            # checagem de duplicidade
+            dados_exist = buscar_dados(spreadsheet, ws_name) or []
+            df_exist = pd.DataFrame(dados_exist)
+            existe_registro = False
+            if not df_exist.empty and {"Data_Fechamento", "PDV"}.issubset(df_exist.columns):
+                df_exist["Data_Fechamento"] = pd.to_datetime(df_exist["Data_Fechamento"], errors="coerce").dt.date
+                mask_dup = (
+                    df_exist["PDV"].astype(str).eq(pdv)
+                    & df_exist["Data_Fechamento"].eq(pd.to_datetime(data_alvo).date())
+                )
+                existe_registro = bool(df_exist.loc[mask_dup].shape[0] > 0)
+
+            if existe_registro:
+                st.error("❌ Já existe um fechamento para este **PDV** nesta **data**. "
+                         "Edite/remova o registro existente na Gestão antes de lançar um novo.")
+                st.stop()
+
+            # monta linha (compras rasp/fed = 0 aqui)
             row = [
                 str(data_alvo), pdv, operador,
                 int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
-                int(qtd_comp_rasp), float(custo_unit_rasp), float(total_comp_rasp),
-                int(qtd_comp_fed), float(custo_unit_fed), float(total_comp_fed),
+                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Raspadinha
+                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Loteria Federal
                 int(qtd_venda_bolao), float(preco_unit_bolao), float(total_venda_bolao),
                 int(qtd_venda_rasp), float(preco_unit_rasp), float(total_venda_rasp),
                 int(qtd_venda_fed), float(preco_unit_fed), float(total_venda_fed),
