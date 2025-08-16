@@ -545,53 +545,71 @@ def verificar_login():
 # Fechamento de Caixa da Lotérica (PDV1/PDV2)
 # ------------------------------------------------------------
 def render_fechamento_loterica(spreadsheet):
+    import pandas as pd
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalhos padrão (serão usados só na criação, não forçam migração)
-    HEADERS_PDV = [
+    # Cabeçalho ESTENDIDO (novo) — por produto
+    HEADERS_PDV_EXT = [
         "Data", "PDV", "Operador",
-        "Compras", "Vendas", "Movimentacoes", "Retiradas",
-        "Transferencia_Caixa_Interno",   # pode não existir na sua planilha atual
+        "Compras_Bolao",
+        "Vendas_Bolao", "Vendas_Raspadinha", "Vendas_Loteria_Federal",
+        "Movimentacoes", "Retiradas",
+        "Transferencia_Caixa_Interno",   # sangrias auto
         "Dinheiro_Gaveta", "Observacoes"
     ]
 
-    # Helpers locais
+    # Cabeçalho MINIMAL (legado) — agregado
+    HEADERS_PDV_MIN = [
+        "Data", "PDV", "Operador",
+        "Compras", "Vendas", "Movimentacoes", "Retiradas",
+        "Transferencia_Caixa_Interno",  # pode não existir em layouts antigos
+        "Dinheiro_Gaveta", "Observacoes"
+    ]
+
     def _sheet_for_pdv(pdv):
         return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
 
-    # ---- UI principal
+    # ---------------- UI principal ----------------
     c1, c2 = st.columns(2)
     with c1:
         pdv = st.selectbox("PDV", ["PDV 1", "PDV 2"])
     with c2:
         data_alvo = st.date_input("Data do Fechamento", value=obter_date_brasilia())
 
-    operador = st.selectbox("👤 Operador", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_pdv")
+    operador = st.selectbox(
+        "👤 Operador", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_pdv"
+    )
 
     st.markdown("### Valores do Dia")
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        compras = st.number_input("Compras (R$)", min_value=0.0, step=50.0, format="%.2f", key="compras_pdv")
-    with col_b:
-        vendas = st.number_input("Vendas (R$)", min_value=0.0, step=50.0, format="%.2f", key="vendas_pdv")
-    with col_c:
-        movimentacoes = st.number_input("Outras Movimentações (R$)", min_value=0.0, step=50.0, format="%.2f", key="mov_pdv")
 
-    retiradas = st.number_input("Retiradas (R$)", min_value=0.0, step=50.0, format="%.2f", key="ret_pdv")
+    # Compras — somente Bolão (Raspadinha e Loteria Federal pela Gestão)
+    compras_bolao = st.number_input("Compras de Bolão (R$)", min_value=0.0, step=50.0, format="%.2f", key="compras_bolao")
 
-    # ===== 3.1 Buscar sangrias do dia (Movimentacoes_PDV) =====
+    st.markdown("#### Vendas por Produto")
+    v1, v2, v3 = st.columns(3)
+    with v1:
+        vendas_bolao = st.number_input("Vendas de Bolão (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with v2:
+        vendas_rasp = st.number_input("Vendas de Raspadinha (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with v3:
+        vendas_fed = st.number_input("Vendas de Loteria Federal (R$)", min_value=0.0, step=50.0, format="%.2f")
+
+    col_mv, col_ret = st.columns(2)
+    with col_mv:
+        movimentacoes = st.number_input("Outras Movimentações (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with col_ret:
+        retiradas = st.number_input("Retiradas (R$)", min_value=0.0, step=50.0, format="%.2f")
+
+    # ===== Sangrias automáticas (Movimentacoes_PDV) =====
+    total_sangrias_pdv = 0.0
+    lista_ids = []
     try:
         mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
         df_mov = pd.DataFrame(mov_raw)
-        total_sangrias_pdv = 0.0
-        lista_ids = []
-
         if not df_mov.empty:
-            # normaliza colunas mínimas
             for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
                 if col not in df_mov.columns:
                     df_mov[col] = None
-            # filtra por data (igualdade) + PDV + tipo
             df_mov["Data"] = pd.to_datetime(df_mov["Data"], errors="coerce").dt.date
             mask = (
                 df_mov["Data"].eq(pd.to_datetime(data_alvo).date())
@@ -607,70 +625,95 @@ def render_fechamento_loterica(spreadsheet):
         st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV: {e}")
         total_sangrias_pdv, lista_ids = 0.0, []
 
-    with st.expander("🔎 Sangrias do dia (Transferência p/ Caixa Interno) — carregadas automaticamente"):
+    with st.expander("🔎 Sangrias do dia (Transferência p/ Caixa Interno) — calculado automaticamente"):
         st.write(f"**PDV:** {pdv} — **Data:** {data_alvo.strftime('%d/%m/%Y')}")
         st.metric("Total de Sangrias", f"R$ {total_sangrias_pdv:,.2f}")
         if lista_ids:
             st.caption("Vínculos:")
             st.code(", ".join(lista_ids))
 
-    # Campo somente leitura para conferência
     st.text_input("Transferência para Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
 
     dinheiro_gaveta = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
     observ = st.text_area("Observações")
 
-    # (Opcional) cálculo auxiliar
+    # -------- Conferência auxiliar --------
     st.markdown("---")
     st.markdown("#### Conferência rápida (não grava)")
-    calc_col1, calc_col2 = st.columns(2)
-    with calc_col1:
-        st.write("**Identidade (ilustrativa):**")
-        st.write("Gaveta final ≈ Vendas + Movimentações - Retiradas - Transferência p/ Caixa Interno + (Compras se for entrada em dinheiro)")
-    with calc_col2:
-        approx_gaveta = vendas + movimentacoes - retiradas - total_sangrias_pdv + compras
-        st.metric("Estimativa de Gaveta", f"R$ {approx_gaveta:,.2f}")
+    vendas_total = vendas_bolao + vendas_rasp + vendas_fed
+    approx_gaveta = vendas_total + movimentacoes - retiradas - total_sangrias_pdv + compras_bolao
+    cA, cB = st.columns(2)
+    with cA:
+        st.metric("Total de Vendas (R$)", f"{vendas_total:,.2f}")
+    with cB:
+        st.metric("Estimativa de Gaveta (R$)", f"{approx_gaveta:,.2f}")
 
-    # ===== Salvar fechamento =====
+    # ---------------- Salvar ----------------
     if st.button("💾 Salvar Fechamento", use_container_width=True):
         try:
             ws_name = _sheet_for_pdv(pdv)
-            ws_pdv = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV)
 
-            # Tentamos descobrir se a guia tem a coluna 'Transferencia_Caixa_Interno'
-            # (se não tiver, colocamos nas observações para não quebrar layout antigo)
+            # garante existência (se não existir, cria com EXTENDIDO)
+            get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV_EXT)
+
+            # tenta inferir quais colunas a planilha TEM hoje
             try:
-                # Lê a primeira linha (cabeçalho real)
-                hdr_real = buscar_dados(spreadsheet, ws_name)
-                hdr_cols = []
-                if hdr_real and isinstance(hdr_real, list):
-                    # quando buscar_dados retorna linhas, a 1a pode já ser headers;
-                    # se vier como dict, pegamos as keys
-                    if isinstance(hdr_real[0], dict):
-                        hdr_cols = list(hdr_real[0].keys())
-                # fallback: usa HEADERS_PDV
-                if not hdr_cols:
-                    hdr_cols = HEADERS_PDV
+                dados_exist = buscar_dados(spreadsheet, ws_name) or []
+                if dados_exist and isinstance(dados_exist[0], dict):
+                    hdr_cols = set(dados_exist[0].keys())
+                else:
+                    # sem dados: assumimos layout novo
+                    hdr_cols = set(HEADERS_PDV_EXT)
             except Exception:
-                hdr_cols = HEADERS_PDV
+                hdr_cols = set(HEADERS_PDV_EXT)
 
-            tem_col_transf = "Transferencia_Caixa_Interno" in hdr_cols
+            tem_ext = {"Compras_Bolao","Vendas_Bolao","Vendas_Raspadinha","Vendas_Loteria_Federal",
+                       "Movimentacoes","Retiradas","Transferencia_Caixa_Interno","Dinheiro_Gaveta","Observacoes",
+                       "Data","PDV","Operador"}.issubset(hdr_cols)
 
-            if tem_col_transf:
+            tem_min = {"Compras","Vendas","Movimentacoes","Retiradas","Dinheiro_Gaveta","Observacoes",
+                       "Data","PDV","Operador"}.issubset(hdr_cols)
+
+            ws_pdv = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV_EXT)
+
+            if tem_ext:
+                # grava com colunas por produto
                 row = [
                     str(data_alvo), pdv, operador,
-                    float(compras), float(vendas), float(movimentacoes), float(retiradas),
-                    float(total_sangrias_pdv),  # aqui entra automático
+                    float(compras_bolao),
+                    float(vendas_bolao), float(vendas_rasp), float(vendas_fed),
+                    float(movimentacoes), float(retiradas),
+                    float(total_sangrias_pdv),
                     float(dinheiro_gaveta),
                     f"{observ or ''} [Sangrias Vinculos: {', '.join(lista_ids)}]"
                 ]
-            else:
-                # layout antigo: joga a informação de sangria em Observações
+            elif tem_min:
+                # layout legado — agrega vendas e compras
+                transf_obs = "" if "Transferencia_Caixa_Interno" in hdr_cols else f" [Transf_Caixa_Interno=R$ {total_sangrias_pdv:,.2f}]"
+                # monta nas colunas antigas
+                # ordem: Data, PDV, Operador, Compras, Vendas, Movimentacoes, Retiradas, (Transferencia), Dinheiro_Gaveta, Observacoes
                 row = [
                     str(data_alvo), pdv, operador,
-                    float(compras), float(vendas), float(movimentacoes), float(retiradas),
+                    float(compras_bolao),                    # Compras = só Bolão
+                    float(vendas_total),                     # Vendas = soma dos produtos
+                    float(movimentacoes), float(retiradas)
+                ]
+                if "Transferencia_Caixa_Interno" in hdr_cols:
+                    row += [float(total_sangrias_pdv)]
+                row += [
                     float(dinheiro_gaveta),
-                    f"{observ or ''} [Transf_Caixa_Interno=R$ {total_sangrias_pdv:,.2f}; Vinculos: {', '.join(lista_ids)}]"
+                    f"{observ or ''}{transf_obs} [Vendas: Bolão={vendas_bolao:,.2f}, Rasp={vendas_rasp:,.2f}, Fed={vendas_fed:,.2f}; Sangrias Vinculos: {', '.join(lista_ids)}]"
+                ]
+            else:
+                # fallback: força layout novo na gravação (caso incomum)
+                row = [
+                    str(data_alvo), pdv, operador,
+                    float(compras_bolao),
+                    float(vendas_bolao), float(vendas_rasp), float(vendas_fed),
+                    float(movimentacoes), float(retiradas),
+                    float(total_sangrias_pdv),
+                    float(dinheiro_gaveta),
+                    f"{observ or ''} [Sangrias Vinculos: {', '.join(lista_ids)}]"
                 ]
 
             ws_pdv.append_row(row)
@@ -678,7 +721,6 @@ def render_fechamento_loterica(spreadsheet):
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
-
 
 # ------------------------------------------------------------
 # 📈 Gestão Lotérica — Estoque + Relatórios + Sincronização
