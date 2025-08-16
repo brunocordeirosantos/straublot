@@ -545,188 +545,141 @@ def verificar_login():
 # Fechamento de Caixa da Lotérica (PDV1/PDV2)
 # ------------------------------------------------------------
 def render_fechamento_loterica(spreadsheet):
-    st.subheader("📋 Fechamento de Caixa Lotérica")
+    st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
+    # Cabeçalhos padrão (serão usados só na criação, não forçam migração)
+    HEADERS_PDV = [
+        "Data", "PDV", "Operador",
+        "Compras", "Vendas", "Movimentacoes", "Retiradas",
+        "Transferencia_Caixa_Interno",   # pode não existir na sua planilha atual
+        "Dinheiro_Gaveta", "Observacoes"
+    ]
+
+    # Helpers locais
+    def _sheet_for_pdv(pdv):
+        return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
+
+    # ---- UI principal
+    c1, c2 = st.columns(2)
+    with c1:
+        pdv = st.selectbox("PDV", ["PDV 1", "PDV 2"])
+    with c2:
+        data_alvo = st.date_input("Data do Fechamento", value=obter_date_brasilia())
+
+    operador = st.selectbox("👤 Operador", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_pdv")
+
+    st.markdown("### Valores do Dia")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        compras = st.number_input("Compras (R$)", min_value=0.0, step=50.0, format="%.2f", key="compras_pdv")
+    with col_b:
+        vendas = st.number_input("Vendas (R$)", min_value=0.0, step=50.0, format="%.2f", key="vendas_pdv")
+    with col_c:
+        movimentacoes = st.number_input("Outras Movimentações (R$)", min_value=0.0, step=50.0, format="%.2f", key="mov_pdv")
+
+    retiradas = st.number_input("Retiradas (R$)", min_value=0.0, step=50.0, format="%.2f", key="ret_pdv")
+
+    # ===== 3.1 Buscar sangrias do dia (Movimentacoes_PDV) =====
     try:
-        HEADERS_FECHAMENTO = [
-            "Data_Fechamento", "PDV", "Operador",
-            "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
-            "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha",
-            "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal",
-            "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
-            "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
-            "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
-            "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas",
-            "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
-            "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
-        ]
+        mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+        df_mov = pd.DataFrame(mov_raw)
+        total_sangrias_pdv = 0.0
+        lista_ids = []
 
-        with st.form("form_fechamento_pdv", clear_on_submit=False):
-            st.markdown("#### Lançar Fechamento Diário do PDV")
-
-            c1, c2 = st.columns(2)
-            with c1:
-                pdv_selecionado = st.selectbox("Selecione o PDV", ["PDV 1", "PDV 2"], key="pdv_sel_fech")
-            with c2:
-                data_fechamento = st.date_input("Data do Fechamento", value=obter_date_brasilia(), key="data_fech_lot")
-
-            # ---- Nome real da planilha (corrige o espaço) ----
-            pdv_to_sheet = {"PDV 1": "Fechamentos_PDV1", "PDV 2": "Fechamentos_PDV2"}
-            sheet_name = pdv_to_sheet.get(pdv_selecionado, "Fechamentos_PDV1")
-
-            # ---- Buscar saldo do dia anterior com tolerância ----
-            saldo_anterior = 0.0
-            data_anterior = data_fechamento - timedelta(days=1)
-            try:
-                fechamentos_data = buscar_dados(spreadsheet, sheet_name)
-                df_fech = pd.DataFrame(fechamentos_data)
-
-                if not df_fech.empty:
-                    df_fech["Data_Fechamento"] = pd.to_datetime(df_fech["Data_Fechamento"], errors="coerce").dt.date
-                    df_fech["Saldo_Final_Calculado"] = pd.to_numeric(df_fech["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
-
-                    # 1) tenta o registro exatamente do dia anterior
-                    reg = df_fech[df_fech["Data_Fechamento"] == data_anterior]
-                    # 2) senão, pega o último antes da data do fechamento
-                    if reg.empty:
-                        prev = df_fech[df_fech["Data_Fechamento"] < data_fechamento]
-                        if not prev.empty:
-                            reg = prev.sort_values("Data_Fechamento").tail(1)
-                    if not reg.empty:
-                        saldo_anterior = float(reg.iloc[0]["Saldo_Final_Calculado"])
-            except Exception as e:
-                st.warning(f"⚠️ Erro ao buscar dados de {sheet_name}: {e}")
-
-            st.info(f"💰 Saldo anterior ({data_anterior.strftime('%d/%m/%Y')}): R$ {saldo_anterior:,.2f}")
-
-            # ===================== COMPRAS ======================
-            st.markdown("### 🛒 Compras do Dia")
-            cc1, cc2, cc3 = st.columns(3)
-
-            with cc1:
-                st.markdown("**Bolão**")
-                qtd_comp_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_bolao")
-                custo_unit_bolao = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_bolao")
-                total_comp_bolao = float(qtd_comp_bolao) * float(custo_unit_bolao)
-                st.write(f"Total: R$ {total_comp_bolao:,.2f}")
-
-            with cc2:
-                st.markdown("**Raspadinha**")
-                qtd_comp_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_rasp")
-                custo_unit_rasp = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_rasp")
-                total_comp_rasp = float(qtd_comp_rasp) * float(custo_unit_rasp)
-                st.write(f"Total: R$ {total_comp_rasp:,.2f}")
-
-            with cc3:
-                st.markdown("**Loteria Federal**")
-                qtd_comp_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_comp_fed")
-                custo_unit_fed = st.number_input("Custo Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_fed")
-                total_comp_fed = float(qtd_comp_fed) * float(custo_unit_fed)
-                st.write(f"Total: R$ {total_comp_fed:,.2f}")
-
-            # ===================== VENDAS =======================
-            st.markdown("### 💰 Vendas do Dia")
-            cv1, cv2, cv3 = st.columns(3)
-
-            with cv1:
-                st.markdown("**Bolão**")
-                qtd_vend_bolao = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_bolao")
-                preco_unit_bolao = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_bolao")
-                total_vend_bolao = float(qtd_vend_bolao) * float(preco_unit_bolao)
-                st.write(f"Total: R$ {total_vend_bolao:,.2f}")
-
-            with cv2:
-                st.markdown("**Raspadinha**")
-                qtd_vend_rasp = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_rasp")
-                preco_unit_rasp = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_rasp")
-                total_vend_rasp = float(qtd_vend_rasp) * float(preco_unit_rasp)
-                st.write(f"Total: R$ {total_vend_rasp:,.2f}")
-
-            with cv3:
-                st.markdown("**Loteria Federal**")
-                qtd_vend_fed = st.number_input("Quantidade", min_value=0, step=1, key="qtd_vend_fed")
-                preco_unit_fed = st.number_input("Preço Unitário (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_fed")
-                total_vend_fed = float(qtd_vend_fed) * float(preco_unit_fed)
-                st.write(f"Total: R$ {total_vend_fed:,.2f}")
-
-            # ================== OUTRAS MOVIMENTAÇÕES ==================
-            st.markdown("### 🔄 Outras Movimentações")
-            mo1, mo2 = st.columns(2)
-            with mo1:
-                movimentacao_cielo   = st.number_input("Movimentação Cielo (R$)",   min_value=0.0, step=0.01, format="%.2f", key="mov_cielo")
-                pagamento_premios    = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, step=0.01, format="%.2f", key="pag_premios")
-                vales_despesas       = st.number_input("Vales e Despesas (R$)",      min_value=0.0, step=0.01, format="%.2f", key="vales")
-            with mo2:
-                retirada_cofre        = st.number_input("Retirada para Cofre (R$)",      min_value=0.0, step=0.01, format="%.2f", key="ret_cofre")
-                retirada_caixa_interno= st.number_input("Retirada para Caixa Interno (R$)", min_value=0.0, step=0.01, format="%.2f", key="ret_caixa_int")
-                dinheiro_gaveta       = st.number_input("Dinheiro na Gaveta (R$)",      min_value=0.0, step=0.01, format="%.2f", key="din_gaveta")
-
-            # ======================= CÁLCULOS ========================
-            total_entradas = float(total_vend_bolao + total_vend_rasp + total_vend_fed + movimentacao_cielo)
-            total_saidas   = float(total_comp_bolao + total_comp_rasp + total_comp_fed +
-                                   pagamento_premios + vales_despesas + retirada_cofre + retirada_caixa_interno)
-
-            saldo_calculado = float(saldo_anterior + total_entradas - total_saidas)
-            diferenca_caixa = float(dinheiro_gaveta - saldo_calculado)
-
-            # ======================== RESUMO =========================
-            st.markdown("### 📊 Resumo do Fechamento")
-            r1, r2, r3 = st.columns(3)
-            with r1:
-                st.metric("Total Entradas", f"R$ {total_entradas:,.2f}")
-                st.metric("Saldo Anterior", f"R$ {saldo_anterior:,.2f}")
-            with r2:
-                st.metric("Total Saídas", f"R$ {total_saidas:,.2f}")
-                st.metric("Saldo Calculado", f"R$ {saldo_calculado:,.2f}")
-            with r3:
-                st.metric("Dinheiro na Gaveta", f"R$ {dinheiro_gaveta:,.2f}")
-                if abs(diferenca_caixa) < 0.005:
-                    st.success(f"✅ Caixa Fechado: R$ {diferenca_caixa:,.2f}")
-                elif diferenca_caixa > 0:
-                    st.warning(f"⚠️ Sobra: R$ {diferenca_caixa:,.2f}")
-                else:
-                    st.error(f"❌ Falta: R$ {abs(diferenca_caixa):,.2f}")
-
-            # ================== SALVAR FECHAMENTO ====================
-            if st.form_submit_button("💾 Salvar Fechamento", use_container_width=True):
-                try:
-                    # Prevenir duplicidade (mesmo PDV e data)
-                    try:
-                        exist = buscar_dados(spreadsheet, sheet_name)
-                        df_exist = pd.DataFrame(exist)
-                        dup = False
-                        if not df_exist.empty:
-                            df_exist["Data_Fechamento"] = pd.to_datetime(df_exist["Data_Fechamento"], errors="coerce").dt.date
-                            cond = (df_exist["Data_Fechamento"] == data_fechamento) & (df_exist["PDV"] == pdv_selecionado)
-                            dup = cond.any()
-                        if dup:
-                            st.error("❌ Já existe fechamento para este PDV nesta data.")
-                            return
-                    except Exception:
-                        pass
-
-                    ws = get_or_create_worksheet(spreadsheet, sheet_name, HEADERS_FECHAMENTO)
-                    row = [
-                        str(data_fechamento), pdv_selecionado, st.session_state.get("nome_usuario", "Operador"),
-                        int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
-                        int(qtd_comp_rasp),  float(custo_unit_rasp),  float(total_comp_rasp),
-                        int(qtd_comp_fed),   float(custo_unit_fed),   float(total_comp_fed),
-                        int(qtd_vend_bolao), float(preco_unit_bolao), float(total_vend_bolao),
-                        int(qtd_vend_rasp),  float(preco_unit_rasp),  float(total_vend_rasp),
-                        int(qtd_vend_fed),   float(preco_unit_fed),   float(total_vend_fed),
-                        float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas),
-                        float(retirada_cofre), float(retirada_caixa_interno), float(dinheiro_gaveta),
-                        float(saldo_anterior), float(saldo_calculado), float(diferenca_caixa)
-                    ]
-                    ws.append_row(row)
-                    st.success(f"✅ Fechamento do {pdv_selecionado} salvo com sucesso!")
-                    st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar fechamento: {e}")
-
+        if not df_mov.empty:
+            # normaliza colunas mínimas
+            for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
+                if col not in df_mov.columns:
+                    df_mov[col] = None
+            # filtra por data (igualdade) + PDV + tipo
+            df_mov["Data"] = pd.to_datetime(df_mov["Data"], errors="coerce").dt.date
+            mask = (
+                df_mov["Data"].eq(pd.to_datetime(data_alvo).date())
+                & df_mov["PDV"].astype(str).eq(pdv)
+                & df_mov["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
+            )
+            df_day = df_mov.loc[mask].copy()
+            if not df_day.empty:
+                df_day["Valor"] = pd.to_numeric(df_day["Valor"], errors="coerce").fillna(0.0)
+                total_sangrias_pdv = float(df_day["Valor"].sum())
+                lista_ids = df_day["Vinculo_ID"].dropna().astype(str).tolist()
     except Exception as e:
-        st.error(f"❌ Erro ao carregar fechamento da lotérica: {e}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+        st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV: {e}")
+        total_sangrias_pdv, lista_ids = 0.0, []
+
+    with st.expander("🔎 Sangrias do dia (Transferência p/ Caixa Interno) — carregadas automaticamente"):
+        st.write(f"**PDV:** {pdv} — **Data:** {data_alvo.strftime('%d/%m/%Y')}")
+        st.metric("Total de Sangrias", f"R$ {total_sangrias_pdv:,.2f}")
+        if lista_ids:
+            st.caption("Vínculos:")
+            st.code(", ".join(lista_ids))
+
+    # Campo somente leitura para conferência
+    st.text_input("Transferência para Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
+
+    dinheiro_gaveta = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
+    observ = st.text_area("Observações")
+
+    # (Opcional) cálculo auxiliar
+    st.markdown("---")
+    st.markdown("#### Conferência rápida (não grava)")
+    calc_col1, calc_col2 = st.columns(2)
+    with calc_col1:
+        st.write("**Identidade (ilustrativa):**")
+        st.write("Gaveta final ≈ Vendas + Movimentações - Retiradas - Transferência p/ Caixa Interno + (Compras se for entrada em dinheiro)")
+    with calc_col2:
+        approx_gaveta = vendas + movimentacoes - retiradas - total_sangrias_pdv + compras
+        st.metric("Estimativa de Gaveta", f"R$ {approx_gaveta:,.2f}")
+
+    # ===== Salvar fechamento =====
+    if st.button("💾 Salvar Fechamento", use_container_width=True):
+        try:
+            ws_name = _sheet_for_pdv(pdv)
+            ws_pdv = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV)
+
+            # Tentamos descobrir se a guia tem a coluna 'Transferencia_Caixa_Interno'
+            # (se não tiver, colocamos nas observações para não quebrar layout antigo)
+            try:
+                # Lê a primeira linha (cabeçalho real)
+                hdr_real = buscar_dados(spreadsheet, ws_name)
+                hdr_cols = []
+                if hdr_real and isinstance(hdr_real, list):
+                    # quando buscar_dados retorna linhas, a 1a pode já ser headers;
+                    # se vier como dict, pegamos as keys
+                    if isinstance(hdr_real[0], dict):
+                        hdr_cols = list(hdr_real[0].keys())
+                # fallback: usa HEADERS_PDV
+                if not hdr_cols:
+                    hdr_cols = HEADERS_PDV
+            except Exception:
+                hdr_cols = HEADERS_PDV
+
+            tem_col_transf = "Transferencia_Caixa_Interno" in hdr_cols
+
+            if tem_col_transf:
+                row = [
+                    str(data_alvo), pdv, operador,
+                    float(compras), float(vendas), float(movimentacoes), float(retiradas),
+                    float(total_sangrias_pdv),  # aqui entra automático
+                    float(dinheiro_gaveta),
+                    f"{observ or ''} [Sangrias Vinculos: {', '.join(lista_ids)}]"
+                ]
+            else:
+                # layout antigo: joga a informação de sangria em Observações
+                row = [
+                    str(data_alvo), pdv, operador,
+                    float(compras), float(vendas), float(movimentacoes), float(retiradas),
+                    float(dinheiro_gaveta),
+                    f"{observ or ''} [Transf_Caixa_Interno=R$ {total_sangrias_pdv:,.2f}; Vinculos: {', '.join(lista_ids)}]"
+                ]
+
+            ws_pdv.append_row(row)
+            st.success("✅ Fechamento salvo com sucesso!")
+            st.cache_data.clear()
+        except Exception as e:
+            st.error(f"❌ Erro ao salvar fechamento: {e}")
+
+
 # ------------------------------------------------------------
 # 📈 Gestão Lotérica — Estoque + Relatórios + Sincronização
 # ------------------------------------------------------------
@@ -1164,6 +1117,12 @@ def render_operacoes_caixa(spreadsheet):
     # Helper: gerar ID curto para vincular Suprimento <-> Cofre
     def _gerar_id(prefix="ID"):
         return f"{prefix}-{uuid4().hex[:8]}"
+    
+    HEADERS_MOV_PDV = [
+    "Data", "Hora", "PDV", "Tipo_Mov",
+    "Valor", "Vinculo_ID", "Operador", "Observacoes"
+    ]
+
 
     try:
         HEADERS = [
@@ -1422,29 +1381,80 @@ def render_operacoes_caixa(spreadsheet):
                             except Exception as e:
                                 st.warning(f"⚠️ Suprimento criado, mas não foi possível debitar o Cofre agora: {e}")
 
-                        # 2) Registrar o Suprimento em Operacoes_Caixa
-                        ws = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-                        observ_full = f"Origem: {origem}. " + (f"Vinculo_Cofre_ID: {sup_id}. " if str(origem).lower().startswith("cofre") else "") + (observ or "")
-                        row = [
-                            obter_data_brasilia(), obter_horario_brasilia(), operador,
-                            "Suprimento", "Sistema", "N/A",
-                            float(valor_sup), 0.0, 0.0, float(valor_sup), 0.0,
-                            "Concluído", "", "0.00%", observ_full
-                        ]
-                        ws.append_row(row)
+                        if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
+    sup_id = _gerar_id("SUPR")
+    try:
+        # 1) Se origem for Cofre → cria saída no cofre (transferência)
+        created_cofre = False
+        if str(origem).lower().startswith("cofre"):
+            try:
+                ws_cofre = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
+                cofre_row = [
+                    obter_data_brasilia(),
+                    obter_horario_brasilia(),
+                    operador,
+                    "Saída",
+                    "Transferência para Caixa Interno",
+                    origem,
+                    "Caixa Interno",
+                    float(valor_sup),
+                    f"Gerado automaticamente por Suprimento ({sup_id}).",
+                    "Concluído",
+                    sup_id,
+                ]
+                ws_cofre.append_row(cofre_row)
+                created_cofre = True
+            except Exception as e:
+                st.warning(f"⚠️ Suprimento criado, mas não foi possível debitar o Cofre agora: {e}")
 
-                        # 3) Mensagem final
-                        if str(origem).lower().startswith("cofre"):
-                            if created_cofre:
-                                st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado e Cofre debitado (ID {sup_id}).")
-                            else:
-                                st.warning(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado. ⚠️ Cofre **não** debitado — tente reprocessar.")
-                        else:
-                            st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado!")
+        # 2) Registrar o Suprimento em Operacoes_Caixa
+        ws = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
+        observ_full = f"Origem: {origem}. " + (f"Vinculo_Cofre_ID: {sup_id}. " if str(origem).lower().startswith('cofre') else "") + (observ or "")
+        row = [
+            obter_data_brasilia(), obter_horario_brasilia(), operador,
+            "Suprimento", "Sistema", "N/A",
+            float(valor_sup), 0.0, 0.0, float(valor_sup), 0.0,
+            "Concluído", "", "0.00%", observ_full
+        ]
+        ws.append_row(row)
 
-                        st.cache_data.clear()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao registrar suprimento: {e}")
+        # 3) Se origem for PDV → grava espelho em Movimentacoes_PDV (Saída p/ Caixa Interno)
+        if origem in ["PDV 1", "PDV 2"]:
+            try:
+                # idempotência: só grava se não existir este Vinculo_ID
+                mov_exist = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+                df_mov = pd.DataFrame(mov_exist)
+                ja_existe = (not df_mov.empty and "Vinculo_ID" in df_mov.columns
+                             and df_mov["Vinculo_ID"].astype(str).eq(sup_id).any())
+
+                if not ja_existe:
+                    ws_mov = get_or_create_worksheet(spreadsheet, "Movimentacoes_PDV", HEADERS_MOV_PDV)
+                    ws_mov.append_row([
+                        obter_data_brasilia(), obter_horario_brasilia(),
+                        origem,                        # PDV
+                        "Saída p/ Caixa Interno",      # Tipo_Mov
+                        float(valor_sup), sup_id, operador,
+                        f"Gerado por Suprimento no Caixa Interno (Vinculo {sup_id}). {observ or ''}"
+                    ])
+            except Exception as e:
+                st.warning(f"⚠️ Suprimento OK, mas não consegui registrar a saída do {origem} para o fechamento: {e}")
+
+        # 4) Mensagem final
+        if str(origem).lower().startswith("cofre"):
+            if created_cofre:
+                st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado e Cofre debitado (ID {sup_id}).")
+            else:
+                st.warning(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado. ⚠️ Cofre **não** debitado — tente reprocessar.")
+        elif origem in ["PDV 1", "PDV 2"]:
+            st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado (Origem: {origem}). "
+                       f"Sangria do {origem} lançada para o fechamento do PDV (ID {sup_id}).")
+        else:
+            st.success(f"✅ Suprimento de R$ {valor_sup:,.2f} registrado!")
+
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"❌ Erro ao registrar suprimento: {e}")
+
 
         # --------------------------------------------------------
         # TAB 4 — Histórico
