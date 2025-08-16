@@ -1393,7 +1393,7 @@ def render_operacoes_caixa(spreadsheet):
                     key="op_sup"
                 )
                 valor_sup = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0, format="%.2f")
-                origem = st.selectbox("Origem do Suprimento", ["Cofre Principal", "Banco", "Outro"])
+                origem = st.selectbox("Origem do Suprimento", ["Cofre Principal", "PDV 1", "PDV 2"])
                 observ = st.text_area("Observações do Suprimento")
 
                 if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
