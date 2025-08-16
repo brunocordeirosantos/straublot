@@ -544,30 +544,85 @@ def verificar_login():
 # ------------------------------------------------------------
 # Fechamento de Caixa da Lotérica (PDV1/PDV2)
 # ------------------------------------------------------------
+
 def render_fechamento_loterica(spreadsheet):
     import pandas as pd
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalho ESTENDIDO (novo) — por produto
-    HEADERS_PDV_EXT = [
-        "Data", "PDV", "Operador",
-        "Compras_Bolao",
-        "Vendas_Bolao", "Vendas_Raspadinha", "Vendas_Loteria_Federal",
-        "Movimentacoes", "Retiradas",
-        "Transferencia_Caixa_Interno",   # sangrias auto
-        "Dinheiro_Gaveta", "Observacoes"
+    # Cabeçalho exato solicitado
+    HEADERS_FECHAMENTO = [
+        "Data_Fechamento", "PDV", "Operador",
+        "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
+        "Qtd_Compra_Raspadinha", "Custo_Unit_Raspadinha", "Total_Compra_Raspadinha",
+        "Qtd_Compra_LoteriaFederal", "Custo_Unit_LoteriaFederal", "Total_Compra_LoteriaFederal",
+        "Qtd_Venda_Bolao", "Preco_Unit_Bolao", "Total_Venda_Bolao",
+        "Qtd_Venda_Raspadinha", "Preco_Unit_Raspadinha", "Total_Venda_Raspadinha",
+        "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
+        "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas",
+        "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
+        "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
     ]
 
-    # Cabeçalho MINIMAL (legado) — agregado
-    HEADERS_PDV_MIN = [
-        "Data", "PDV", "Operador",
-        "Compras", "Vendas", "Movimentacoes", "Retiradas",
-        "Transferencia_Caixa_Interno",  # pode não existir em layouts antigos
-        "Dinheiro_Gaveta", "Observacoes"
-    ]
-
+    # Helpers
     def _sheet_for_pdv(pdv):
         return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
+
+    def _to_float(x):
+        try:
+            return float(x)
+        except Exception:
+            return 0.0
+
+    def _get_sangrias_do_dia(pdv, data_alvo):
+        """Lê Movimentacoes_PDV e soma 'Saída p/ Caixa Interno' no dia para o PDV."""
+        total = 0.0
+        ids = []
+        try:
+            mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+            df = pd.DataFrame(mov_raw)
+            if not df.empty:
+                for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
+                    if col not in df.columns:
+                        df[col] = None
+                df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
+                mask = (
+                    df["Data"].eq(pd.to_datetime(data_alvo).date())
+                    & df["PDV"].astype(str).eq(pdv)
+                    & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
+                )
+                dfd = df.loc[mask].copy()
+                if not dfd.empty:
+                    dfd["Valor"] = pd.to_numeric(dfd["Valor"], errors="coerce").fillna(0.0)
+                    total = float(dfd["Valor"].sum())
+                    ids = dfd["Vinculo_ID"].dropna().astype(str).tolist()
+        except Exception as e:
+            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV: {e}")
+        return total, ids
+
+    def _get_saldo_anterior(pdv, data_alvo):
+        """Busca o último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
+        try:
+            ws_name = _sheet_for_pdv(pdv)
+            dados = buscar_dados(spreadsheet, ws_name) or []
+            df = pd.DataFrame(dados)
+            if df.empty:
+                return 0.0
+            # normaliza
+            if "Data_Fechamento" not in df.columns:
+                return 0.0
+            df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+            df = df[df["PDV"].astype(str).eq(pdv)]
+            df = df[df["Data_Fechamento"] < pd.to_datetime(data_alvo).date()]
+            if df.empty:
+                return 0.0
+            if "Saldo_Final_Calculado" in df.columns:
+                df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
+                # pega o último pela data
+                df = df.sort_values("Data_Fechamento")
+                return float(df["Saldo_Final_Calculado"].iloc[-1])
+            return 0.0
+        except Exception:
+            return 0.0
 
     # ---------------- UI principal ----------------
     c1, c2 = st.columns(2)
@@ -580,147 +635,147 @@ def render_fechamento_loterica(spreadsheet):
         "👤 Operador", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_pdv"
     )
 
-    st.markdown("### Valores do Dia")
+    st.markdown("### Compras (estoque)")
+    # Compras de BOLÃO — editáveis
+    cc1, cc2, cc3 = st.columns(3)
+    with cc1:
+        qtd_comp_bolao = st.number_input("Qtd Compra Bolão (un)", min_value=0, step=1, format="%d")
+    with cc2:
+        custo_unit_bolao = st.number_input("Custo Unit Bolão (R$)", min_value=0.0, step=5.0, format="%.2f")
+    with cc3:
+        total_comp_bolao = qtd_comp_bolao * custo_unit_bolao
+        st.metric("Total Compra Bolão", f"R$ {total_comp_bolao:,.2f}")
 
-    # Compras — somente Bolão (Raspadinha e Loteria Federal pela Gestão)
-    compras_bolao = st.number_input("Compras de Bolão (R$)", min_value=0.0, step=50.0, format="%.2f", key="compras_bolao")
+    # Compras de Raspadinha e Loteria Federal — travadas aqui (lançadas pela Gestão)
+    st.caption("🛈 Compras de Raspadinha e Loteria Federal são registradas na Gestão. Aqui permanecem 0 para conciliação.")
+    cr1, cr2, cr3 = st.columns(3)
+    with cr1:
+        qtd_comp_rasp = st.number_input("Qtd Compra Raspadinha (un)", min_value=0, step=1, format="%d", value=0, disabled=True)
+    with cr2:
+        custo_unit_rasp = st.number_input("Custo Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f", value=0.0, disabled=True)
+    with cr3:
+        total_comp_rasp = 0.0
+        st.metric("Total Compra Raspadinha", f"R$ {total_comp_rasp:,.2f}")
 
-    st.markdown("#### Vendas por Produto")
-    v1, v2, v3 = st.columns(3)
-    with v1:
-        vendas_bolao = st.number_input("Vendas de Bolão (R$)", min_value=0.0, step=50.0, format="%.2f")
-    with v2:
-        vendas_rasp = st.number_input("Vendas de Raspadinha (R$)", min_value=0.0, step=50.0, format="%.2f")
-    with v3:
-        vendas_fed = st.number_input("Vendas de Loteria Federal (R$)", min_value=0.0, step=50.0, format="%.2f")
+    cl1, cl2, cl3 = st.columns(3)
+    with cl1:
+        qtd_comp_fed = st.number_input("Qtd Compra Loteria Federal (un)", min_value=0, step=1, format="%d", value=0, disabled=True)
+    with cl2:
+        custo_unit_fed = st.number_input("Custo Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f", value=0.0, disabled=True)
+    with cl3:
+        total_comp_fed = 0.0
+        st.metric("Total Compra Loteria Federal", f"R$ {total_comp_fed:,.2f}")
 
-    col_mv, col_ret = st.columns(2)
-    with col_mv:
-        movimentacoes = st.number_input("Outras Movimentações (R$)", min_value=0.0, step=50.0, format="%.2f")
-    with col_ret:
-        retiradas = st.number_input("Retiradas (R$)", min_value=0.0, step=50.0, format="%.2f")
-
-    # ===== Sangrias automáticas (Movimentacoes_PDV) =====
-    total_sangrias_pdv = 0.0
-    lista_ids = []
-    try:
-        mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
-        df_mov = pd.DataFrame(mov_raw)
-        if not df_mov.empty:
-            for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
-                if col not in df_mov.columns:
-                    df_mov[col] = None
-            df_mov["Data"] = pd.to_datetime(df_mov["Data"], errors="coerce").dt.date
-            mask = (
-                df_mov["Data"].eq(pd.to_datetime(data_alvo).date())
-                & df_mov["PDV"].astype(str).eq(pdv)
-                & df_mov["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
-            )
-            df_day = df_mov.loc[mask].copy()
-            if not df_day.empty:
-                df_day["Valor"] = pd.to_numeric(df_day["Valor"], errors="coerce").fillna(0.0)
-                total_sangrias_pdv = float(df_day["Valor"].sum())
-                lista_ids = df_day["Vinculo_ID"].dropna().astype(str).tolist()
-    except Exception as e:
-        st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV: {e}")
-        total_sangrias_pdv, lista_ids = 0.0, []
-
-    with st.expander("🔎 Sangrias do dia (Transferência p/ Caixa Interno) — calculado automaticamente"):
-        st.write(f"**PDV:** {pdv} — **Data:** {data_alvo.strftime('%d/%m/%Y')}")
-        st.metric("Total de Sangrias", f"R$ {total_sangrias_pdv:,.2f}")
-        if lista_ids:
-            st.caption("Vínculos:")
-            st.code(", ".join(lista_ids))
-
-    st.text_input("Transferência para Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
-
-    dinheiro_gaveta = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
-    observ = st.text_area("Observações")
-
-    # -------- Conferência auxiliar --------
     st.markdown("---")
-    st.markdown("#### Conferência rápida (não grava)")
-    vendas_total = vendas_bolao + vendas_rasp + vendas_fed
-    approx_gaveta = vendas_total + movimentacoes - retiradas - total_sangrias_pdv + compras_bolao
-    cA, cB = st.columns(2)
-    with cA:
-        st.metric("Total de Vendas (R$)", f"{vendas_total:,.2f}")
-    with cB:
-        st.metric("Estimativa de Gaveta (R$)", f"{approx_gaveta:,.2f}")
+    st.markdown("### Vendas (estoque e faturamento)")
 
-    # ---------------- Salvar ----------------
+    vb1, vb2, vb3 = st.columns(3)
+    with vb1:
+        qtd_venda_bolao = st.number_input("Qtd Venda Bolão (un)", min_value=0, step=1, format="%d")
+    with vb2:
+        preco_unit_bolao = st.number_input("Preço Unit Bolão (R$)", min_value=0.0, step=5.0, format="%.2f")
+    with vb3:
+        total_venda_bolao = qtd_venda_bolao * preco_unit_bolao
+        st.metric("Total Venda Bolão", f"R$ {total_venda_bolao:,.2f}")
+
+    vr1, vr2, vr3 = st.columns(3)
+    with vr1:
+        qtd_venda_rasp = st.number_input("Qtd Venda Raspadinha (un)", min_value=0, step=1, format="%d")
+    with vr2:
+        preco_unit_rasp = st.number_input("Preço Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f")
+    with vr3:
+        total_venda_rasp = qtd_venda_rasp * preco_unit_rasp
+        st.metric("Total Venda Raspadinha", f"R$ {total_venda_rasp:,.2f}")
+
+    vf1, vf2, vf3 = st.columns(3)
+    with vf1:
+        qtd_venda_fed = st.number_input("Qtd Venda Loteria Federal (un)", min_value=0, step=1, format="%d")
+    with vf2:
+        preco_unit_fed = st.number_input("Preço Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f")
+    with vf3:
+        total_venda_fed = qtd_venda_fed * preco_unit_fed
+        st.metric("Total Venda Loteria Federal", f"R$ {total_venda_fed:,.2f}")
+
+    total_vendas = total_venda_bolao + total_venda_rasp + total_venda_fed
+
+    st.markdown("---")
+    st.markdown("### Outras movimentações do dia")
+    om1, om2, om3 = st.columns(3)
+    with om1:
+        movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with om2:
+        pagamento_premios = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with om3:
+        vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f")
+
+    rt1, rt2 = st.columns(2)
+    with rt1:
+        retirada_cofre = st.number_input("Retirada para Cofre (R$)", min_value=0.0, step=50.0, format="%.2f")
+
+    # ===== Sangrias automáticas → Retirada_CaixaInterno =====
+    total_sangrias_pdv, ids_sangria = _get_sangrias_do_dia(pdv, data_alvo)
+    with rt2:
+        st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
+
+    st.caption("IDs de vínculo das sangrias do dia:")
+    if ids_sangria:
+        st.code(", ".join(ids_sangria))
+
+    st.markdown("---")
+    st.markdown("### Fechamento de caixa")
+    saldo_anterior = _get_saldo_anterior(pdv, data_alvo)
+    dg_final = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
+
+    # Cálculo do saldo final (foco no caixa em dinheiro)
+    saldo_final_calc = (
+        _to_float(saldo_anterior)
+        + ( _to_float(total_vendas) - _to_float(movimentacao_cielo) )
+        - _to_float(pagamento_premios)
+        - _to_float(vales_despesas)
+        - _to_float(retirada_cofre)
+        - _to_float(total_sangrias_pdv)
+    )
+    diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
+
+    # Resumo
+    st.markdown("#### Resumo")
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        st.metric("Total de Vendas", f"R$ {total_vendas:,.2f}")
+        st.metric("Saldo Anterior", f"R$ {saldo_anterior:,.2f}")
+    with r2:
+        st.metric("Saídas (Prêmios+Despesas+Retiradas)", 
+                  f"R$ {(pagamento_premios + vales_despesas + retirada_cofre + total_sangrias_pdv):,.2f}")
+        st.metric("Cielo (não entra em caixa)", f"R$ {movimentacao_cielo:,.2f}")
+    with r3:
+        st.metric("Saldo Final Calculado", f"R$ {saldo_final_calc:,.2f}")
+        st.metric("Diferença do Caixa", f"R$ {diferenca:,.2f}")
+
+    # Salvar
     if st.button("💾 Salvar Fechamento", use_container_width=True):
         try:
             ws_name = _sheet_for_pdv(pdv)
+            ws = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_FECHAMENTO)
 
-            # garante existência (se não existir, cria com EXTENDIDO)
-            get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV_EXT)
+            row = [
+                str(data_alvo), pdv, operador,
+                int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
+                int(qtd_comp_rasp), float(custo_unit_rasp), float(total_comp_rasp),
+                int(qtd_comp_fed), float(custo_unit_fed), float(total_comp_fed),
+                int(qtd_venda_bolao), float(preco_unit_bolao), float(total_venda_bolao),
+                int(qtd_venda_rasp), float(preco_unit_rasp), float(total_venda_rasp),
+                int(qtd_venda_fed), float(preco_unit_fed), float(total_venda_fed),
+                float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas),
+                float(retirada_cofre), float(total_sangrias_pdv), float(dg_final),
+                float(saldo_anterior), float(saldo_final_calc), float(diferenca)
+            ]
 
-            # tenta inferir quais colunas a planilha TEM hoje
-            try:
-                dados_exist = buscar_dados(spreadsheet, ws_name) or []
-                if dados_exist and isinstance(dados_exist[0], dict):
-                    hdr_cols = set(dados_exist[0].keys())
-                else:
-                    # sem dados: assumimos layout novo
-                    hdr_cols = set(HEADERS_PDV_EXT)
-            except Exception:
-                hdr_cols = set(HEADERS_PDV_EXT)
-
-            tem_ext = {"Compras_Bolao","Vendas_Bolao","Vendas_Raspadinha","Vendas_Loteria_Federal",
-                       "Movimentacoes","Retiradas","Transferencia_Caixa_Interno","Dinheiro_Gaveta","Observacoes",
-                       "Data","PDV","Operador"}.issubset(hdr_cols)
-
-            tem_min = {"Compras","Vendas","Movimentacoes","Retiradas","Dinheiro_Gaveta","Observacoes",
-                       "Data","PDV","Operador"}.issubset(hdr_cols)
-
-            ws_pdv = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_PDV_EXT)
-
-            if tem_ext:
-                # grava com colunas por produto
-                row = [
-                    str(data_alvo), pdv, operador,
-                    float(compras_bolao),
-                    float(vendas_bolao), float(vendas_rasp), float(vendas_fed),
-                    float(movimentacoes), float(retiradas),
-                    float(total_sangrias_pdv),
-                    float(dinheiro_gaveta),
-                    f"{observ or ''} [Sangrias Vinculos: {', '.join(lista_ids)}]"
-                ]
-            elif tem_min:
-                # layout legado — agrega vendas e compras
-                transf_obs = "" if "Transferencia_Caixa_Interno" in hdr_cols else f" [Transf_Caixa_Interno=R$ {total_sangrias_pdv:,.2f}]"
-                # monta nas colunas antigas
-                # ordem: Data, PDV, Operador, Compras, Vendas, Movimentacoes, Retiradas, (Transferencia), Dinheiro_Gaveta, Observacoes
-                row = [
-                    str(data_alvo), pdv, operador,
-                    float(compras_bolao),                    # Compras = só Bolão
-                    float(vendas_total),                     # Vendas = soma dos produtos
-                    float(movimentacoes), float(retiradas)
-                ]
-                if "Transferencia_Caixa_Interno" in hdr_cols:
-                    row += [float(total_sangrias_pdv)]
-                row += [
-                    float(dinheiro_gaveta),
-                    f"{observ or ''}{transf_obs} [Vendas: Bolão={vendas_bolao:,.2f}, Rasp={vendas_rasp:,.2f}, Fed={vendas_fed:,.2f}; Sangrias Vinculos: {', '.join(lista_ids)}]"
-                ]
-            else:
-                # fallback: força layout novo na gravação (caso incomum)
-                row = [
-                    str(data_alvo), pdv, operador,
-                    float(compras_bolao),
-                    float(vendas_bolao), float(vendas_rasp), float(vendas_fed),
-                    float(movimentacoes), float(retiradas),
-                    float(total_sangrias_pdv),
-                    float(dinheiro_gaveta),
-                    f"{observ or ''} [Sangrias Vinculos: {', '.join(lista_ids)}]"
-                ]
-
-            ws_pdv.append_row(row)
+            ws.append_row(row)
             st.success("✅ Fechamento salvo com sucesso!")
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 # ------------------------------------------------------------
 # 📈 Gestão Lotérica — Estoque + Relatórios + Sincronização
