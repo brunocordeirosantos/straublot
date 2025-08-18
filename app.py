@@ -764,34 +764,47 @@ def render_fechamento_loterica(spreadsheet):
 
     # -------- Conferência rápida do dia (duas tabelas) --------
     st.markdown("#### 📑 Conferência rápida (dia)")
+
     entradas = pd.DataFrame([
-        ["Encerrante do Relatório",  _to_float(encerrante_rel)],
-        ["Troco do dia anterior (auto)", _to_float(troco_anterior)],
-        ["Suprimento do Cofre (auto)", _to_float(supr_cofre_pdv)],
-        ["Vendas — Bolão",  _to_float(total_venda_bolao)],
-        ["Vendas — Raspadinha", _to_float(total_venda_rasp)],
-        ["Vendas — Loteria Federal", _to_float(total_venda_fed)],
-    ], columns=["Entradas", "Valor_R$"])
+        ["Encerrante do Relatório",         _to_float(encerrante_rel)],
+        ["Troco do dia anterior (auto)",    _to_float(troco_anterior)],
+        ["Suprimento do Cofre (auto)",      _to_float(supr_cofre_pdv)],
+        ["Vendas — Bolão",                  _to_float(total_venda_bolao)],
+        ["Vendas — Raspadinha",             _to_float(total_venda_rasp)],
+        ["Vendas — Loteria Federal",        _to_float(total_venda_fed)],
+    ], columns=["Categoria", "Valor_R$"])
+
     saidas = pd.DataFrame([
-        ["Movimentação Cielo", _to_float(movimentacao_cielo)],
-        ["PIX Saída", _to_float(pix_saida)],
-        ["Cheques Recebidos", _to_float(cheques_recebidos)],
-        ["Pagamento de Prêmios", _to_float(pagamento_premios)],
-        ["Vales/Despesas", _to_float(vales_despesas)],
-        ["Compra — Bolão", _to_float(total_comp_bolao)],
+        ["Movimentação Cielo",              _to_float(movimentacao_cielo)],
+        ["PIX Saída",                        _to_float(pix_saida)],
+        ["Cheques Recebidos",                _to_float(cheques_recebidos)],
+        ["Pagamento de Prêmios",            _to_float(pagamento_premios)],
+        ["Vales/Despesas",                   _to_float(vales_despesas)],
+        ["Compra — Bolão",                   _to_float(total_comp_bolao)],
         ["Retirada p/ Caixa Interno (auto)", _to_float(total_sangrias_pdv)],
-        ["Dinheiro em Gaveta (final)", _to_float(dg_final)],
-    ], columns=["Saídas", "Valor_R$"])
+        ["Dinheiro em Gaveta (final)",       _to_float(dg_final)],
+    ], columns=["Categoria", "Valor_R$"])
+
+    entradas_tot = entradas["Valor_R$"].sum()
+    saidas_tot   = saidas["Valor_R$"].sum()
+
+    entradas_show = pd.concat(
+        [entradas, pd.DataFrame([{"Categoria": "TOTAL", "Valor_R$": entradas_tot}])],
+        ignore_index=True
+    )
+    saidas_show = pd.concat(
+        [saidas, pd.DataFrame([{"Categoria": "TOTAL", "Valor_R$": saidas_tot}])],
+        ignore_index=True
+    )
 
     ctbl1, ctbl2 = st.columns(2)
     with ctbl1:
-        entradas_tot = entradas["Valor_R$"].sum()
-        st.dataframe(entradas.append({"Entradas":"TOTAL", "Valor_R$":entradas_tot}, ignore_index=True), use_container_width=True)
+        st.dataframe(entradas_show, use_container_width=True)
     with ctbl2:
-        saidas_tot = saidas["Valor_R$"].sum()
-        st.dataframe(saidas.append({"Saídas":"TOTAL", "Valor_R$":saidas_tot}, ignore_index=True), use_container_width=True)
+        st.dataframe(saidas_show, use_container_width=True)
 
     st.caption(f"Δ Encerrante (Entradas − Saídas): **R$ {delta_encerrante:,.2f}** — ideal é 0,00.")
+
 
     # -------- Indicadores finais (apenas 2) --------
     st.markdown("#### 🎯 Indicadores finais")
