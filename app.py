@@ -570,8 +570,10 @@ def render_fechamento_loterica(spreadsheet):
         return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
 
     def _to_float(x):
-        try: return float(x)
-        except Exception: return 0.0
+        try:
+            return float(x)
+        except Exception:
+            return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
         """Soma 'Saída p/ Caixa Interno' (sangrias) no dia (PDV+Data) em Movimentacoes_PDV."""
@@ -581,11 +583,14 @@ def render_fechamento_loterica(spreadsheet):
             df = pd.DataFrame(mov_raw)
             if not df.empty:
                 for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
-                    if col not in df.columns: df[col] = None
+                    if col not in df.columns:
+                        df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
-                     & df["PDV"].astype(str).eq(pdv)
-                     & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno"))
+                m = (
+                    df["Data"].eq(pd.to_datetime(data_alvo).date())
+                    & df["PDV"].astype(str).eq(pdv)
+                    & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
+                )
                 dfd = df.loc[m].copy()
                 if not dfd.empty:
                     dfd["Valor"] = pd.to_numeric(dfd["Valor"], errors="coerce").fillna(0.0)
@@ -603,11 +608,14 @@ def render_fechamento_loterica(spreadsheet):
             df = pd.DataFrame(mov_raw)
             if not df.empty:
                 for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
-                    if col not in df.columns: df[col] = None
+                    if col not in df.columns:
+                        df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
-                     & df["PDV"].astype(str).eq(pdv)
-                     & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre"))
+                m = (
+                    df["Data"].eq(pd.to_datetime(data_alvo).date())
+                    & df["PDV"].astype(str).eq(pdv)
+                    & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre")
+                )
                 dfe = df.loc[m].copy()
                 if not dfe.empty:
                     dfe["Valor"] = pd.to_numeric(dfe["Valor"], errors="coerce").fillna(0.0)
@@ -622,11 +630,13 @@ def render_fechamento_loterica(spreadsheet):
         try:
             ws_name = _sheet_for_pdv(pdv)
             df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
-            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
+            if df.empty or "Data_Fechamento" not in df.columns:
+                return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[df["PDV"].astype(str).eq(pdv)]
             df = df[df["Data_Fechamento"] < pd.to_datetime(data_alvo).date()]
-            if df.empty: return 0.0
+            if df.empty:
+                return 0.0
             if "Saldo_Final_Calculado" in df.columns:
                 df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
                 df = df.sort_values("Data_Fechamento")
@@ -640,10 +650,12 @@ def render_fechamento_loterica(spreadsheet):
         try:
             ws_name = _sheet_for_pdv(pdv)
             df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
-            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
+            if df.empty or "Data_Fechamento" not in df.columns:
+                return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[(df["PDV"].astype(str).eq(pdv)) & (df["Data_Fechamento"] < pd.to_datetime(data_alvo).date())]
-            if df.empty: return 0.0
+            if df.empty:
+                return 0.0
             df = df.sort_values("Data_Fechamento")
             if "Dinheiro_Gaveta_Final" in df.columns:
                 return float(pd.to_numeric(df["Dinheiro_Gaveta_Final"], errors="coerce").fillna(0.0).iloc[-1])
@@ -674,8 +686,10 @@ def render_fechamento_loterica(spreadsheet):
         st.metric("Total Compra Bolão", f"R$ {total_comp_bolao:,.2f}")
 
     # Aviso: compras de Raspadinha/Loteria Federal são feitas na Gestão
-    st.info("🛈 Compras de **Raspadinha** e **Loteria Federal** devem ser lançadas em **Gestão da Lotérica**. "
-            "Neste fechamento, esses campos são gravados como 0 (mantidos apenas para conciliação de estoque).")
+    st.info(
+        "🛈 Compras de **Raspadinha** e **Loteria Federal** devem ser lançadas em **Gestão da Lotérica**. "
+        "Neste fechamento, esses campos são gravados como 0 (mantidos apenas para conciliação de estoque)."
+    )
 
     st.markdown("---")
     st.markdown("### Vendas (estoque e faturamento)")
@@ -739,10 +753,10 @@ def render_fechamento_loterica(spreadsheet):
 
     st.markdown("---")
     st.markdown("### Fechamento de caixa")
-    saldo_anterior   = _get_saldo_anterior(pdv, data_alvo)    # cálculo tradicional (não exibido)
-    troco_anterior   = _get_troco_anterior(pdv, data_alvo)    # indicador exibido
-    encerrante_rel   = st.number_input("Encerrante do Relatório (pode ser negativo)", step=50.0, format="%.2f")
-    dg_final         = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
+    saldo_anterior = _get_saldo_anterior(pdv, data_alvo)   # cálculo tradicional (não exibido)
+    troco_anterior = _get_troco_anterior(pdv, data_alvo)   # indicador exibido
+    encerrante_rel  = st.number_input("Encerrante do Relatório (pode ser negativo)", step=50.0, format="%.2f")
+    dg_final        = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
 
     # Cálculo tradicional (mantido p/ registro; SEM 'Retirada para Cofre')
     saldo_final_calc = (
@@ -754,13 +768,6 @@ def render_fechamento_loterica(spreadsheet):
         - _to_float(total_sangrias_pdv)
     )
     diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
-
-    # ===== Conciliação do Encerrante (sem Retirada para Cofre) =====
-    left_enc  = _to_float(encerrante_rel) + _to_float(troco_anterior) + _to_float(supr_cofre_pdv) + _to_float(total_vendas)
-    right_enc = (_to_float(movimentacao_cielo) + _to_float(pix_saida) + _to_float(cheques_recebidos) +
-                 _to_float(pagamento_premios) + _to_float(vales_despesas) +
-                 _to_float(total_comp_bolao) + _to_float(total_sangrias_pdv) + _to_float(dg_final))
-    delta_encerrante = left_enc - right_enc
 
     # -------- Conferência rápida do dia (duas tabelas) --------
     st.markdown("#### 📑 Conferência rápida (dia)")
@@ -778,7 +785,7 @@ def render_fechamento_loterica(spreadsheet):
         ["Movimentação Cielo",              _to_float(movimentacao_cielo)],
         ["PIX Saída",                        _to_float(pix_saida)],
         ["Cheques Recebidos",                _to_float(cheques_recebidos)],
-        ["Pagamento de Prêmios",            _to_float(pagamento_premios)],
+        ["Pagamento de Prêmios",             _to_float(pagamento_premios)],
         ["Vales/Despesas",                   _to_float(vales_despesas)],
         ["Compra — Bolão",                   _to_float(total_comp_bolao)],
         ["Retirada p/ Caixa Interno (auto)", _to_float(total_sangrias_pdv)],
@@ -787,6 +794,8 @@ def render_fechamento_loterica(spreadsheet):
 
     entradas_tot = entradas["Valor_R$"].sum()
     saidas_tot   = saidas["Valor_R$"].sum()
+    # 👉 saldo correto do encerrante: Entradas − Saídas (ideal = 0,00)
+    delta_enc_calc = entradas_tot - saidas_tot
 
     entradas_show = pd.concat(
         [entradas, pd.DataFrame([{"Categoria": "TOTAL", "Valor_R$": entradas_tot}])],
@@ -803,14 +812,14 @@ def render_fechamento_loterica(spreadsheet):
     with ctbl2:
         st.dataframe(saidas_show, use_container_width=True)
 
-    st.caption(f"Δ Encerrante (Entradas − Saídas): **R$ {delta_encerrante:,.2f}** — ideal é 0,00.")
-
+    st.caption(f"Δ Encerrante (Entradas − Saídas): **R$ {delta_enc_calc:,.2f}** — ideal é 0,00.")
 
     # -------- Indicadores finais (apenas 2) --------
     st.markdown("#### 🎯 Indicadores finais")
     k1, k2 = st.columns(2)
     with k1:
-        st.metric("Saldo calculado (Encerrante)", f"R$ {encerrante_rel:,.2f}")
+        # 👉 mostrar Entradas − Saídas (e não o valor digitado)
+        st.metric("Saldo calculado (Encerrante)", f"R$ {delta_enc_calc:,.2f}")
     with k2:
         st.metric("Troco do dia anterior (auto)", f"R$ {troco_anterior:,.2f}")
 
@@ -825,8 +834,10 @@ def render_fechamento_loterica(spreadsheet):
             existe_registro = False
             if not df_exist.empty and {"Data_Fechamento","PDV"}.issubset(df_exist.columns):
                 df_exist["Data_Fechamento"] = pd.to_datetime(df_exist["Data_Fechamento"], errors="coerce").dt.date
-                mask_dup = (df_exist["PDV"].astype(str).eq(pdv) &
-                            df_exist["Data_Fechamento"].eq(pd.to_datetime(data_alvo).date()))
+                mask_dup = (
+                    df_exist["PDV"].astype(str).eq(pdv)
+                    & df_exist["Data_Fechamento"].eq(pd.to_datetime(data_alvo).date())
+                )
                 existe_registro = bool(df_exist.loc[mask_dup].shape[0] > 0)
 
             if existe_registro:
@@ -848,7 +859,8 @@ def render_fechamento_loterica(spreadsheet):
                 float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas), float(pix_saida),
                 float(retirada_cofre), float(total_sangrias_pdv), float(dg_final),
                 float(saldo_anterior), float(saldo_final_calc), float(diferenca),
-                float(encerrante_rel), float(cheques_recebidos), float(supr_cofre_pdv), float(troco_anterior), float(delta_encerrante)
+                float(encerrante_rel), float(cheques_recebidos), float(supr_cofre_pdv), float(troco_anterior),
+                float(delta_enc_calc)  # 👉 salva Entradas − Saídas
             ]
 
             ws.append_row(row)
@@ -856,6 +868,7 @@ def render_fechamento_loterica(spreadsheet):
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 
