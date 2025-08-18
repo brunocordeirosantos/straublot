@@ -542,14 +542,13 @@ def verificar_login():
     return True
 
 # ------------------------------------------------------------
-# Fechamento de Caixa da Lotérica (PDV1/PDV2)
+# Fechamento de Caixa da Lotérica (PDV1/PDV2) — com Encerrante, Cheques e Suprimento do Cofre
 # ------------------------------------------------------------
-
 def render_fechamento_loterica(spreadsheet):
     import pandas as pd
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalho exato solicitado (mantido para conciliação/estoque)
+    # Cabeçalho base + novos campos no final
     HEADERS_FECHAMENTO = [
         "Data_Fechamento", "PDV", "Operador",
         "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
@@ -560,7 +559,9 @@ def render_fechamento_loterica(spreadsheet):
         "Qtd_Venda_LoteriaFederal", "Preco_Unit_LoteriaFederal", "Total_Venda_LoteriaFederal",
         "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", "Pix_Saida",
         "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
-        "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa"
+        "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa",
+        # --- novos campos (ao fim p/ compatibilidade) ---
+        "Encerrante_Relatorio", "Cheques_Recebidos", "Suprimento_Cofre", "Troco_Anterior", "Delta_Encerrante"
     ]
 
     # ---------- helpers ----------
@@ -574,7 +575,7 @@ def render_fechamento_loterica(spreadsheet):
             return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
-        """Soma 'Saída p/ Caixa Interno' no dia (PDV+Data) em Movimentacoes_PDV."""
+        """Soma 'Saída p/ Caixa Interno' (sangrias) no dia (PDV+Data) em Movimentacoes_PDV."""
         total = 0.0
         ids = []
         try:
@@ -596,11 +597,37 @@ def render_fechamento_loterica(spreadsheet):
                     total = float(dfd["Valor"].sum())
                     ids = dfd["Vinculo_ID"].dropna().astype(str).tolist()
         except Exception as e:
-            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV: {e}")
+            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV (sangrias): {e}")
+        return total, ids
+
+    def _get_suprimentos_cofre_dia(pdv, data_alvo):
+        """Soma 'Entrada do Cofre' (suprimentos do cofre para PDV) no dia em Movimentacoes_PDV."""
+        total = 0.0
+        ids = []
+        try:
+            mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+            df = pd.DataFrame(mov_raw)
+            if not df.empty:
+                for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
+                    if col not in df.columns:
+                        df[col] = None
+                df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
+                mask = (
+                    df["Data"].eq(pd.to_datetime(data_alvo).date())
+                    & df["PDV"].astype(str).eq(pdv)
+                    & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre")
+                )
+                dfe = df.loc[mask].copy()
+                if not dfe.empty:
+                    dfe["Valor"] = pd.to_numeric(dfe["Valor"], errors="coerce").fillna(0.0)
+                    total = float(dfe["Valor"].sum())
+                    ids = dfe["Vinculo_ID"].dropna().astype(str).tolist()
+        except Exception as e:
+            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV (entradas do cofre): {e}")
         return total, ids
 
     def _get_saldo_anterior(pdv, data_alvo):
-        """Busca último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
+        """Último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
         try:
             ws_name = _sheet_for_pdv(pdv)
             dados = buscar_dados(spreadsheet, ws_name) or []
@@ -616,6 +643,25 @@ def render_fechamento_loterica(spreadsheet):
                 df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
                 df = df.sort_values("Data_Fechamento")
                 return float(df["Saldo_Final_Calculado"].iloc[-1])
+            return 0.0
+        except Exception:
+            return 0.0
+
+    def _get_troco_anterior(pdv, data_alvo):
+        """Dinheiro em Gaveta do último fechamento anterior do mesmo PDV."""
+        try:
+            ws_name = _sheet_for_pdv(pdv)
+            dados = buscar_dados(spreadsheet, ws_name) or []
+            df = pd.DataFrame(dados)
+            if df.empty or "Data_Fechamento" not in df.columns:
+                return 0.0
+            df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+            df = df[(df["PDV"].astype(str).eq(pdv)) & (df["Data_Fechamento"] < pd.to_datetime(data_alvo).date())]
+            if df.empty:
+                return 0.0
+            df = df.sort_values("Data_Fechamento")
+            if "Dinheiro_Gaveta_Final" in df.columns:
+                return float(pd.to_numeric(df["Dinheiro_Gaveta_Final"], errors="coerce").fillna(0.0).iloc[-1])
             return 0.0
         except Exception:
             return 0.0
@@ -688,55 +734,91 @@ def render_fechamento_loterica(spreadsheet):
     with om3:
         vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-    om4, om5 = st.columns(2)
+    om4, om5, om6 = st.columns(3)
     with om4:
         pix_saida = st.number_input("PIX Saída (R$)", min_value=0.0, step=50.0, format="%.2f")
     with om5:
         retirada_cofre = st.number_input("Retirada para Cofre (R$)", min_value=0.0, step=50.0, format="%.2f")
+    with om6:
+        cheques_recebidos = st.number_input("Cheques Recebidos (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-    # ===== Sangrias automáticas → Retirada_CaixaInterno =====
+    # ===== Automáticos do dia =====
     total_sangrias_pdv, ids_sangria = _get_sangrias_do_dia(pdv, data_alvo)
     st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
-    st.caption("IDs de vínculo das sangrias do dia:")
     if ids_sangria:
+        st.caption("IDs de vínculo das sangrias do dia:")
         st.code(", ".join(ids_sangria))
+
+    supr_cofre_pdv, ids_supr = _get_suprimentos_cofre_dia(pdv, data_alvo)
+    st.text_input("Suprimento do Cofre (auto)", value=f"R$ {supr_cofre_pdv:,.2f}", disabled=True)
+    if ids_supr:
+        st.caption("IDs de vínculo dos suprimentos do cofre do dia:")
+        st.code(", ".join(ids_supr))
 
     st.markdown("---")
     st.markdown("### Fechamento de caixa")
-    saldo_anterior = _get_saldo_anterior(pdv, data_alvo)
+    saldo_anterior = _get_saldo_anterior(pdv, data_alvo)  # mantém cálculo tradicional
+    troco_anterior = _get_troco_anterior(pdv, data_alvo)  # usado na conciliação do encerrante
+
+    # Encerrante (pode ser negativo) — não definimos min_value para aceitar negativos
+    encerrante_relatorio = st.number_input("Encerrante do Relatório (pode ser negativo)", step=50.0, format="%.2f")
+
     dg_final = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f")
 
-    # Cálculo do saldo final (caixa em dinheiro)
+    # Cálculo do saldo final (modelo tradicional, mantido)
     saldo_final_calc = (
         _to_float(saldo_anterior)
         + (_to_float(total_vendas) - _to_float(movimentacao_cielo))
         - _to_float(pagamento_premios)
         - _to_float(vales_despesas)
-        - _to_float(pix_saida)             # PIX sai do caixa
+        - _to_float(pix_saida)
         - _to_float(retirada_cofre)
-        - _to_float(total_sangrias_pdv)    # Retirada_CaixaInterno
+        - _to_float(total_sangrias_pdv)
     )
     diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
 
-    # Resumo
+    # ===== Conciliação do Encerrante =====
+    left_enc = (_to_float(encerrante_relatorio)
+                + _to_float(troco_anterior)
+                + _to_float(supr_cofre_pdv)
+                + _to_float(total_vendas))
+    right_enc = (_to_float(movimentacao_cielo)
+                 + _to_float(pix_saida)
+                 + _to_float(cheques_recebidos)
+                 + _to_float(pagamento_premios)
+                 + _to_float(vales_despesas)
+                 + _to_float(retirada_cofre)
+                 + _to_float(total_comp_bolao)  # só compra de bolão entra aqui, como você pediu
+                 + _to_float(total_sangrias_pdv)
+                 + _to_float(dg_final))
+    delta_encerrante = left_enc - right_enc
+
     st.markdown("#### Resumo")
     r1, r2, r3 = st.columns(3)
     with r1:
         st.metric("Total de Vendas", f"R$ {total_vendas:,.2f}")
-        st.metric("Saldo Anterior", f"R$ {saldo_anterior:,.2f}")
+        st.metric("Saldo Anterior (trad.)", f"R$ {saldo_anterior:,.2f}")
+        st.metric("Troco do dia anterior (auto)", f"R$ {troco_anterior:,.2f}")
     with r2:
         total_saidas = pagamento_premios + vales_despesas + pix_saida + retirada_cofre + total_sangrias_pdv
         st.metric("Saídas (Prêmios+Despesas+PIX+Retiradas)", f"R$ {total_saidas:,.2f}")
         st.metric("Cielo (não entra em caixa)", f"R$ {movimentacao_cielo:,.2f}")
+        st.metric("Suprimento do Cofre (auto)", f"R$ {supr_cofre_pdv:,.2f}")
     with r3:
-        st.metric("Saldo Final Calculado", f"R$ {saldo_final_calc:,.2f}")
-        st.metric("Diferença do Caixa", f"R$ {diferenca:,.2f}")
+        st.metric("Saldo Final Calculado (trad.)", f"R$ {saldo_final_calc:,.2f}")
+        st.metric("Diferença do Caixa (trad.)", f"R$ {diferenca:,.2f}")
+        st.metric("Δ Encerrante (deve ser 0,00)", f"R$ {delta_encerrante:,.2f}")
+
+    if abs(delta_encerrante) < 0.01:
+        st.success("✅ Conciliação do Encerrante OK (Δ ≈ 0,00).")
+    else:
+        st.warning("⚠️ Conciliação do Encerrante NÃO bate (ajuste os valores até Δ → 0,00).")
 
     # ---------- Salvar (com BLOQUEIO de duplicidade PDV+Data) ----------
     if st.button("💾 Salvar Fechamento", use_container_width=True):
         try:
             ws_name = _sheet_for_pdv(pdv)
-            # garante a guia e cabeçalho
+            # garante a guia e cabeçalho (com colunas novas)
             ws = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_FECHAMENTO)
 
             # checagem de duplicidade
@@ -760,14 +842,16 @@ def render_fechamento_loterica(spreadsheet):
             row = [
                 str(data_alvo), pdv, operador,
                 int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
-                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Raspadinha
-                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Loteria Federal
+                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Raspadinha (via Gestão)
+                0, 0.0, 0.0,                             # Qtd/Custo/Total Compra Loteria Federal (via Gestão)
                 int(qtd_venda_bolao), float(preco_unit_bolao), float(total_venda_bolao),
                 int(qtd_venda_rasp), float(preco_unit_rasp), float(total_venda_rasp),
                 int(qtd_venda_fed), float(preco_unit_fed), float(total_venda_fed),
                 float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas), float(pix_saida),
                 float(retirada_cofre), float(total_sangrias_pdv), float(dg_final),
-                float(saldo_anterior), float(saldo_final_calc), float(diferenca)
+                float(saldo_anterior), float(saldo_final_calc), float(diferenca),
+                # novos campos
+                float(encerrante_relatorio), float(cheques_recebidos), float(supr_cofre_pdv), float(troco_anterior), float(delta_encerrante)
             ]
 
             ws.append_row(row)
@@ -775,6 +859,7 @@ def render_fechamento_loterica(spreadsheet):
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 
@@ -2118,13 +2203,13 @@ def render_cofre(spreadsheet):
     HEADERS_COFRE = [
         "Data", "Hora", "Operador",
         "Tipo",            # "Entrada" | "Saída"
-        "Categoria",       # Entrada: Banco|Sócio|Vendas|Outros | Saída: Transferência para Caixa Interno|Pagamento de Despesa|Outros|Transferência para Caixa Lotérica
+        "Categoria",       # Entrada: Banco|Sócio|Vendas|Outros | Saída: Transferência para Caixa Interno|Transferência para Caixa Lotérica|Outros
         "Origem",          # Ex.: "Cofre Principal" ou fonte (Banco/Sócio)
         "Destino",         # Ex.: "Caixa Interno", "Caixa Lotérica - PDV 1", "Cofre Principal"
         "Valor",
         "Observacoes",
         "Status",          # "Concluído" ou outro
-        "Vinculo_ID"       # ID do Suprimento no Operacoes_Caixa quando aplicável (ex.: SUPR-abc123)
+        "Vinculo_ID"       # ID de vínculo (ex.: SUPR-abc123 ou COFREPDV-xxxx)
     ]
 
     # Cabeçalho da planilha de operações do Caixa (usado para criar o par do suprimento)
@@ -2132,6 +2217,12 @@ def render_cofre(spreadsheet):
         "Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF",
         "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro",
         "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"
+    ]
+
+    # Cabeçalho de movimentos de PDV (já usado em outras partes do sistema)
+    HEADERS_MOV_PDV = [
+        "Data", "Hora", "PDV", "Tipo_Mov",
+        "Valor", "Vinculo_ID", "Operador", "Observacoes"
     ]
 
     def _gerar_id(prefix="ID"):
@@ -2142,9 +2233,8 @@ def render_cofre(spreadsheet):
         cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre") or []
         df_cofre = pd.DataFrame(cofre_data)
 
-        # Se a planilha ainda usa nomes antigos, tentamos normalizar as colunas mínimas para exibir saldo
+        # Backwards-compat simples para nomes antigos
         if not df_cofre.empty:
-            # Backwards-compat simples
             if "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
                 df_cofre["Tipo"] = df_cofre.get("Tipo", df_cofre["Tipo_Transacao"].replace({
                     "Entrada no Cofre": "Entrada",
@@ -2185,34 +2275,30 @@ def render_cofre(spreadsheet):
         with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
 
-            # Tipo geral
             tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada", "Saída"], key="tipo_mov_cofre_dinamico")
 
             with st.form("form_mov_cofre", clear_on_submit=True):
-                # Valor
                 valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, format="%.2f", key="valor_cofre")
 
-                # Campos dinâmicos
                 categoria = ""
-                origem = "Cofre Principal"  # por enquanto cofre único
+                origem = "Cofre Principal"  # cofre único
                 destino = "Cofre Principal"
-                obs_extra = ""
 
                 if tipo_mov == "Saída":
-                    tipo_saida = st.selectbox(
-                        "Tipo de Saída",
-                        ["Transferência para Caixa Interno", "Transferência para Caixa Lotérica", "Pagamento de Despesa", "Outros"],
-                        key="tipo_saida_cofre"
+                    # SOMENTE as opções pedidas: Caixa Interno, PDV1, PDV2, Outros
+                    destino_opcao = st.selectbox(
+                        "Enviar para",
+                        ["Caixa Interno", "Caixa Lotérica - PDV 1", "Caixa Lotérica - PDV 2", "Outros"],
+                        key="destino_saida_cofre"
                     )
-                    categoria = tipo_saida
-                    if tipo_saida == "Transferência para Caixa Interno":
+                    if destino_opcao == "Caixa Interno":
+                        categoria = "Transferência para Caixa Interno"
                         destino = "Caixa Interno"
-                    elif tipo_saida == "Transferência para Caixa Lotérica":
-                        destino_caixa = st.selectbox("Transferir para:", ["PDV 1", "PDV 2"], key="destino_pdv_cofre")
-                        destino = f"Caixa Lotérica - {destino_caixa}"
-                    elif tipo_saida == "Pagamento de Despesa":
-                        destino = st.text_input("Descrição da Despesa (Ex.: Aluguel, Fornecedor X)", key="descricao_despesa_cofre")
-                    else:
+                    elif destino_opcao in ["Caixa Lotérica - PDV 1", "Caixa Lotérica - PDV 2"]:
+                        categoria = "Transferência para Caixa Lotérica"
+                        destino = destino_opcao
+                    else:  # Outros
+                        categoria = "Outros"
                         destino = st.text_input("Destino/Descrição da Saída", key="desc_saida_outros")
 
                 else:  # Entrada
@@ -2226,14 +2312,17 @@ def render_cofre(spreadsheet):
 
                 if submitted:
                     try:
-                        # 0) Planilhas
+                        # Planilhas-alvo
                         ws_cofre = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
                         ws_caixa = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
+                        ws_movpdv = get_or_create_worksheet(spreadsheet, "Movimentacoes_PDV", HEADERS_MOV_PDV)
 
-                        # 1) Se for Saída → Transferência para Caixa Interno, criar antes o SUPRIMENTO pareado
                         vinculo_id = ""
-                        created_suprimento = False
-                        if (tipo_mov == "Saída") and (categoria == "Transferência para Caixa Interno"):
+                        created_suprimento_caixa = False
+                        created_entrada_pdv = False
+
+                        # 1) Saída -> Caixa Interno => cria SUPRIMENTO em Operacoes_Caixa
+                        if (tipo_mov == "Saída") and (destino == "Caixa Interno"):
                             vinculo_id = _gerar_id("SUPR")
                             try:
                                 obs_sup = f"Origem: Cofre Principal. Vinculo_Cofre_ID: {vinculo_id}. {observacoes or ''}"
@@ -2243,34 +2332,52 @@ def render_cofre(spreadsheet):
                                     float(valor), 0.0, 0.0, float(valor), 0.0,
                                     "Concluído", "", "0.00%", obs_sup
                                 ])
-                                created_suprimento = True
+                                created_suprimento_caixa = True
                             except Exception as e:
                                 st.warning(f"⚠️ Não foi possível criar o Suprimento no Caixa Interno agora: {e}")
 
-                        # 2) Registrar a movimentação no Cofre
-                        try:
-                            obs_cofre = observacoes or ""
-                            if vinculo_id:
-                                obs_cofre = f"Gerado automaticamente por Suprimento ({vinculo_id}). " + obs_cofre
+                        # 2) Saída -> Caixa Lotérica (PDV 1/2) => cria ENTRADA no PDV em Movimentacoes_PDV
+                        if (tipo_mov == "Saída") and (categoria == "Transferência para Caixa Lotérica") and destino.startswith("Caixa Lotérica - "):
+                            vinculo_id = vinculo_id or _gerar_id("COFREPDV")
+                            try:
+                                # Idempotência por Vinculo_ID
+                                mov_exist = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+                                df_mov = pd.DataFrame(mov_exist)
+                                ja_existe = (not df_mov.empty and "Vinculo_ID" in df_mov.columns
+                                             and df_mov["Vinculo_ID"].astype(str).eq(vinculo_id).any())
+                                if not ja_existe:
+                                    pdv_alvo = "PDV 1" if "PDV 1" in destino else "PDV 2"
+                                    ws_movpdv.append_row([
+                                        obter_data_brasilia(), obter_horario_brasilia(),
+                                        pdv_alvo, "Entrada do Cofre",
+                                        float(valor), vinculo_id, st.session_state.nome_usuario,
+                                        f"Gerado por saída do Cofre ({vinculo_id}). {observacoes or ''}"
+                                    ])
+                                created_entrada_pdv = True
+                            except Exception as e:
+                                st.warning(f"⚠️ Saída registrada, mas não consegui lançar a entrada no {destino}: {e}")
 
-                            ws_cofre.append_row([
-                                obter_data_brasilia(), obter_horario_brasilia(), st.session_state.nome_usuario,
-                                tipo_mov, categoria, origem, destino, float(valor),
-                                obs_cofre, "Concluído", vinculo_id
-                            ])
-                        except Exception as e:
-                            # Se falhar o cofre após ter criado o suprimento, deixamos aviso de pareamento pendente
-                            if created_suprimento:
-                                st.warning("✅ Suprimento criado no Caixa Interno, mas o lançamento no Cofre falhou. "
-                                           "Use a auditoria para reprocessar o vínculo.")
-                            raise e
+                        # 3) Registrar a movimentação no Cofre (sempre)
+                        obs_cofre = observacoes or ""
+                        if vinculo_id:
+                            obs_cofre = f"Vínculo: {vinculo_id}. " + obs_cofre
+                        ws_cofre.append_row([
+                            obter_data_brasilia(), obter_horario_brasilia(), st.session_state.nome_usuario,
+                            tipo_mov, categoria, origem, destino, float(valor),
+                            obs_cofre, "Concluído", vinculo_id
+                        ])
 
-                        # 3) Mensagens finais
-                        if (tipo_mov == "Saída") and (categoria == "Transferência para Caixa Interno"):
-                            if created_suprimento:
-                                st.success(f"✅ Saída de R$ {valor:,.2f} no Cofre registrada e Suprimento criado no Caixa (ID {vinculo_id}).")
+                        # 4) Mensagens finais
+                        if (tipo_mov == "Saída") and (destino == "Caixa Interno"):
+                            if created_suprimento_caixa:
+                                st.success(f"✅ Saída de R$ {valor:,.2f} do Cofre registrada e Suprimento criado no Caixa Interno (ID {vinculo_id}).")
                             else:
-                                st.warning(f"✅ Saída de R$ {valor:,.2f} no Cofre registrada. ⚠️ Suprimento NÃO foi criado — tente reprocessar.")
+                                st.warning(f"✅ Saída de R$ {valor:,.2f} do Cofre registrada. ⚠️ Suprimento NÃO foi criado — tente reprocessar.")
+                        elif (tipo_mov == "Saída") and destino.startswith("Caixa Lotérica - "):
+                            if created_entrada_pdv:
+                                st.success(f"✅ Saída de R$ {valor:,.2f} do Cofre registrada e entrada criada no {destino} (ID {vinculo_id}).")
+                            else:
+                                st.warning(f"✅ Saída de R$ {valor:,.2f} do Cofre registrada. ⚠️ Entrada no {destino} não foi lançada.")
                         else:
                             st.success(f"✅ Movimentação de R$ {valor:,.2f} no Cofre registrada!")
 
@@ -2288,7 +2395,6 @@ def render_cofre(spreadsheet):
                 cofre_hist = buscar_dados(spreadsheet, "Operacoes_Cofre") or []
                 dfh = pd.DataFrame(cofre_hist)
                 if not dfh.empty:
-                    # Ajusta colunas mínimas para ordenação
                     if "Data" in dfh.columns and "Hora" in dfh.columns:
                         try:
                             dfh["Data"] = pd.to_datetime(dfh["Data"], errors="coerce")
@@ -2305,7 +2411,6 @@ def render_cofre(spreadsheet):
         st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
 
-# (demais funções inalteradas…)
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
 def render_fechamento_diario_simplificado(spreadsheet):
