@@ -1191,7 +1191,7 @@ def render_gestao_loterica(spreadsheet):
             with k1: st.metric("Total Compras", f"R$ {total_compra:,.2f}")
             with k2: st.metric("Total Vendas", f"R$ {total_venda:,.2f}")
             with k3: st.metric("Margem Bruta", f"R$ {margem_bruta:,.2f}",
-                               f"{(margem_bruta/total_venda*100 if total_venda>0 else 0):.1f}%")
+                            f"{(margem_bruta/total_venda*100 if total_venda>0 else 0):.1f}%")
 
             # Conciliação do Encerrante — período (mesma fórmula do fechamento)
             left_period  = float(df_all["Left_Enc"].sum())
@@ -1202,12 +1202,70 @@ def render_gestao_loterica(spreadsheet):
             with cB: st.metric("Lado Direito (período)", f"R$ {right_period:,.2f}")
             with cC: st.metric("Δ Encerrante (período)", f"R$ {delta_period:,.2f}")
 
-            # Quebra por produto
+            # ======= NOVO: tabelas por lado (Entradas x Saídas) =======
+            # ENTRADAS (Lado Esquerdo)
+            entradas_dict = {
+                "Encerrante do Relatório": float(df_all["Encerrante_Relatorio"].sum()),
+                "Troco do dia anterior":   float(df_all["Troco_Anterior"].sum()),
+                "Suprimentos do Cofre":    float(df_all["Suprimento_Cofre"].sum()),
+                "Vendas Bolão":            float(df_all["Total_Venda_Bolao"].sum()),
+                "Vendas Raspadinha":       float(df_all["Total_Venda_Raspadinha"].sum()),
+                "Vendas Loteria Federal":  float(df_all["Total_Venda_LoteriaFederal"].sum()),
+            }
+            df_entradas = pd.DataFrame(
+                [{"Categoria": k, "Total_R$": v} for k, v in entradas_dict.items()]
+            ).sort_values("Total_R$", ascending=False)
+
+            # SAÍDAS (Lado Direito)
+            saidas_dict = {
+                "Movimentação Cielo":      float(df_all["Movimentacao_Cielo"].sum()),
+                "PIX Saída":               float(df_all["Pix_Saida"].sum()),
+                "Cheques Recebidos":       float(df_all["Cheques_Recebidos"].sum()),
+                "Pagamento de Prêmios":    float(df_all["Pagamento_Premios"].sum()),
+                "Vales/Despesas":          float(df_all["Vales_Despesas"].sum()),
+                "Retirada para Cofre":     float(df_all["Retirada_Cofre"].sum()),
+                "Total Compra Bolão":      float(df_all["Total_Compra_Bolao"].sum()),
+                "Retirada p/ Caixa Interno": float(df_all["Retirada_CaixaInterno"].sum()),
+                "Dinheiro em Gaveta":      float(df_all["Dinheiro_Gaveta_Final"].sum()),
+            }
+            df_saidas = pd.DataFrame(
+                [{"Categoria": k, "Total_R$": v} for k, v in saidas_dict.items()]
+            ).sort_values("Total_R$", ascending=False)
+
+            st.markdown("#### 📥 Entradas (Lado Esquerdo)  •  📤 Saídas (Lado Direito)")
+            ctab1, ctab2 = st.columns(2)
+            with ctab1:
+                st.dataframe(df_entradas, use_container_width=True)
+            with ctab2:
+                st.dataframe(df_saidas, use_container_width=True)
+
+            # ======= NOVO: gráfico de barras comparativo =======
+            try:
+                import plotly.express as px
+                bars = (
+                    pd.concat([
+                        df_entradas.assign(Lado="Entradas"),
+                        df_saidas.assign(Lado="Saídas")
+                    ], ignore_index=True)
+                    .sort_values("Total_R$", ascending=False)
+                )
+                fig = px.bar(
+                    bars, x="Categoria", y="Total_R$", color="Lado",
+                    barmode="group", text_auto=".2f",
+                    title="Entradas x Saídas (período)"
+                )
+                fig.update_layout(height=460, font=dict(family="Inter, sans-serif"))
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception:
+                pass
+
+            # (Opcional) Tabela de produtos — mantida
+            st.markdown("#### Produtos — Compras x Vendas x Margem")
             resumo = pd.DataFrame({
                 "Produto": ["Bolão","Raspadinha","Loteria Federal"],
                 "Compra_R$":[df_all["Total_Compra_Bolao"].sum(),
-                             df_all["Total_Compra_Raspadinha"].sum(),
-                             df_all["Total_Compra_LoteriaFederal"].sum()],
+                            df_all["Total_Compra_Raspadinha"].sum(),
+                            df_all["Total_Compra_LoteriaFederal"].sum()],
                 "Venda_R$":[df_all["Total_Venda_Bolao"].sum(),
                             df_all["Total_Venda_Raspadinha"].sum(),
                             df_all["Total_Venda_LoteriaFederal"].sum()],
@@ -1215,25 +1273,11 @@ def render_gestao_loterica(spreadsheet):
             resumo["Margem_R$"] = resumo["Venda_R$"] - resumo["Compra_R$"]
             st.dataframe(resumo, use_container_width=True)
 
-            # Outras movimentações (período)
-            st.markdown("#### Outras movimentações (período)")
-            oth = {
-                "Movimentação Cielo": float(df_all["Movimentacao_Cielo"].sum()),
-                "PIX Saída": float(df_all["Pix_Saida"].sum()),
-                "Cheques Recebidos": float(df_all["Cheques_Recebidos"].sum()),
-                "Pagamento de Prêmios": float(df_all["Pagamento_Premios"].sum()),
-                "Vales/Despesas": float(df_all["Vales_Despesas"].sum()),
-                "Retirada para Cofre": float(df_all["Retirada_Cofre"].sum()),
-                "Retirada Caixa Interno": float(df_all["Retirada_CaixaInterno"].sum()),
-                "Suprimento do Cofre": float(df_all["Suprimento_Cofre"].sum()),
-                "Troco do dia anterior": float(df_all["Troco_Anterior"].sum()),
-            }
-            st.dataframe(pd.DataFrame(list(oth.items()), columns=["Categoria","Total_R$"]), use_container_width=True)
-
             # Download
             st.download_button("⬇️ Baixar fechamentos (CSV)",
-                               data=df_all.to_csv(index=False).encode("utf-8"),
-                               file_name="fechamentos_periodo.csv", mime="text/csv")
+                            data=df_all.to_csv(index=False).encode("utf-8"),
+                            file_name="fechamentos_periodo.csv", mime="text/csv")
+
 
     # ----------------- TAB 3 — CONFERÊNCIA DE FECHAMENTOS -----------------
     with tab3:
