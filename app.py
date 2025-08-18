@@ -876,7 +876,7 @@ def render_gestao_loterica(spreadsheet):
     FECH_PDV = {"PDV 1": "Fechamentos_PDV1", "PDV 2": "Fechamentos_PDV2"}
     PRODUTOS = ["Bolão", "Raspadinha", "Loteria Federal"]
 
-    # Cabeçalho dos fechamentos (ATUALIZADO com novos campos ao final)
+    # Cabeçalho dos fechamentos (com novos campos ao fim)
     HEADERS_FECHAMENTO = [
         "Data_Fechamento", "PDV", "Operador",
         "Qtd_Compra_Bolao", "Custo_Unit_Bolao", "Total_Compra_Bolao",
@@ -888,15 +888,14 @@ def render_gestao_loterica(spreadsheet):
         "Movimentacao_Cielo", "Pagamento_Premios", "Vales_Despesas", "Pix_Saida",
         "Retirada_Cofre", "Retirada_CaixaInterno", "Dinheiro_Gaveta_Final",
         "Saldo_Anterior", "Saldo_Final_Calculado", "Diferenca_Caixa",
-        # Novos campos (compat: adicionados ao fim)
         "Encerrante_Relatorio", "Cheques_Recebidos", "Suprimento_Cofre", "Troco_Anterior", "Delta_Encerrante"
     ]
 
-    # Headers da planilha de movimentos de estoque
+    # Movimentos de estoque
     HEADERS_MOV = [
         "Data", "Hora", "PDV", "Produto", "Tipo_Mov",  # Entrada | Venda | Ajuste+ | Ajuste-
         "Qtd", "Valor_Unit", "Valor_Total", "Obs",
-        "Origem", "Chave_Sync"  # para evitar duplicidade na sincronização
+        "Origem", "Chave_Sync"
     ]
 
     # garante existência da planilha de movimentos
@@ -912,63 +911,48 @@ def render_gestao_loterica(spreadsheet):
         df = pd.DataFrame(dados)
         if df.empty:
             df = pd.DataFrame(columns=HEADERS_MOV)
-        # Tipagem
         for c in ["Qtd", "Valor_Unit", "Valor_Total"]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
         return df
 
     def _saldo_estoque(df_mov):
-        """Saldo por PDV/Produto + custo médio aproximado (sobre entradas/ajustes+)."""
         if df_mov.empty:
             return pd.DataFrame(columns=["PDV", "Produto", "Saldo_Qtd", "Custo_Médio", "Valor_Custo_Estimado"])
         df = df_mov.copy()
-
-        # fator de movimento
         df["fator"] = 0
         df.loc[df["Tipo_Mov"].isin(["Entrada", "Ajuste+"]), "fator"] = 1
         df.loc[df["Tipo_Mov"].isin(["Venda", "Ajuste-"]), "fator"] = -1
         df["Mov_Qtd"] = df["Qtd"] * df["fator"]
-
-        # custo médio por PDV/Produto sobre entradas
         df_ent = df[df["fator"] == 1].groupby(["PDV", "Produto"], as_index=False)[["Qtd", "Valor_Total"]].sum()
         if not df_ent.empty:
             df_ent["Custo_Médio"] = (df_ent["Valor_Total"] / df_ent["Qtd"]).replace([np.inf, -np.inf], 0).fillna(0)
         else:
             df_ent = pd.DataFrame(columns=["PDV", "Produto", "Qtd", "Valor_Total", "Custo_Médio"])
-
         df_saldo = df.groupby(["PDV", "Produto"], as_index=False)["Mov_Qtd"].sum().rename(columns={"Mov_Qtd": "Saldo_Qtd"})
         df_saldo = df_saldo.merge(df_ent[["PDV", "Produto", "Custo_Médio"]], on=["PDV", "Produto"], how="left").fillna({"Custo_Médio": 0})
         df_saldo["Valor_Custo_Estimado"] = df_saldo["Saldo_Qtd"] * df_saldo["Custo_Médio"]
         return df_saldo
 
-    def _sheet_for_pdv(pdv):
-        return FECH_PDV[pdv]
+    def _sheet_for_pdv(pdv): return FECH_PDV[pdv]
 
     def _to_float(x):
-        try:
-            return float(x)
-        except Exception:
-            return 0.0
+        try: return float(x)
+        except Exception: return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
-        """Soma 'Saída p/ Caixa Interno' no dia (PDV+Data) em Movimentacoes_PDV."""
-        total = 0.0
-        ids = []
+        total, ids = 0.0, []
         try:
             mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
             df = pd.DataFrame(mov_raw)
             if not df.empty:
-                for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
-                    if col not in df.columns:
-                        df[col] = None
+                for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
+                    if col not in df.columns: df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                mask = (
-                    df["Data"].eq(pd.to_datetime(data_alvo).date())
-                    & df["PDV"].astype(str).eq(pdv)
-                    & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
-                )
-                dfd = df.loc[mask].copy()
+                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
+                     & df["PDV"].astype(str).eq(pdv)
+                     & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno"))
+                dfd = df.loc[m].copy()
                 if not dfd.empty:
                     dfd["Valor"] = pd.to_numeric(dfd["Valor"], errors="coerce").fillna(0.0)
                     total = float(dfd["Valor"].sum())
@@ -978,23 +962,18 @@ def render_gestao_loterica(spreadsheet):
         return total, ids
 
     def _get_suprimentos_cofre_dia(pdv, data_alvo):
-        """Soma 'Entrada do Cofre' (suprimentos do cofre para PDV) no dia em Movimentacoes_PDV."""
-        total = 0.0
-        ids = []
+        total, ids = 0.0, []
         try:
             mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
             df = pd.DataFrame(mov_raw)
             if not df.empty:
-                for col in ["Data", "PDV", "Tipo_Mov", "Valor", "Vinculo_ID"]:
-                    if col not in df.columns:
-                        df[col] = None
+                for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
+                    if col not in df.columns: df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                mask = (
-                    df["Data"].eq(pd.to_datetime(data_alvo).date())
-                    & df["PDV"].astype(str).eq(pdv)
-                    & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre")
-                )
-                dfe = df.loc[mask].copy()
+                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
+                     & df["PDV"].astype(str).eq(pdv)
+                     & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre"))
+                dfe = df.loc[m].copy()
                 if not dfe.empty:
                     dfe["Valor"] = pd.to_numeric(dfe["Valor"], errors="coerce").fillna(0.0)
                     total = float(dfe["Valor"].sum())
@@ -1004,38 +983,28 @@ def render_gestao_loterica(spreadsheet):
         return total, ids
 
     def _get_saldo_anterior(pdv, data_alvo):
-        """Último Saldo_Final_Calculado do mesmo PDV com Data_Fechamento < data_alvo."""
         try:
             ws_name = _sheet_for_pdv(pdv)
-            dados = buscar_dados(spreadsheet, ws_name) or []
-            df = pd.DataFrame(dados)
-            if df.empty or "Data_Fechamento" not in df.columns:
-                return 0.0
+            df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
+            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
-            df = df[df["PDV"].astype(str).eq(pdv)]
-            df = df[df["Data_Fechamento"] < pd.to_datetime(data_alvo).date()]
-            if df.empty:
-                return 0.0
+            df = df[(df["PDV"].astype(str).eq(pdv)) & (df["Data_Fechamento"] < pd.to_datetime(data_alvo).date())]
+            if df.empty: return 0.0
+            df = df.sort_values("Data_Fechamento")
             if "Saldo_Final_Calculado" in df.columns:
-                df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
-                df = df.sort_values("Data_Fechamento")
-                return float(df["Saldo_Final_Calculado"].iloc[-1])
+                return float(pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0).iloc[-1])
             return 0.0
         except Exception:
             return 0.0
 
     def _get_troco_anterior(pdv, data_alvo):
-        """Dinheiro em Gaveta do último fechamento anterior do mesmo PDV."""
         try:
             ws_name = _sheet_for_pdv(pdv)
-            dados = buscar_dados(spreadsheet, ws_name) or []
-            df = pd.DataFrame(dados)
-            if df.empty or "Data_Fechamento" not in df.columns:
-                return 0.0
+            df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
+            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[(df["PDV"].astype(str).eq(pdv)) & (df["Data_Fechamento"] < pd.to_datetime(data_alvo).date())]
-            if df.empty:
-                return 0.0
+            if df.empty: return 0.0
             df = df.sort_values("Data_Fechamento")
             if "Dinheiro_Gaveta_Final" in df.columns:
                 return float(pd.to_numeric(df["Dinheiro_Gaveta_Final"], errors="coerce").fillna(0.0).iloc[-1])
@@ -1044,31 +1013,60 @@ def render_gestao_loterica(spreadsheet):
             return 0.0
 
     def _find_row_by_pdv_date(ws, target_pdv, target_date):
-        """Retorna o índice (1-based) da linha do Google Sheets que casa com PDV+Data_Fechamento; None se não achar."""
         try:
             vals = ws.get_all_values()
-            if not vals:
-                return None
+            if not vals: return None
             headers = vals[0]
             try:
-                i_pdv = headers.index("PDV")
-                i_dt  = headers.index("Data_Fechamento")
+                i_pdv = headers.index("PDV"); i_dt = headers.index("Data_Fechamento")
             except ValueError:
                 return None
             tgt_date = pd.to_datetime(target_date, errors="coerce").date()
             for i in range(1, len(vals)):
                 row = vals[i]
-                if len(row) <= max(i_pdv, i_dt):
-                    continue
-                r_pdv = str(row[i_pdv])
-                r_dt = pd.to_datetime(row[i_dt], errors="coerce")
-                if pd.isna(r_dt):
-                    continue
+                if len(row) <= max(i_pdv, i_dt): continue
+                r_pdv = str(row[i_pdv]); r_dt = pd.to_datetime(row[i_dt], errors="coerce")
+                if pd.isna(r_dt): continue
                 if (r_pdv == target_pdv) and (r_dt.date() == tgt_date):
-                    return i + 1  # 1-based
+                    return i + 1
             return None
         except Exception:
             return None
+
+    # -------- helpers de normalização e conciliação --------
+    _num_cols_all = [
+        "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
+        "Qtd_Compra_Raspadinha","Custo_Unit_Raspadinha","Total_Compra_Raspadinha",
+        "Qtd_Compra_LoteriaFederal","Custo_Unit_LoteriaFederal","Total_Compra_LoteriaFederal",
+        "Qtd_Venda_Bolao","Preco_Unit_Bolao","Total_Venda_Bolao",
+        "Qtd_Venda_Raspadinha","Preco_Unit_Raspadinha","Total_Venda_Raspadinha",
+        "Qtd_Venda_LoteriaFederal","Preco_Unit_LoteriaFederal","Total_Venda_LoteriaFederal",
+        "Movimentacao_Cielo","Pagamento_Premios","Vales_Despesas","Pix_Saida",
+        "Retirada_Cofre","Retirada_CaixaInterno","Dinheiro_Gaveta_Final",
+        "Saldo_Anterior","Saldo_Final_Calculado","Diferenca_Caixa",
+        "Encerrante_Relatorio","Cheques_Recebidos","Suprimento_Cofre","Troco_Anterior","Delta_Encerrante"
+    ]
+
+    def _normalize_fech(df):
+        """Garante colunas e tipagem; calcula auxiliares Encerrante."""
+        if df.empty:
+            return pd.DataFrame(columns=HEADERS_FECHAMENTO + ["Left_Enc","Right_Enc","Delta_Enc_Calc","Total_Vendas_Soma"])
+        # garante colunas
+        for c in HEADERS_FECHAMENTO:
+            if c not in df.columns: df[c] = 0
+        # tipa
+        for c in _num_cols_all:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        # soma vendas
+        df["Total_Vendas_Soma"] = df["Total_Venda_Bolao"] + df["Total_Venda_Raspadinha"] + df["Total_Venda_LoteriaFederal"]
+        # fórmula de conciliação do Encerrante (regra acordada)
+        df["Left_Enc"]  = df["Encerrante_Relatorio"] + df["Troco_Anterior"] + df["Suprimento_Cofre"] + df["Total_Vendas_Soma"]
+        df["Right_Enc"] = df["Movimentacao_Cielo"] + df["Pix_Saida"] + df["Cheques_Recebidos"] \
+                          + df["Pagamento_Premios"] + df["Vales_Despesas"] + df["Retirada_Cofre"] \
+                          + df["Total_Compra_Bolao"] + df["Retirada_CaixaInterno"] + df["Dinheiro_Gaveta_Final"]
+        df["Delta_Enc_Calc"] = df["Left_Enc"] - df["Right_Enc"]
+        return df
 
     # ---------------------- abas ----------------------
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -1080,7 +1078,6 @@ def render_gestao_loterica(spreadsheet):
         st.markdown("#### 📦 Estoque Atual por PDV/Produto")
 
         df_mov = _load_mov()
-        # filtros
         c1, c2 = st.columns(2)
         with c1:
             filtro_pdv = st.selectbox("Filtrar por PDV", ["Todos"] + list(FECH_PDV.keys()), key="flt_pdv_est")
@@ -1088,10 +1085,8 @@ def render_gestao_loterica(spreadsheet):
             filtro_prod = st.selectbox("Filtrar por Produto", ["Todos"] + PRODUTOS, key="flt_prod_est")
 
         df_fil = df_mov.copy()
-        if filtro_pdv != "Todos":
-            df_fil = df_fil[df_fil["PDV"] == filtro_pdv]
-        if filtro_prod != "Todos":
-            df_fil = df_fil[df_fil["Produto"] == filtro_prod]
+        if filtro_pdv != "Todos": df_fil = df_fil[df_fil["PDV"] == filtro_pdv]
+        if filtro_prod != "Todos": df_fil = df_fil[df_fil["Produto"] == filtro_prod]
 
         df_saldo = _saldo_estoque(df_fil)
         if df_saldo.empty:
@@ -1101,91 +1096,55 @@ def render_gestao_loterica(spreadsheet):
             with colA: st.metric("Itens (linhas) no estoque", len(df_saldo))
             with colB: st.metric("Soma de quantidades", f"{df_saldo['Saldo_Qtd'].sum():,.0f}")
             with colC: st.metric("Valor de custo estimado", f"R$ {df_saldo['Valor_Custo_Estimado'].sum():,.2f}")
-
-            st.dataframe(df_saldo.sort_values(["PDV", "Produto"]), use_container_width=True)
-
-            # download opcional
-            csv = df_saldo.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Baixar estoque (CSV)", data=csv, file_name="estoque_pdv_produto.csv", mime="text/csv")
+            st.dataframe(df_saldo.sort_values(["PDV","Produto"]), use_container_width=True)
+            st.download_button("⬇️ Baixar estoque (CSV)",
+                               data=df_saldo.to_csv(index=False).encode("utf-8"),
+                               file_name="estoque_pdv_produto.csv", mime="text/csv")
 
         st.markdown("---")
         st.markdown("#### ✍️ Ajuste Manual de Estoque")
-
         with st.form("form_ajuste_estoque", clear_on_submit=True):
             c1, c2, c3 = st.columns(3)
-            with c1:
-                aj_pdv = st.selectbox("PDV", list(FECH_PDV.keys()), key="aj_pdv")
-            with c2:
-                aj_prod = st.selectbox("Produto", PRODUTOS, key="aj_prod")
-            with c3:
-                aj_tipo = st.selectbox("Tipo de Ajuste", ["Ajuste+", "Ajuste-"], key="aj_tipo")
-
+            with c1: aj_pdv = st.selectbox("PDV", list(FECH_PDV.keys()), key="aj_pdv")
+            with c2: aj_prod = st.selectbox("Produto", PRODUTOS, key="aj_prod")
+            with c3: aj_tipo = st.selectbox("Tipo de Ajuste", ["Ajuste+", "Ajuste-"], key="aj_tipo")
             c4, c5 = st.columns(2)
-            with c4:
-                aj_qtd = st.number_input("Quantidade", min_value=0.0, step=1.0, format="%.0f", key="aj_qtd")
-            with c5:
-                aj_val = st.number_input("Valor Unitário (R$) (apenas p/ Ajuste+)", min_value=0.0, step=0.01, format="%.2f", key="aj_vu")
-
+            with c4: aj_qtd = st.number_input("Quantidade", min_value=0.0, step=1.0, format="%.0f", key="aj_qtd")
+            with c5: aj_val = st.number_input("Valor Unitário (R$) (apenas p/ Ajuste+)", min_value=0.0, step=0.01, format="%.2f", key="aj_vu")
             aj_obs = st.text_input("Observações (opcional)", key="aj_obs")
             btn_aj = st.form_submit_button("💾 Registrar Ajuste", use_container_width=True)
-
-            if btn_aj:
-                try:
-                    if aj_qtd <= 0:
-                        st.error("Informe quantidade > 0.")
-                        st.stop()
-                    if aj_tipo == "Ajuste-" and aj_qtd > 0:
-                        # checagem simples de saldo (opcional)
-                        df_saldo_full = _saldo_estoque(_load_mov())
-                        saldo_atual = 0.0
-                        if not df_saldo_full.empty:
-                            m = (df_saldo_full["PDV"].eq(aj_pdv) & df_saldo_full["Produto"].eq(aj_prod))
-                            if m.any():
-                                saldo_atual = float(df_saldo_full.loc[m, "Saldo_Qtd"].iloc[0])
-                        if aj_qtd > saldo_atual:
-                            st.warning(f"⚠️ Ajuste- maior que o saldo atual ({saldo_atual:.0f}). Continuação permitida, mas revise.")
-                    ws = get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
-                    now_d = obter_data_brasilia()
-                    now_h = obter_horario_brasilia()
-                    valor_total = float(aj_qtd) * float(aj_val) if aj_tipo == "Ajuste+" else 0.0
-                    row = [
-                        now_d, now_h, aj_pdv, aj_prod, aj_tipo,
-                        float(aj_qtd), float(aj_val), float(valor_total),
-                        aj_obs, "AJUSTE_MANUAL", ""
-                    ]
-                    ws.append_row(row)
-                    st.success("✅ Ajuste registrado.")
-                    st.cache_data.clear()
-                    st.experimental_rerun()
-                except Exception as e:
-                    st.error(f"❌ Erro ao registrar ajuste: {e}")
+        if btn_aj:
+            try:
+                if aj_qtd <= 0: st.error("Informe quantidade > 0."); st.stop()
+                ws = get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
+                now_d, now_h = obter_data_brasilia(), obter_horario_brasilia()
+                valor_total = float(aj_qtd) * float(aj_val) if aj_tipo == "Ajuste+" else 0.0
+                ws.append_row([now_d, now_h, aj_pdv, aj_prod, aj_tipo,
+                               float(aj_qtd), float(aj_val), float(valor_total),
+                               aj_obs, "AJUSTE_MANUAL", ""])
+                st.success("✅ Ajuste registrado.")
+                st.cache_data.clear(); st.experimental_rerun()
+            except Exception as e:
+                st.error(f"❌ Erro ao registrar ajuste: {e}")
 
     # -------------------- TAB 2 — RELATÓRIOS ---------------------
     with tab2:
-        st.markdown("#### 📊 Relatórios de Compras, Vendas e Margem")
-        # período
+        st.markdown("#### 📊 Relatórios e Conciliação do Encerrante")
         c1, c2, c3 = st.columns(3)
-        with c1:
-            pdv_r = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="rel_pdv")
-        with c2:
-            ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="rel_ini")
-        with c3:
-            fim = st.date_input("Fim", value=obter_date_brasilia(), key="rel_fim")
+        with c1: pdv_r = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="rel_pdv")
+        with c2: ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="rel_ini")
+        with c3: fim = st.date_input("Fim", value=obter_date_brasilia(), key="rel_fim")
 
-        # buscar fechamentos dos PDVs e consolidar
         frames = []
         for pdv, sheet in FECH_PDV.items():
             try:
                 dados = buscar_dados(spreadsheet, sheet) or []
                 df = pd.DataFrame(dados)
-                if df.empty:
-                    continue
+                if df.empty: continue
                 df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
-                mask = (df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)
-                df = df[mask]
-                if df.empty:
-                    continue
-                df["PDV"] = pdv  # garante coluna
+                df = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
+                if df.empty: continue
+                df["PDV"] = pdv
                 frames.append(df)
             except Exception as e:
                 st.warning(f"⚠️ Erro ao buscar {sheet}: {e}")
@@ -1193,45 +1152,28 @@ def render_gestao_loterica(spreadsheet):
         if not frames:
             st.info("Sem dados no período selecionado.")
         else:
-            df_all = pd.concat(frames, ignore_index=True)
+            df_all = _normalize_fech(pd.concat(frames, ignore_index=True))
+            if pdv_r != "Todos": df_all = df_all[df_all["PDV"] == pdv_r]
 
-            # Seleção por PDV
-            if pdv_r != "Todos":
-                df_all = df_all[df_all["PDV"] == pdv_r]
-
-            # Tipagem
-            cols_num = [
-                "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
-                "Qtd_Compra_Raspadinha","Custo_Unit_Raspadinha","Total_Compra_Raspadinha",
-                "Qtd_Compra_LoteriaFederal","Custo_Unit_LoteriaFederal","Total_Compra_LoteriaFederal",
-                "Qtd_Venda_Bolao","Preco_Unit_Bolao","Total_Venda_Bolao",
-                "Qtd_Venda_Raspadinha","Preco_Unit_Raspadinha","Total_Venda_Raspadinha",
-                "Qtd_Venda_LoteriaFederal","Preco_Unit_LoteriaFederal","Total_Venda_LoteriaFederal",
-                "Movimentacao_Cielo","Pagamento_Premios","Vales_Despesas","Pix_Saida",
-                "Retirada_Cofre","Retirada_CaixaInterno","Dinheiro_Gaveta_Final",
-                "Saldo_Anterior","Saldo_Final_Calculado","Diferenca_Caixa",
-                # novos
-                "Encerrante_Relatorio","Cheques_Recebidos","Suprimento_Cofre","Troco_Anterior","Delta_Encerrante"
-            ]
-            for c in cols_num:
-                if c in df_all.columns:
-                    df_all[c] = pd.to_numeric(df_all[c], errors="coerce").fillna(0.0)
-
-            # KPIs agregados (compras x vendas x margem)
-            total_compra = df_all[[
-                "Total_Compra_Bolao","Total_Compra_Raspadinha","Total_Compra_LoteriaFederal"
-            ]].sum().sum()
-            total_venda  = df_all[[
-                "Total_Venda_Bolao","Total_Venda_Raspadinha","Total_Venda_LoteriaFederal"
-            ]].sum().sum()
+            # KPIs compras x vendas
+            total_compra = df_all[["Total_Compra_Bolao","Total_Compra_Raspadinha","Total_Compra_LoteriaFederal"]].sum().sum()
+            total_venda  = df_all[["Total_Venda_Bolao","Total_Venda_Raspadinha","Total_Venda_LoteriaFederal"]].sum().sum()
             margem_bruta = total_venda - total_compra
 
             k1, k2, k3 = st.columns(3)
             with k1: st.metric("Total Compras", f"R$ {total_compra:,.2f}")
             with k2: st.metric("Total Vendas", f"R$ {total_venda:,.2f}")
-            with k3:
-                pct = (margem_bruta/total_venda*100) if total_venda > 0 else 0.0
-                st.metric("Margem Bruta", f"R$ {margem_bruta:,.2f}", f"{pct:.1f}%")
+            with k3: st.metric("Margem Bruta", f"R$ {margem_bruta:,.2f}",
+                               f"{(margem_bruta/total_venda*100 if total_venda>0 else 0):.1f}%")
+
+            # Conciliação do Encerrante — período (usa MESMA fórmula do fechamento)
+            left_period  = float(df_all["Left_Enc"].sum())
+            right_period = float(df_all["Right_Enc"].sum())
+            delta_period = left_period - right_period
+            cA, cB, cC = st.columns(3)
+            with cA: st.metric("Lado Esquerdo (período)", f"R$ {left_period:,.2f}")
+            with cB: st.metric("Lado Direito (período)", f"R$ {right_period:,.2f}")
+            with cC: st.metric("Δ Encerrante (período)", f"R$ {delta_period:,.2f}")
 
             # Quebra por produto
             resumo = pd.DataFrame({
@@ -1246,91 +1188,46 @@ def render_gestao_loterica(spreadsheet):
             resumo["Margem_R$"] = resumo["Venda_R$"] - resumo["Compra_R$"]
             st.dataframe(resumo, use_container_width=True)
 
-            # Outras movimentações (totais no período)
+            # Outras movimentações
             st.markdown("#### Outras movimentações (período)")
             oth = {
-                "Movimentação Cielo": float(df_all.get("Movimentacao_Cielo", pd.Series([0])).sum()),
-                "PIX Saída": float(df_all.get("Pix_Saida", pd.Series([0])).sum()),
-                "Cheques Recebidos": float(df_all.get("Cheques_Recebidos", pd.Series([0])).sum()),
-                "Pagamento de Prêmios": float(df_all.get("Pagamento_Premios", pd.Series([0])).sum()),
-                "Vales/Despesas": float(df_all.get("Vales_Despesas", pd.Series([0])).sum()),
-                "Retirada para Cofre": float(df_all.get("Retirada_Cofre", pd.Series([0])).sum()),
-                "Retirada Caixa Interno": float(df_all.get("Retirada_CaixaInterno", pd.Series([0])).sum()),
-                "Suprimento do Cofre": float(df_all.get("Suprimento_Cofre", pd.Series([0])).sum()),
-                "Troco do dia anterior": float(df_all.get("Troco_Anterior", pd.Series([0])).sum()),
+                "Movimentação Cielo": float(df_all["Movimentacao_Cielo"].sum()),
+                "PIX Saída": float(df_all["Pix_Saida"].sum()),
+                "Cheques Recebidos": float(df_all["Cheques_Recebidos"].sum()),
+                "Pagamento de Prêmios": float(df_all["Pagamento_Premios"].sum()),
+                "Vales/Despesas": float(df_all["Vales_Despesas"].sum()),
+                "Retirada para Cofre": float(df_all["Retirada_Cofre"].sum()),
+                "Retirada Caixa Interno": float(df_all["Retirada_CaixaInterno"].sum()),
+                "Suprimento do Cofre": float(df_all["Suprimento_Cofre"].sum()),
+                "Troco do dia anterior": float(df_all["Troco_Anterior"].sum()),
             }
-            df_oth = pd.DataFrame(list(oth.items()), columns=["Categoria","Total_R$"])
-            st.dataframe(df_oth, use_container_width=True)
+            st.dataframe(pd.DataFrame(list(oth.items()), columns=["Categoria","Total_R$"]), use_container_width=True)
 
-            # Conciliação do Encerrante (período, somado)
-            st.markdown("#### Conciliação do Encerrante (período)")
-            total_left  = float(df_all.get("Encerrante_Relatorio", pd.Series([0])).sum()) \
-                          + float(df_all.get("Troco_Anterior", pd.Series([0])).sum()) \
-                          + float(df_all.get("Suprimento_Cofre", pd.Series([0])).sum()) \
-                          + (float(df_all.get("Total_Venda_Bolao", pd.Series([0])).sum())
-                             + float(df_all.get("Total_Venda_Raspadinha", pd.Series([0])).sum())
-                             + float(df_all.get("Total_Venda_LoteriaFederal", pd.Series([0])).sum()))
-            total_right = float(df_all.get("Movimentacao_Cielo", pd.Series([0])).sum()) \
-                          + float(df_all.get("Pix_Saida", pd.Series([0])).sum()) \
-                          + float(df_all.get("Cheques_Recebidos", pd.Series([0])).sum()) \
-                          + float(df_all.get("Pagamento_Premios", pd.Series([0])).sum()) \
-                          + float(df_all.get("Vales_Despesas", pd.Series([0])).sum()) \
-                          + float(df_all.get("Retirada_Cofre", pd.Series([0])).sum()) \
-                          + float(df_all.get("Total_Compra_Bolao", pd.Series([0])).sum()) \
-                          + float(df_all.get("Retirada_CaixaInterno", pd.Series([0])).sum()) \
-                          + float(df_all.get("Dinheiro_Gaveta_Final", pd.Series([0])).sum())
-            delta_periodo = total_left - total_right
-
-            cA, cB, cC = st.columns(3)
-            with cA: st.metric("Lado Esquerdo (período)", f"R$ {total_left:,.2f}")
-            with cB: st.metric("Lado Direito (período)", f"R$ {total_right:,.2f}")
-            with cC: st.metric("Δ Encerrante (período)", f"R$ {delta_periodo:,.2f}")
-
-            # gráfico simples
-            try:
-                import plotly.express as px
-                df_melt = resumo.melt(id_vars="Produto", value_vars=["Compra_R$","Venda_R$","Margem_R$"], var_name="Tipo", value_name="Valor")
-                fig = px.bar(df_melt, x="Produto", y="Valor", color="Tipo", barmode="group", text_auto=".2f",
-                             title="Compras x Vendas x Margem por Produto")
-                fig.update_layout(height=420, showlegend=True, font=dict(family="Inter, sans-serif"))
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception:
-                pass
-
-            # download opcional
-            csv = df_all.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Baixar fechamentos (CSV)", data=csv, file_name="fechamentos_periodo.csv", mime="text/csv")
+            # Download
+            st.download_button("⬇️ Baixar fechamentos (CSV)",
+                               data=df_all.to_csv(index=False).encode("utf-8"),
+                               file_name="fechamentos_periodo.csv", mime="text/csv")
 
     # ----------------- TAB 3 — CONFERÊNCIA DE FECHAMENTOS -----------------
     with tab3:
         import plotly.express as px
+        st.markdown("#### 🧾 Conferência de Fechamentos (Δ Encerrante por dia)")
 
-        st.markdown("#### 🧾 Conferência de Fechamentos")
-
-        # Filtros
         c1, c2, c3 = st.columns(3)
-        with c1:
-            pdv_conf = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="conf_pdv")
-        with c2:
-            conf_ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="conf_ini")
-        with c3:
-            conf_fim = st.date_input("Fim", value=obter_date_brasilia(), key="conf_fim")
+        with c1: pdv_conf = st.selectbox("PDV", ["Todos"] + list(FECH_PDV.keys()), key="conf_pdv")
+        with c2: conf_ini = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="conf_ini")
+        with c3: conf_fim = st.date_input("Fim", value=obter_date_brasilia(), key="conf_fim")
 
-        # Carregar dados dos PDVs conforme filtro
         frames = []
         for pdv, sheet in FECH_PDV.items():
-            if pdv_conf != "Todos" and pdv != pdv_conf:
-                continue
+            if pdv_conf != "Todos" and pdv != pdv_conf: continue
             try:
-                dados = buscar_dados(spreadsheet, sheet) or []
-                df = pd.DataFrame(dados)
-                if df.empty:
-                    continue
+                df = pd.DataFrame(buscar_dados(spreadsheet, sheet) or [])
+                if df.empty: continue
                 df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
                 df = df[(df["Data_Fechamento"] >= conf_ini) & (df["Data_Fechamento"] <= conf_fim)]
-                if df.empty:
-                    continue
-                df["PDV"] = pdv  # garante coluna PDV consistente
+                if df.empty: continue
+                df["PDV"] = pdv
                 frames.append(df)
             except Exception as e:
                 st.warning(f"⚠️ Erro ao buscar {sheet}: {e}")
@@ -1338,159 +1235,71 @@ def render_gestao_loterica(spreadsheet):
         if not frames:
             st.info("Sem fechamentos no período selecionado.")
         else:
-            df_all = pd.concat(frames, ignore_index=True)
-
-            # Tipagem de numéricos
-            num_cols = [
-                "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
-                "Qtd_Compra_Raspadinha","Custo_Unit_Raspadinha","Total_Compra_Raspadinha",
-                "Qtd_Compra_LoteriaFederal","Custo_Unit_LoteriaFederal","Total_Compra_LoteriaFederal",
-                "Qtd_Venda_Bolao","Preco_Unit_Bolao","Total_Venda_Bolao",
-                "Qtd_Venda_Raspadinha","Preco_Unit_Raspadinha","Total_Venda_Raspadinha",
-                "Qtd_Venda_LoteriaFederal","Preco_Unit_LoteriaFederal","Total_Venda_LoteriaFederal",
-                "Movimentacao_Cielo","Pagamento_Premios","Vales_Despesas","Pix_Saida",
-                "Retirada_Cofre","Retirada_CaixaInterno","Dinheiro_Gaveta_Final",
-                "Saldo_Anterior","Saldo_Final_Calculado","Diferenca_Caixa",
-                "Encerrante_Relatorio","Cheques_Recebidos","Suprimento_Cofre","Troco_Anterior","Delta_Encerrante"
+            df_all = _normalize_fech(pd.concat(frames, ignore_index=True))
+            # Status por linha
+            df_all["Status"] = np.where(df_all["Delta_Enc_Calc"].abs() < 0.005, "OK", "Divergente")
+            view_cols = [
+                "Data_Fechamento","PDV","Operador",
+                "Encerrante_Relatorio","Troco_Anterior","Suprimento_Cofre","Total_Vendas_Soma",
+                "Movimentacao_Cielo","Pix_Saida","Cheques_Recebidos","Pagamento_Premios","Vales_Despesas",
+                "Retirada_Cofre","Total_Compra_Bolao","Retirada_CaixaInterno","Dinheiro_Gaveta_Final",
+                "Left_Enc","Right_Enc","Delta_Enc_Calc","Status"
             ]
-            for c in num_cols:
-                if c in df_all.columns:
-                    df_all[c] = pd.to_numeric(df_all[c], errors="coerce").fillna(0.0)
-
-            # Cálculos agregados (período/PDV)
-            total_compras = float(df_all.get("Total_Compra_Bolao", 0).sum() if isinstance(df_all.get("Total_Compra_Bolao"), pd.Series) else df_all["Total_Compra_Bolao"].sum()) \
-                            + float(df_all.get("Total_Compra_Raspadinha", 0).sum() if isinstance(df_all.get("Total_Compra_Raspadinha"), pd.Series) else 0) \
-                            + float(df_all.get("Total_Compra_LoteriaFederal", 0).sum() if isinstance(df_all.get("Total_Compra_LoteriaFederal"), pd.Series) else 0)
-            total_vendas = float(df_all.get("Total_Venda_Bolao", 0).sum() if isinstance(df_all.get("Total_Venda_Bolao"), pd.Series) else df_all["Total_Venda_Bolao"].sum()) \
-                           + float(df_all.get("Total_Venda_Raspadinha", 0).sum() if isinstance(df_all.get("Total_Venda_Raspadinha"), pd.Series) else 0) \
-                           + float(df_all.get("Total_Venda_LoteriaFederal", 0).sum() if isinstance(df_all.get("Total_Venda_LoteriaFederal"), pd.Series) else 0)
-
-            total_entradas = total_vendas + float(df_all.get("Movimentacao_Cielo", pd.Series([0])).sum())
-            total_saidas = total_compras \
-                           + float(df_all.get("Pagamento_Premios", pd.Series([0])).sum()) \
-                           + float(df_all.get("Vales_Despesas", pd.Series([0])).sum()) \
-                           + float(df_all.get("Pix_Saida", pd.Series([0])).sum()) \
-                           + float(df_all.get("Retirada_Cofre", pd.Series([0])).sum()) \
-                           + float(df_all.get("Retirada_CaixaInterno", pd.Series([0])).sum())
-
-            saldo_calc_soma = float(df_all.get("Saldo_Final_Calculado", pd.Series([0])).sum())
-            din_gaveta_soma = float(df_all.get("Dinheiro_Gaveta_Final", pd.Series([0])).sum())
-            diferenca_soma   = float(df_all.get("Diferenca_Caixa", pd.Series([din_gaveta_soma - saldo_calc_soma])).sum())
-
-            # Cards
-            k1, k2, k3, k4 = st.columns(4)
-            with k1: st.metric("Total Entradas", f"R$ {total_entradas:,.2f}")
-            with k2: st.metric("Total Saídas", f"R$ {total_saidas:,.2f}")
-            with k3: st.metric("Saldo Final (soma)", f"R$ {saldo_calc_soma:,.2f}")
-            with k4: st.metric("Diferença (soma)", f"R$ {diferenca_soma:,.2f}")
-
-            # Tabela (ordenada por data desc / PDV)
-            try:
-                df_view = df_all.sort_values(by=["Data_Fechamento","PDV"], ascending=[False, True])
-            except Exception:
-                df_view = df_all
+            df_view = df_all[view_cols].sort_values(["Data_Fechamento","PDV"], ascending=[False, True])
             st.dataframe(df_view, use_container_width=True)
 
-            # Gráfico — Maiores movimentações no período (Top 10)
-            cat_vals = []
-            def _sum(col):
-                return float(df_all.get(col, pd.Series([0])).sum())
-
-            cat_vals.extend([
-                ("Compra Bolão",            _sum("Total_Compra_Bolao")),
-                ("Compra Raspadinha",       _sum("Total_Compra_Raspadinha")),
-                ("Compra Loteria Federal",  _sum("Total_Compra_LoteriaFederal")),
-                ("Venda Bolão",             _sum("Total_Venda_Bolao")),
-                ("Venda Raspadinha",        _sum("Total_Venda_Raspadinha")),
-                ("Venda Loteria Federal",   _sum("Total_Venda_LoteriaFederal")),
-                ("Movimentação Cielo",      _sum("Movimentacao_Cielo")),
-                ("PIX Saída",               _sum("Pix_Saida")),
-                ("Cheques Recebidos",       _sum("Cheques_Recebidos")),
-                ("Pagamento de Prêmios",    _sum("Pagamento_Premios")),
-                ("Vales/Despesas",          _sum("Vales_Despesas")),
-                ("Retirada para Cofre",     _sum("Retirada_Cofre")),
-                ("Retirada Caixa Interno",  _sum("Retirada_CaixaInterno")),
-            ])
-            df_cat = pd.DataFrame(cat_vals, columns=["Categoria","Valor"])
-            df_cat = df_cat[df_cat["Valor"] != 0].sort_values("Valor", ascending=False)
-
-            if df_cat.empty:
-                st.info("Sem movimentações para o gráfico neste período.")
-            else:
-                fig = px.bar(df_cat.head(10), x="Categoria", y="Valor", text_auto=".2f",
-                             title="Maiores movimentações no período (Top 10)")
-                fig.update_layout(height=420, showlegend=False, font=dict(family="Inter, sans-serif"))
+            # Gráfico Δ por dia
+            try:
+                gdf = df_all.groupby("Data_Fechamento", as_index=False)["Delta_Enc_Calc"].sum()
+                fig = px.bar(gdf, x="Data_Fechamento", y="Delta_Enc_Calc", text_auto=".2f",
+                             title="Δ Encerrante por dia (soma)")
+                fig.update_layout(height=380, showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
+            except Exception:
+                pass
 
     # ------------------- TAB 4 — SINCRONIZAÇÃO -------------------
     with tab4:
         st.markdown("#### 🔄 Sincronizar Estoque a partir dos Fechamentos")
         s1, s2, s3 = st.columns(3)
-        with s1:
-            pdv_sinc = st.selectbox("PDV", list(FECH_PDV.keys()), key="sinc_pdv")
-        with s2:
-            ini_s = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="sinc_ini")
-        with s3:
-            fim_s = st.date_input("Fim", value=obter_date_brasilia(), key="sinc_fim")
+        with s1: pdv_sinc = st.selectbox("PDV", list(FECH_PDV.keys()), key="sinc_pdv")
+        with s2: ini_s = st.date_input("Início", value=obter_date_brasilia() - timedelta(days=7), key="sinc_ini")
+        with s3: fim_s = st.date_input("Fim", value=obter_date_brasilia(), key="sinc_fim")
 
         if st.button("⚙️ Sincronizar estoque com base nos fechamentos", use_container_width=True):
             try:
                 sheet = FECH_PDV[pdv_sinc]
-                dados = buscar_dados(spreadsheet, sheet) or []
-                df = pd.DataFrame(dados)
-                if df.empty:
-                    st.info("Nenhum fechamento encontrado.")
-                    return
-
+                df = pd.DataFrame(buscar_dados(spreadsheet, sheet) or [])
+                if df.empty: st.info("Nenhum fechamento encontrado."); return
                 df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
-                mask = (df["Data_Fechamento"] >= ini_s) & (df["Data_Fechamento"] <= fim_s)
-                df = df[mask]
-                if df.empty:
-                    st.info("Sem fechamentos no período informado.")
-                    return
+                df = df[(df["Data_Fechamento"] >= ini_s) & (df["Data_Fechamento"] <= fim_s)]
+                if df.empty: st.info("Sem fechamentos no período informado."); return
 
-                # carregar movimentos existentes p/ dedupe
                 df_mov_exist = _load_mov()
                 chaves_exist = set(df_mov_exist.get("Chave_Sync", []).tolist())
 
                 ws = get_or_create_worksheet(spreadsheet, SHEET_MOV, HEADERS_MOV)
                 add_count = 0
-
                 for _, row in df.iterrows():
-                    data = str(row.get("Data_Fechamento"))
-                    hora = obter_horario_brasilia()
-                    # Entradas = compras
-                    compras = [
-                        ("Bolão",           float(row.get("Qtd_Compra_Bolao", 0)),           float(row.get("Custo_Unit_Bolao", 0))),
-                        ("Raspadinha",      float(row.get("Qtd_Compra_Raspadinha", 0)),     float(row.get("Custo_Unit_Raspadinha", 0))),
-                        ("Loteria Federal", float(row.get("Qtd_Compra_LoteriaFederal", 0)), float(row.get("Custo_Unit_LoteriaFederal", 0))),
-                    ]
-                    # Saídas = vendas
-                    vendas = [
-                        ("Bolão",           float(row.get("Qtd_Venda_Bolao", 0)),           float(row.get("Preco_Unit_Bolao", 0))),
-                        ("Raspadinha",      float(row.get("Qtd_Venda_Raspadinha", 0)),     float(row.get("Preco_Unit_Raspadinha", 0))),
-                        ("Loteria Federal", float(row.get("Qtd_Venda_LoteriaFederal", 0)), float(row.get("Preco_Unit_LoteriaFederal", 0))),
-                    ]
-
-                    # compras → Entrada
-                    for prod, qtd, vu in compras:
-                        if qtd > 0:
-                            chave = f"{data}|{pdv_sinc}|{prod}|ENT|{qtd}|{vu}"
+                    data = str(row.get("Data_Fechamento")); hora = obter_horario_brasilia()
+                    compras = [("Bolão", float(row.get("Qtd_Compra_Bolao",0)), float(row.get("Custo_Unit_Bolao",0))),
+                               ("Raspadinha", float(row.get("Qtd_Compra_Raspadinha",0)), float(row.get("Custo_Unit_Raspadinha",0))),
+                               ("Loteria Federal", float(row.get("Qtd_Compra_LoteriaFederal",0)), float(row.get("Custo_Unit_LoteriaFederal",0)))]
+                    vendas  = [("Bolão", float(row.get("Qtd_Venda_Bolao",0)), float(row.get("Preco_Unit_Bolao",0))),
+                               ("Raspadinha", float(row.get("Qtd_Venda_Raspadinha",0)), float(row.get("Preco_Unit_Raspadinha",0))),
+                               ("Loteria Federal", float(row.get("Qtd_Venda_LoteriaFederal",0)), float(row.get("Preco_Unit_LoteriaFederal",0)))]
+                    for prod,qtd,vu in compras:
+                        if qtd>0:
+                            chave=f"{data}|{pdv_sinc}|{prod}|ENT|{qtd}|{vu}"
                             if chave not in chaves_exist:
-                                ws.append_row([data, hora, pdv_sinc, prod, "Entrada",
-                                               float(qtd), float(vu), float(qtd*vu), "sync-fech", sheet, chave])
-                                chaves_exist.add(chave)
-                                add_count += 1
-
-                    # vendas → Venda (saída)
-                    for prod, qtd, vu in vendas:
-                        if qtd > 0:
-                            chave = f"{data}|{pdv_sinc}|{prod}|SAI|{qtd}|{vu}"
+                                ws.append_row([data,hora,pdv_sinc,prod,"Entrada",qtd,vu,qtd*vu,"sync-fech",sheet,chave])
+                                chaves_exist.add(chave); add_count+=1
+                    for prod,qtd,vu in vendas:
+                        if qtd>0:
+                            chave=f"{data}|{pdv_sinc}|{prod}|SAI|{qtd}|{vu}"
                             if chave not in chaves_exist:
-                                ws.append_row([data, hora, pdv_sinc, prod, "Venda",
-                                               float(qtd), float(vu), float(qtd*vu), "sync-fech", sheet, chave])
-                                chaves_exist.add(chave)
-                                add_count += 1
+                                ws.append_row([data,hora,pdv_sinc,prod,"Venda",qtd,vu,qtd*vu,"sync-fech",sheet,chave])
+                                chaves_exist.add(chave); add_count+=1
 
                 st.success(f"✅ Sincronização concluída: {add_count} movimentos incluídos.")
                 st.cache_data.clear()
@@ -1502,121 +1311,78 @@ def render_gestao_loterica(spreadsheet):
         st.markdown("#### ✏️ Editar ou Remover Fechamento (PDV + Data)")
 
         c1, c2 = st.columns(2)
-        with c1:
-            pdv_ed = st.selectbox("PDV", list(FECH_PDV.keys()), key="ed_pdv")
+        with c1: pdv_ed = st.selectbox("PDV", list(FECH_PDV.keys()), key="ed_pdv")
         with c2:
-            # carrega datas disponíveis para esse PDV
             try:
                 sheet_name = _sheet_for_pdv(pdv_ed)
-                dados = buscar_dados(spreadsheet, sheet_name) or []
-                df_dates = pd.DataFrame(dados)
+                df_dates = pd.DataFrame(buscar_dados(spreadsheet, sheet_name) or [])
                 if df_dates.empty or "Data_Fechamento" not in df_dates.columns:
-                    st.warning("Nenhum fechamento encontrado para este PDV.")
-                    st.stop()
+                    st.warning("Nenhum fechamento encontrado para este PDV."); st.stop()
                 df_dates["Data_Fechamento"] = pd.to_datetime(df_dates["Data_Fechamento"], errors="coerce").dt.date
                 datas_pdv = sorted(df_dates["Data_Fechamento"].dropna().unique().tolist(), reverse=True)
             except Exception as e:
-                st.error(f"Erro ao carregar datas: {e}")
-                st.stop()
-
+                st.error(f"Erro ao carregar datas: {e}"); st.stop()
             data_sel = st.selectbox("Data", datas_pdv, format_func=lambda d: d.strftime("%d/%m/%Y"), key="ed_data")
 
-        # busca o registro selecionado
         df_reg = df_dates[(df_dates["PDV"].astype(str) == pdv_ed) & (df_dates["Data_Fechamento"] == data_sel)]
         if df_reg.empty:
-            st.info("Registro não encontrado para o PDV/Data selecionados.")
-            st.stop()
+            st.info("Registro não encontrado para o PDV/Data selecionados."); st.stop()
+        rec = _normalize_fech(df_reg).iloc[0].to_dict()
 
-        rec = df_reg.iloc[0].to_dict()
-
-        # Tipagem básica
-        def _get_num(d, k):
-            try:
-                return float(pd.to_numeric(d.get(k, 0), errors="coerce"))
-            except Exception:
-                return 0.0
-
-        # Recalcula automáticos do dia
-        ret_caixa_interno, _ids = _get_sangrias_do_dia(pdv_ed, data_sel)
-        supr_cofre_dia, _ids_sup = _get_suprimentos_cofre_dia(pdv_ed, data_sel)
+        # automáticos do dia
+        ret_caixa_interno, _ = _get_sangrias_do_dia(pdv_ed, data_sel)
+        supr_cofre_dia, _ = _get_suprimentos_cofre_dia(pdv_ed, data_sel)
         saldo_ant_recalc = _get_saldo_anterior(pdv_ed, data_sel)
         troco_anterior = _get_troco_anterior(pdv_ed, data_sel)
 
         with st.form("form_editar_fechamento", clear_on_submit=False):
             st.markdown("##### Dados do registro")
-
             ctop1, ctop2, ctop3 = st.columns(3)
-            with ctop1:
-                operador_ed = st.text_input("Operador", value=str(rec.get("Operador", "")))
-            with ctop2:
-                st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {ret_caixa_interno:,.2f}", disabled=True)
-            with ctop3:
-                st.text_input("Suprimento do Cofre (auto)", value=f"R$ {supr_cofre_dia:,.2f}", disabled=True)
+            with ctop1: operador_ed = st.text_input("Operador", value=str(rec.get("Operador","")))
+            with ctop2: st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {ret_caixa_interno:,.2f}", disabled=True)
+            with ctop3: st.text_input("Suprimento do Cofre (auto)", value=f"R$ {supr_cofre_dia:,.2f}", disabled=True)
 
             st.markdown("##### Compras")
             cb1, cb2, cb3 = st.columns(3)
-            with cb1:
-                qtd_comp_bolao = st.number_input("Qtd Compra Bolão (un)", min_value=0, step=1, format="%d",
-                                                 value=int(_get_num(rec, "Qtd_Compra_Bolao")))
-            with cb2:
-                custo_unit_bolao = st.number_input("Custo Unit Bolão (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                   value=_get_num(rec, "Custo_Unit_Bolao"))
+            with cb1: qtd_comp_bolao = st.number_input("Qtd Compra Bolão (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Compra_Bolao",0)))
+            with cb2: custo_unit_bolao = st.number_input("Custo Unit Bolão (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Custo_Unit_Bolao",0)))
             with cb3:
                 tot_comp_bolao = qtd_comp_bolao * custo_unit_bolao
                 st.metric("Total Compra Bolão", f"R$ {tot_comp_bolao:,.2f}")
 
+            # (raspadinha/federal mantidas para compatibilidade)
             cr1, cr2, cr3 = st.columns(3)
-            with cr1:
-                qtd_comp_rasp = st.number_input("Qtd Compra Raspadinha (un)", min_value=0, step=1, format="%d",
-                                                value=int(_get_num(rec, "Qtd_Compra_Raspadinha")))
-            with cr2:
-                custo_unit_rasp = st.number_input("Custo Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                  value=_get_num(rec, "Custo_Unit_Raspadinha"))
+            with cr1: qtd_comp_rasp = st.number_input("Qtd Compra Raspadinha (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Compra_Raspadinha",0)))
+            with cr2: custo_unit_rasp = st.number_input("Custo Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Custo_Unit_Raspadinha",0)))
             with cr3:
                 tot_comp_rasp = qtd_comp_rasp * custo_unit_rasp
                 st.metric("Total Compra Raspadinha", f"R$ {tot_comp_rasp:,.2f}")
 
             cl1, cl2, cl3 = st.columns(3)
-            with cl1:
-                qtd_comp_fed = st.number_input("Qtd Compra Loteria Federal (un)", min_value=0, step=1, format="%d",
-                                               value=int(_get_num(rec, "Qtd_Compra_LoteriaFederal")))
-            with cl2:
-                custo_unit_fed = st.number_input("Custo Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                 value=_get_num(rec, "Custo_Unit_LoteriaFederal"))
+            with cl1: qtd_comp_fed = st.number_input("Qtd Compra Loteria Federal (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Compra_LoteriaFederal",0)))
+            with cl2: custo_unit_fed = st.number_input("Custo Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Custo_Unit_LoteriaFederal",0)))
             with cl3:
                 tot_comp_fed = qtd_comp_fed * custo_unit_fed
                 st.metric("Total Compra Loteria Federal", f"R$ {tot_comp_fed:,.2f}")
 
             st.markdown("##### Vendas")
             vb1, vb2, vb3 = st.columns(3)
-            with vb1:
-                qtd_venda_bolao = st.number_input("Qtd Venda Bolão (un)", min_value=0, step=1, format="%d",
-                                                  value=int(_get_num(rec, "Qtd_Venda_Bolao")))
-            with vb2:
-                preco_unit_bolao = st.number_input("Preço Unit Bolão (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                   value=_get_num(rec, "Preco_Unit_Bolao"))
+            with vb1: qtd_venda_bolao = st.number_input("Qtd Venda Bolão (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Venda_Bolao",0)))
+            with vb2: preco_unit_bolao = st.number_input("Preço Unit Bolão (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Preco_Unit_Bolao",0)))
             with vb3:
                 tot_venda_bolao = qtd_venda_bolao * preco_unit_bolao
                 st.metric("Total Venda Bolão", f"R$ {tot_venda_bolao:,.2f}")
 
             vr1, vr2, vr3 = st.columns(3)
-            with vr1:
-                qtd_venda_rasp = st.number_input("Qtd Venda Raspadinha (un)", min_value=0, step=1, format="%d",
-                                                 value=int(_get_num(rec, "Qtd_Venda_Raspadinha")))
-            with vr2:
-                preco_unit_rasp = st.number_input("Preço Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                  value=_get_num(rec, "Preco_Unit_Raspadinha"))
+            with vr1: qtd_venda_rasp = st.number_input("Qtd Venda Raspadinha (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Venda_Raspadinha",0)))
+            with vr2: preco_unit_rasp = st.number_input("Preço Unit Raspadinha (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Preco_Unit_Raspadinha",0)))
             with vr3:
                 tot_venda_rasp = qtd_venda_rasp * preco_unit_rasp
                 st.metric("Total Venda Raspadinha", f"R$ {tot_venda_rasp:,.2f}")
 
             vf1, vf2, vf3 = st.columns(3)
-            with vf1:
-                qtd_venda_fed = st.number_input("Qtd Venda Loteria Federal (un)", min_value=0, step=1, format="%d",
-                                                value=int(_get_num(rec, "Qtd_Venda_LoteriaFederal")))
-            with vf2:
-                preco_unit_fed = st.number_input("Preço Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f",
-                                                 value=_get_num(rec, "Preco_Unit_LoteriaFederal"))
+            with vf1: qtd_venda_fed = st.number_input("Qtd Venda Loteria Federal (un)", min_value=0, step=1, format="%d", value=int(rec.get("Qtd_Venda_LoteriaFederal",0)))
+            with vf2: preco_unit_fed = st.number_input("Preço Unit Loteria Federal (R$)", min_value=0.0, step=1.0, format="%.2f", value=float(rec.get("Preco_Unit_LoteriaFederal",0)))
             with vf3:
                 tot_venda_fed = qtd_venda_fed * preco_unit_fed
                 st.metric("Total Venda Loteria Federal", f"R$ {tot_venda_fed:,.2f}")
@@ -1625,64 +1391,35 @@ def render_gestao_loterica(spreadsheet):
 
             st.markdown("##### Outras movimentações")
             om1, om2, om3 = st.columns(3)
-            with om1:
-                movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                                     value=_get_num(rec, "Movimentacao_Cielo"))
-            with om2:
-                pagamento_premios = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                                    value=_get_num(rec, "Pagamento_Premios"))
-            with om3:
-                vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                                 value=_get_num(rec, "Vales_Despesas"))
+            with om1: movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Movimentacao_Cielo",0)))
+            with om2: pagamento_premios = st.number_input("Pagamento de Prêmios (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Pagamento_Premios",0)))
+            with om3: vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Vales_Despesas",0)))
 
             om4, om5, om6 = st.columns(3)
-            with om4:
-                pix_saida = st.number_input("PIX Saída (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                            value=_get_num(rec, "Pix_Saida"))
-            with om5:
-                retirada_cofre = st.number_input("Retirada para Cofre (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                                 value=_get_num(rec, "Retirada_Cofre"))
-            with om6:
-                cheques_recebidos = st.number_input("Cheques Recebidos (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                                    value=_get_num(rec, "Cheques_Recebidos"))
+            with om4: pix_saida = st.number_input("PIX Saída (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Pix_Saida",0)))
+            with om5: retirada_cofre = st.number_input("Retirada para Cofre (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Retirada_Cofre",0)))
+            with om6: cheques_recebidos = st.number_input("Cheques Recebidos (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Cheques_Recebidos",0)))
 
             st.markdown("##### Encerrante / Caixa")
             cenc1, cenc2, cenc3 = st.columns(3)
-            with cenc1:
-                encerrante_relatorio = st.number_input("Encerrante do Relatório (±)", step=50.0, format="%.2f",
-                                                       value=_get_num(rec, "Encerrante_Relatorio"))
-            with cenc2:
-                st.text_input("Troco do dia anterior (auto)", value=f"R$ {troco_anterior:,.2f}", disabled=True)
-            with cenc3:
-                dg_final = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f",
-                                           value=_get_num(rec, "Dinheiro_Gaveta_Final"))
+            with cenc1: encerrante_relatorio = st.number_input("Encerrante do Relatório (±)", step=50.0, format="%.2f", value=float(rec.get("Encerrante_Relatorio",0)))
+            with cenc2: st.text_input("Troco do dia anterior (auto)", value=f"R$ {troco_anterior:,.2f}", disabled=True)
+            with cenc3: dg_final = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f", value=float(rec.get("Dinheiro_Gaveta_Final",0)))
 
-            # Cálculo final (tradicional)
+            # Cálculo tradicional (saldo final do caixa)
             saldo_final_calc = (
                 _to_float(saldo_ant_recalc)
                 + (_to_float(total_vendas) - _to_float(movimentacao_cielo))
-                - _to_float(pagamento_premios)
-                - _to_float(vales_despesas)
-                - _to_float(pix_saida)
-                - _to_float(retirada_cofre)
-                - _to_float(ret_caixa_interno)
+                - _to_float(pagamento_premios) - _to_float(vales_despesas)
+                - _to_float(pix_saida) - _to_float(retirada_cofre) - _to_float(ret_caixa_interno)
             )
             diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
 
-            # Conciliação do Encerrante (edição)
-            left_enc = (_to_float(encerrante_relatorio)
-                        + _to_float(troco_anterior)
-                        + _to_float(supr_cofre_dia)
-                        + _to_float(total_vendas))
-            right_enc = (_to_float(movimentacao_cielo)
-                         + _to_float(pix_saida)
-                         + _to_float(cheques_recebidos)
-                         + _to_float(pagamento_premios)
-                         + _to_float(vales_despesas)
-                         + _to_float(retirada_cofre)
-                         + _to_float(tot_comp_bolao)  # compra bolão
-                         + _to_float(ret_caixa_interno)
-                         + _to_float(dg_final))
+            # Conciliação do Encerrante (regra acordada)
+            left_enc  = _to_float(encerrante_relatorio) + _to_float(troco_anterior) + _to_float(supr_cofre_dia) + _to_float(total_vendas)
+            right_enc = _to_float(movimentacao_cielo) + _to_float(pix_saida) + _to_float(cheques_recebidos) \
+                        + _to_float(pagamento_premios) + _to_float(vales_despesas) + _to_float(retirada_cofre) \
+                        + _to_float(tot_comp_bolao) + _to_float(ret_caixa_interno) + _to_float(dg_final)
             delta_enc = left_enc - right_enc
 
             st.markdown("##### Resumo")
@@ -1691,8 +1428,7 @@ def render_gestao_loterica(spreadsheet):
                 st.metric("Total de Vendas", f"R$ {total_vendas:,.2f}")
                 st.metric("Saldo Anterior (recalc)", f"R$ {saldo_ant_recalc:,.2f}")
             with r2:
-                st.metric("Saídas (Prêmios+Despesas+PIX+Retiradas)", 
-                          f"R$ {(pagamento_premios + vales_despesas + pix_saida + retirada_cofre + ret_caixa_interno):,.2f}")
+                st.metric("Saídas (Prêmios+Despesas+PIX+Retiradas)", f"R$ {(pagamento_premios+vales_despesas+pix_saida+retirada_cofre+ret_caixa_interno):,.2f}")
                 st.metric("Cielo (não entra em caixa)", f"R$ {movimentacao_cielo:,.2f}")
             with r3:
                 st.metric("Saldo Final Calculado", f"R$ {saldo_final_calc:,.2f}")
@@ -1703,7 +1439,6 @@ def render_gestao_loterica(spreadsheet):
             salvar = col_save.form_submit_button("💾 Salvar alterações", use_container_width=True)
             excluir = col_del.form_submit_button("🗑️ Remover este fechamento", use_container_width=True)
 
-        # ações
         ws_pdv = get_or_create_worksheet(spreadsheet, _sheet_for_pdv(pdv_ed), HEADERS_FECHAMENTO)
         row_idx = _find_row_by_pdv_date(ws_pdv, pdv_ed, data_sel)
 
@@ -1723,7 +1458,6 @@ def render_gestao_loterica(spreadsheet):
                         float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas), float(pix_saida),
                         float(retirada_cofre), float(ret_caixa_interno), float(dg_final),
                         float(saldo_ant_recalc), float(saldo_final_calc), float(diferenca),
-                        # novos campos
                         float(encerrante_relatorio), float(cheques_recebidos), float(supr_cofre_dia), float(troco_anterior), float(delta_enc)
                     ]
                     ws_pdv.update(f"A{row_idx}", [row])
@@ -1740,12 +1474,12 @@ def render_gestao_loterica(spreadsheet):
                     try:
                         ws_pdv.delete_rows(row_idx)
                         st.success("✅ Fechamento removido.")
-                        st.cache_data.clear()
-                        st.experimental_rerun()
+                        st.cache_data.clear(); st.experimental_rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao remover: {e}")
             else:
                 st.info("Marque a confirmação para habilitar a remoção.")
+
 
 
 
