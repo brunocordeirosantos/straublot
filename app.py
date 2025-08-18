@@ -543,7 +543,7 @@ def verificar_login():
 
 
 # ------------------------------------------------------------
-# Fechamento de Caixa da Lotérica (PDV1/PDV2) — enxuto + conferência rápida
+# Fechamento de Caixa da Lotérica (PDV1/PDV2) — enxuto + conferência rápida + suprimento do cofre
 # ------------------------------------------------------------
 def render_fechamento_loterica(spreadsheet):
     import pandas as pd
@@ -565,64 +565,63 @@ def render_fechamento_loterica(spreadsheet):
         "Encerrante_Relatorio", "Cheques_Recebidos", "Suprimento_Cofre", "Troco_Anterior", "Delta_Encerrante"
     ]
 
+    # Guias auxiliares p/ lançamentos espelhados
+    MOV_PDV_SHEET   = "Movimentacoes_PDV"
+    HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Obs","Vinculo_ID"]
+
+    COFRE_SHEET     = "Cofre_Mov"  # ➜ ajuste o nome se sua gestão do cofre usa outra guia
+    HEADERS_COFRE   = ["Data","Hora","Tipo","PDV","Valor","Obs","Vinculo_ID","Origem"]
+
     # ---------- helpers ----------
     def _sheet_for_pdv(pdv):
         return "Fechamentos_PDV1" if pdv == "PDV 1" else "Fechamentos_PDV2"
 
     def _to_float(x):
-        try:
-            return float(x)
-        except Exception:
-            return 0.0
+        try: return float(x)
+        except Exception: return 0.0
 
     def _get_sangrias_do_dia(pdv, data_alvo):
         """Soma 'Saída p/ Caixa Interno' (sangrias) no dia (PDV+Data) em Movimentacoes_PDV."""
         total, ids = 0.0, []
         try:
-            mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+            mov_raw = buscar_dados(spreadsheet, MOV_PDV_SHEET) or []
             df = pd.DataFrame(mov_raw)
             if not df.empty:
                 for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
-                    if col not in df.columns:
-                        df[col] = None
+                    if col not in df.columns: df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                m = (
-                    df["Data"].eq(pd.to_datetime(data_alvo).date())
-                    & df["PDV"].astype(str).eq(pdv)
-                    & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno")
-                )
+                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
+                     & df["PDV"].astype(str).eq(pdv)
+                     & df["Tipo_Mov"].astype(str).eq("Saída p/ Caixa Interno"))
                 dfd = df.loc[m].copy()
                 if not dfd.empty:
                     dfd["Valor"] = pd.to_numeric(dfd["Valor"], errors="coerce").fillna(0.0)
                     total = float(dfd["Valor"].sum())
                     ids = dfd["Vinculo_ID"].dropna().astype(str).tolist()
         except Exception as e:
-            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV (sangrias): {e}")
+            st.warning(f"⚠️ Não foi possível ler {MOV_PDV_SHEET} (sangrias): {e}")
         return total, ids
 
     def _get_suprimentos_cofre_dia(pdv, data_alvo):
         """Soma 'Entrada do Cofre' (suprimento do cofre para PDV) no dia em Movimentacoes_PDV."""
         total, ids = 0.0, []
         try:
-            mov_raw = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
+            mov_raw = buscar_dados(spreadsheet, MOV_PDV_SHEET) or []
             df = pd.DataFrame(mov_raw)
             if not df.empty:
                 for col in ["Data","PDV","Tipo_Mov","Valor","Vinculo_ID"]:
-                    if col not in df.columns:
-                        df[col] = None
+                    if col not in df.columns: df[col] = None
                 df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
-                m = (
-                    df["Data"].eq(pd.to_datetime(data_alvo).date())
-                    & df["PDV"].astype(str).eq(pdv)
-                    & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre")
-                )
+                m = (df["Data"].eq(pd.to_datetime(data_alvo).date())
+                     & df["PDV"].astype(str).eq(pdv)
+                     & df["Tipo_Mov"].astype(str).eq("Entrada do Cofre"))
                 dfe = df.loc[m].copy()
                 if not dfe.empty:
                     dfe["Valor"] = pd.to_numeric(dfe["Valor"], errors="coerce").fillna(0.0)
                     total = float(dfe["Valor"].sum())
                     ids = dfe["Vinculo_ID"].dropna().astype(str).tolist()
         except Exception as e:
-            st.warning(f"⚠️ Não foi possível ler Movimentacoes_PDV (entradas do cofre): {e}")
+            st.warning(f"⚠️ Não foi possível ler {MOV_PDV_SHEET} (suprimentos): {e}")
         return total, ids
 
     def _get_saldo_anterior(pdv, data_alvo):
@@ -630,13 +629,11 @@ def render_fechamento_loterica(spreadsheet):
         try:
             ws_name = _sheet_for_pdv(pdv)
             df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
-            if df.empty or "Data_Fechamento" not in df.columns:
-                return 0.0
+            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[df["PDV"].astype(str).eq(pdv)]
             df = df[df["Data_Fechamento"] < pd.to_datetime(data_alvo).date()]
-            if df.empty:
-                return 0.0
+            if df.empty: return 0.0
             if "Saldo_Final_Calculado" in df.columns:
                 df["Saldo_Final_Calculado"] = pd.to_numeric(df["Saldo_Final_Calculado"], errors="coerce").fillna(0.0)
                 df = df.sort_values("Data_Fechamento")
@@ -650,12 +647,10 @@ def render_fechamento_loterica(spreadsheet):
         try:
             ws_name = _sheet_for_pdv(pdv)
             df = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
-            if df.empty or "Data_Fechamento" not in df.columns:
-                return 0.0
+            if df.empty or "Data_Fechamento" not in df.columns: return 0.0
             df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
             df = df[(df["PDV"].astype(str).eq(pdv)) & (df["Data_Fechamento"] < pd.to_datetime(data_alvo).date())]
-            if df.empty:
-                return 0.0
+            if df.empty: return 0.0
             df = df.sort_values("Data_Fechamento")
             if "Dinheiro_Gaveta_Final" in df.columns:
                 return float(pd.to_numeric(df["Dinheiro_Gaveta_Final"], errors="coerce").fillna(0.0).iloc[-1])
@@ -673,6 +668,13 @@ def render_fechamento_loterica(spreadsheet):
     operador = st.selectbox(
         "👤 Operador", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_pdv"
     )
+
+    # 👉 Campo de lançamento imediato de suprimento do cofre
+    st.markdown("### Suprimento do Cofre")
+    supr_manual = st.number_input("Suprimento do Cofre (lançar agora)", min_value=0.0, step=50.0, format="%.2f",
+                                  help="Se informar um valor aqui, ao salvar serão criados os lançamentos: "
+                                       "Entrada do Cofre no PDV e Saída para PDV na guia do Cofre.")
+    st.markdown("---")
 
     st.markdown("### Compras (estoque)")
     # Compras de BOLÃO — editáveis
@@ -745,10 +747,10 @@ def render_fechamento_loterica(spreadsheet):
         st.caption("IDs de vínculo das sangrias do dia:")
         st.code(", ".join(ids_sangria))
 
-    supr_cofre_pdv, ids_supr = _get_suprimentos_cofre_dia(pdv, data_alvo)
-    st.text_input("Suprimento do Cofre (auto)", value=f"R$ {supr_cofre_pdv:,.2f}", disabled=True)
+    supr_cofre_auto, ids_supr = _get_suprimentos_cofre_dia(pdv, data_alvo)
+    st.text_input("Suprimento do Cofre (auto)", value=f"R$ {supr_cofre_auto:,.2f}", disabled=True)
     if ids_supr:
-        st.caption("IDs de vínculo dos suprimentos do cofre do dia:")
+        st.caption("IDs de vínculo dos suprimentos do cofre (auto):")
         st.code(", ".join(ids_supr))
 
     st.markdown("---")
@@ -772,10 +774,12 @@ def render_fechamento_loterica(spreadsheet):
     # -------- Conferência rápida do dia (duas tabelas) --------
     st.markdown("#### 📑 Conferência rápida (dia)")
 
+    supr_total = _to_float(supr_cofre_auto) + _to_float(supr_manual)
+
     entradas = pd.DataFrame([
         ["Encerrante do Relatório",         _to_float(encerrante_rel)],
         ["Troco do dia anterior (auto)",    _to_float(troco_anterior)],
-        ["Suprimento do Cofre (auto)",      _to_float(supr_cofre_pdv)],
+        ["Suprimento do Cofre (auto + manual)", _to_float(supr_total)],
         ["Vendas — Bolão",                  _to_float(total_venda_bolao)],
         ["Vendas — Raspadinha",             _to_float(total_venda_rasp)],
         ["Vendas — Loteria Federal",        _to_float(total_venda_fed)],
@@ -794,8 +798,7 @@ def render_fechamento_loterica(spreadsheet):
 
     entradas_tot = entradas["Valor_R$"].sum()
     saidas_tot   = saidas["Valor_R$"].sum()
-    # 👉 saldo correto do encerrante: Entradas − Saídas (ideal = 0,00)
-    delta_enc_calc = entradas_tot - saidas_tot
+    delta_enc_calc = entradas_tot - saidas_tot  # ideal 0,00
 
     entradas_show = pd.concat(
         [entradas, pd.DataFrame([{"Categoria": "TOTAL", "Valor_R$": entradas_tot}])],
@@ -818,7 +821,6 @@ def render_fechamento_loterica(spreadsheet):
     st.markdown("#### 🎯 Indicadores finais")
     k1, k2 = st.columns(2)
     with k1:
-        # 👉 mostrar Entradas − Saídas (e não o valor digitado)
         st.metric("Saldo calculado (Encerrante)", f"R$ {delta_enc_calc:,.2f}")
     with k2:
         st.metric("Troco do dia anterior (auto)", f"R$ {troco_anterior:,.2f}")
@@ -834,10 +836,8 @@ def render_fechamento_loterica(spreadsheet):
             existe_registro = False
             if not df_exist.empty and {"Data_Fechamento","PDV"}.issubset(df_exist.columns):
                 df_exist["Data_Fechamento"] = pd.to_datetime(df_exist["Data_Fechamento"], errors="coerce").dt.date
-                mask_dup = (
-                    df_exist["PDV"].astype(str).eq(pdv)
-                    & df_exist["Data_Fechamento"].eq(pd.to_datetime(data_alvo).date())
-                )
+                mask_dup = (df_exist["PDV"].astype(str).eq(pdv) &
+                            df_exist["Data_Fechamento"].eq(pd.to_datetime(data_alvo).date()))
                 existe_registro = bool(df_exist.loc[mask_dup].shape[0] > 0)
 
             if existe_registro:
@@ -845,9 +845,35 @@ def render_fechamento_loterica(spreadsheet):
                          "Edite/remova o registro existente na Gestão antes de lançar um novo.")
                 st.stop()
 
+            # 1) Lançar suprimento manual, se houver, espelhando PDV + Cofre
+            if _to_float(supr_manual) > 0:
+                # garante as guias
+                ws_mov_pdv = get_or_create_worksheet(spreadsheet, MOV_PDV_SHEET, HEADERS_MOV_PDV)
+                ws_cofre   = get_or_create_worksheet(spreadsheet, COFRE_SHEET, HEADERS_COFRE)
+
+                hora = obter_horario_brasilia()
+                vinc = f"SUPR|{str(data_alvo)}|{pdv}|{_to_float(supr_manual):.2f}|{hora}"
+
+                # de-duplicação simples (nossos próprios lançamentos)
+                mov_exist = pd.DataFrame(buscar_dados(spreadsheet, MOV_PDV_SHEET) or [])
+                if "Vinculo_ID" in mov_exist.columns and mov_exist["Vinculo_ID"].astype(str).eq(vinc).any():
+                    pass  # já lançado
+                else:
+                    # Entrada no PDV
+                    ws_mov_pdv.append_row([
+                        str(data_alvo), hora, pdv, "Entrada do Cofre",
+                        float(_to_float(supr_manual)), "lançado no Fechamento PDV", vinc
+                    ])
+                    # Saída no Cofre
+                    ws_cofre.append_row([
+                        str(data_alvo), hora, "Saída para PDV", pdv,
+                        float(_to_float(supr_manual)), "lançado via Fechamento PDV", vinc, "FECH_PDV"
+                    ])
+
             # Retirada para Cofre deixou de existir => grava 0.0
             retirada_cofre = 0.0
 
+            # 2) Salva o fechamento (usa suprimento total auto+manual e Δ correto)
             row = [
                 str(data_alvo), pdv, operador,
                 int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
@@ -859,8 +885,8 @@ def render_fechamento_loterica(spreadsheet):
                 float(movimentacao_cielo), float(pagamento_premios), float(vales_despesas), float(pix_saida),
                 float(retirada_cofre), float(total_sangrias_pdv), float(dg_final),
                 float(saldo_anterior), float(saldo_final_calc), float(diferenca),
-                float(encerrante_rel), float(cheques_recebidos), float(supr_cofre_pdv), float(troco_anterior),
-                float(delta_enc_calc)  # 👉 salva Entradas − Saídas
+                float(encerrante_rel), float(cheques_recebidos), float(supr_total), float(troco_anterior),
+                float(delta_enc_calc)  # Entradas − Saídas
             ]
 
             ws.append_row(row)
@@ -868,6 +894,7 @@ def render_fechamento_loterica(spreadsheet):
             st.cache_data.clear()
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 
@@ -2166,14 +2193,22 @@ def render_dashboard_caixa(spreadsheet):
             unsafe_allow_html=True,
         )
 
-# Função melhorada para gestão do cofre com interface dinâmica (pareada com Suprimento do Caixa)
+
+# Função melhorada para gestão do cofre (compatível com Cofre_Mov do Fechamento PDV)
 def render_cofre(spreadsheet):
+    import pandas as pd
     from decimal import Decimal
     from uuid import uuid4
+
     st.subheader("🏦 Gestão do Cofre")
 
-    # Cabeçalho padronizado (alinhar com render_operacoes_caixa)
-    HEADERS_COFRE = [
+    # === Guias e cabeçalhos ===
+    SHEET_COFRE_MAIN   = "Operacoes_Cofre"   # guia "rica" (a sua atual)
+    SHEET_COFRE_MIRROR = "Cofre_Mov"         # guia "simples" usada pelo Fechamento PDV
+    SHEET_CAIXA        = "Operacoes_Caixa"
+    SHEET_MOV_PDV      = "Movimentacoes_PDV"
+
+    HEADERS_COFRE_MAIN = [
         "Data", "Hora", "Operador",
         "Tipo",            # "Entrada" | "Saída"
         "Categoria",       # Entrada: Banco|Sócio|Vendas|Outros | Saída: Transferência para Caixa Interno|Transferência para Caixa Lotérica|Outros
@@ -2185,57 +2220,93 @@ def render_cofre(spreadsheet):
         "Vinculo_ID"       # ID de vínculo (ex.: SUPR-abc123 ou COFREPDV-xxxx)
     ]
 
-    # Cabeçalho da planilha de operações do Caixa (usado para criar o par do suprimento)
+    # espelho simplificado para integração com o fechamento do PDV
+    HEADERS_COFRE_MIRROR = ["Data","Hora","Tipo","PDV","Valor","Obs","Vinculo_ID","Origem"]
     HEADERS_CAIXA = [
         "Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF",
         "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro",
         "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"
     ]
-
-    # Cabeçalho de movimentos de PDV (já usado em outras partes do sistema)
-    HEADERS_MOV_PDV = [
-        "Data", "Hora", "PDV", "Tipo_Mov",
-        "Valor", "Vinculo_ID", "Operador", "Observacoes"
-    ]
+    HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"]
 
     def _gerar_id(prefix="ID"):
         return f"{prefix}-{uuid4().hex[:8]}"
 
+    # --- util: normaliza df do cofre (rico ou espelho) para um formato comum ---
+    def _norm_df_cofre(df_main, df_mirror):
+        cols = ["Data","Hora","Tipo","Categoria","Origem","Destino","Valor","Status","Vinculo_ID","Fonte"]
+        out = pd.DataFrame(columns=cols)
+
+        # mapeia df_main (rico)
+        if df_main is not None and not df_main.empty:
+            d = df_main.copy()
+            for c in ["Data","Hora","Tipo","Categoria","Origem","Destino","Valor","Status","Vinculo_ID"]:
+                if c not in d.columns: d[c] = ""
+            d["Fonte"] = "Operacoes_Cofre"
+            d = d[["Data","Hora","Tipo","Categoria","Origem","Destino","Valor","Status","Vinculo_ID","Fonte"]]
+            out = pd.concat([out, d], ignore_index=True)
+
+        # mapeia df_mirror (simples) para o mesmo shape
+        if df_mirror is not None and not df_mirror.empty:
+            m = df_mirror.copy()
+            for c in ["Data","Hora","Tipo","PDV","Valor","Obs","Vinculo_ID","Origem"]:
+                if c not in m.columns: m[c] = ""
+            # converte linhas espelho
+            mm = pd.DataFrame({
+                "Data":      m["Data"],
+                "Hora":      m["Hora"],
+                "Tipo":      m["Tipo"].replace({
+                                "Saída para PDV": "Saída",
+                                "Entrada no Cofre": "Entrada",
+                                "Saída p/ Caixa Interno": "Saída"
+                             }),
+                "Categoria": m.apply(lambda r: (
+                                    "Transferência para Caixa Lotérica" if str(r.get("Tipo","")).startswith("Saída para PDV")
+                                    else ("Transferência para Caixa Interno" if str(r.get("Tipo","")).startswith("Saída p/ Caixa Interno")
+                                          else "Outros")
+                                 ), axis=1),
+                "Origem":    m.get("Origem","").where(m.get("Origem","")!="", "Cofre Principal"),
+                "Destino":   m.apply(lambda r: (
+                                    f"Caixa Lotérica - {r.get('PDV','')}" if str(r.get("Tipo","")).startswith("Saída para PDV")
+                                    else ("Caixa Interno" if str(r.get("Tipo","")).startswith("Saída p/ Caixa Interno")
+                                          else "Cofre Principal")
+                                 ), axis=1),
+                "Valor":     pd.to_numeric(m["Valor"], errors="coerce").fillna(0.0),
+                "Status":    "Concluído",
+                "Vinculo_ID":m["Vinculo_ID"],
+                "Fonte":     "Cofre_Mov"
+            })
+            out = pd.concat([out, mm], ignore_index=True)
+
+        # tipagem
+        if not out.empty:
+            try:
+                out["Valor"] = pd.to_numeric(out["Valor"], errors="coerce").fillna(0.0)
+            except Exception:
+                out["Valor"] = 0.0
+        return out
+
     try:
-        # ----- Carrega histórico do cofre para exibir saldo -----
-        cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre") or []
-        df_cofre = pd.DataFrame(cofre_data)
+        # garante as guias-base (não falha se já existem)
+        ws_main   = get_or_create_worksheet(spreadsheet, SHEET_COFRE_MAIN,   HEADERS_COFRE_MAIN)
+        ws_mirror = get_or_create_worksheet(spreadsheet, SHEET_COFRE_MIRROR, HEADERS_COFRE_MIRROR)
 
-        # Backwards-compat simples para nomes antigos
-        if not df_cofre.empty:
-            if "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-                df_cofre["Tipo"] = df_cofre.get("Tipo", df_cofre["Tipo_Transacao"].replace({
-                    "Entrada no Cofre": "Entrada",
-                    "Saída do Cofre": "Saída"
-                }))
-                if "Destino_Origem" in df_cofre.columns and "Origem" not in df_cofre.columns:
-                    df_cofre["Origem"] = df_cofre["Destino_Origem"]
-                if "Destino" not in df_cofre.columns:
-                    df_cofre["Destino"] = df_cofre.get("Destino_Origem", "")
-                if "Categoria" not in df_cofre.columns:
-                    df_cofre["Categoria"] = ""
-                if "Status" not in df_cofre.columns:
-                    df_cofre["Status"] = "Concluído"
-                if "Vinculo_ID" not in df_cofre.columns:
-                    df_cofre["Vinculo_ID"] = ""
+        # ----- carrega e normaliza histórico -----
+        df_main   = pd.DataFrame(buscar_dados(spreadsheet, SHEET_COFRE_MAIN)   or [])
+        df_mirror = pd.DataFrame(buscar_dados(spreadsheet, SHEET_COFRE_MIRROR) or [])
+        df_norm   = _norm_df_cofre(df_main, df_mirror)
 
-        # Cálculo do saldo do cofre
+        # saldo do cofre (Entradas - Saídas)
         saldo_cofre = Decimal("0")
-        if not df_cofre.empty and {"Tipo", "Valor"}.issubset(df_cofre.columns):
-            df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
-            entradas = df_cofre[df_cofre["Tipo"].astype(str).str.lower() == "entrada"]["Valor"].sum()
-            saidas = df_cofre[df_cofre["Tipo"].astype(str).str.lower() == "saída"]["Valor"].sum()
+        if not df_norm.empty:
+            entradas = df_norm[df_norm["Tipo"].astype(str).str.lower().eq("entrada")]["Valor"].sum()
+            saidas   = df_norm[df_norm["Tipo"].astype(str).str.lower().eq("saída")]["Valor"].sum()
             saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
 
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); padding:14px; border-radius:14px;">
             <h3 style="margin:0; font-size:28px;">R$ {saldo_cofre:,.2f}</h3>
-            <p style="margin:0;">🔒 Saldo Atual do Cofre</p>
+            <p style="margin:0;">🔒 Saldo Atual do Cofre (consolidado)</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -2285,18 +2356,17 @@ def render_cofre(spreadsheet):
 
                 if submitted:
                     try:
-                        # Planilhas-alvo
-                        ws_cofre = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
-                        ws_caixa = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
-                        ws_movpdv = get_or_create_worksheet(spreadsheet, "Movimentacoes_PDV", HEADERS_MOV_PDV)
+                        # Planilhas de apoio
+                        ws_cofre   = get_or_create_worksheet(spreadsheet, SHEET_COFRE_MAIN,   HEADERS_COFRE_MAIN)
+                        ws_caixa   = get_or_create_worksheet(spreadsheet, SHEET_CAIXA,        HEADERS_CAIXA)
+                        ws_movpdv  = get_or_create_worksheet(spreadsheet, SHEET_MOV_PDV,      HEADERS_MOV_PDV)
+                        ws_mirror  = get_or_create_worksheet(spreadsheet, SHEET_COFRE_MIRROR, HEADERS_COFRE_MIRROR)
 
-                        vinculo_id = ""
+                        vinculo_id = _gerar_id("COFRE")
+
+                        # 1) Saída -> Caixa Interno => cria SUPRIMENTO em Operacoes_Caixa + espelho opcional em Cofre_Mov
                         created_suprimento_caixa = False
-                        created_entrada_pdv = False
-
-                        # 1) Saída -> Caixa Interno => cria SUPRIMENTO em Operacoes_Caixa
                         if (tipo_mov == "Saída") and (destino == "Caixa Interno"):
-                            vinculo_id = _gerar_id("SUPR")
                             try:
                                 obs_sup = f"Origem: Cofre Principal. Vinculo_Cofre_ID: {vinculo_id}. {observacoes or ''}"
                                 ws_caixa.append_row([
@@ -2305,35 +2375,45 @@ def render_cofre(spreadsheet):
                                     float(valor), 0.0, 0.0, float(valor), 0.0,
                                     "Concluído", "", "0.00%", obs_sup
                                 ])
+                                # espelho simples (útil para auditoria)
+                                ws_mirror.append_row([
+                                    obter_data_brasilia(), obter_horario_brasilia(), "Saída p/ Caixa Interno",
+                                    "", float(valor), f"Saída via Gestão do Cofre. {observacoes or ''}",
+                                    vinculo_id, "COFRE_UI"
+                                ])
                                 created_suprimento_caixa = True
                             except Exception as e:
                                 st.warning(f"⚠️ Não foi possível criar o Suprimento no Caixa Interno agora: {e}")
 
-                        # 2) Saída -> Caixa Lotérica (PDV 1/2) => cria ENTRADA no PDV em Movimentacoes_PDV
+                        # 2) Saída -> Caixa Lotérica (PDV 1/2) => cria ENTRADA no PDV em Movimentacoes_PDV + espelho em Cofre_Mov
+                        created_entrada_pdv = False
                         if (tipo_mov == "Saída") and (categoria == "Transferência para Caixa Lotérica") and destino.startswith("Caixa Lotérica - "):
-                            vinculo_id = vinculo_id or _gerar_id("COFREPDV")
                             try:
-                                # Idempotência por Vinculo_ID
-                                mov_exist = buscar_dados(spreadsheet, "Movimentacoes_PDV") or []
-                                df_mov = pd.DataFrame(mov_exist)
-                                ja_existe = (not df_mov.empty and "Vinculo_ID" in df_mov.columns
-                                             and df_mov["Vinculo_ID"].astype(str).eq(vinculo_id).any())
+                                pdv_alvo = "PDV 1" if "PDV 1" in destino else "PDV 2"
+                                # idempotência simples por Vinculo_ID
+                                mov_exist = pd.DataFrame(buscar_dados(spreadsheet, SHEET_MOV_PDV) or [])
+                                ja_existe = (not mov_exist.empty and
+                                             "Vinculo_ID" in mov_exist.columns and
+                                             mov_exist["Vinculo_ID"].astype(str).eq(vinculo_id).any())
                                 if not ja_existe:
-                                    pdv_alvo = "PDV 1" if "PDV 1" in destino else "PDV 2"
                                     ws_movpdv.append_row([
                                         obter_data_brasilia(), obter_horario_brasilia(),
                                         pdv_alvo, "Entrada do Cofre",
                                         float(valor), vinculo_id, st.session_state.nome_usuario,
                                         f"Gerado por saída do Cofre ({vinculo_id}). {observacoes or ''}"
                                     ])
+                                # espelho na guia simples (o fechamento do PDV também escreve nesse formato)
+                                ws_mirror.append_row([
+                                    obter_data_brasilia(), obter_horario_brasilia(), "Saída para PDV",
+                                    pdv_alvo, float(valor), f"Saída via Gestão do Cofre. {observacoes or ''}",
+                                    vinculo_id, "COFRE_UI"
+                                ])
                                 created_entrada_pdv = True
                             except Exception as e:
                                 st.warning(f"⚠️ Saída registrada, mas não consegui lançar a entrada no {destino}: {e}")
 
-                        # 3) Registrar a movimentação no Cofre (sempre)
-                        obs_cofre = observacoes or ""
-                        if vinculo_id:
-                            obs_cofre = f"Vínculo: {vinculo_id}. " + obs_cofre
+                        # 3) Registrar a movimentação no Cofre (guia rica — sempre)
+                        obs_cofre = (f"Vínculo: {vinculo_id}. " if vinculo_id else "") + (observacoes or "")
                         ws_cofre.append_row([
                             obter_data_brasilia(), obter_horario_brasilia(), st.session_state.nome_usuario,
                             tipo_mov, categoria, origem, destino, float(valor),
@@ -2363,15 +2443,17 @@ def render_cofre(spreadsheet):
         # TAB 2 — Histórico
         # =========================
         with tab2:
-            st.markdown("#### Histórico de Movimentações")
+            st.markdown("#### Histórico de Movimentações (consolidado)")
             try:
-                cofre_hist = buscar_dados(spreadsheet, "Operacoes_Cofre") or []
-                dfh = pd.DataFrame(cofre_hist)
+                df_main   = pd.DataFrame(buscar_dados(spreadsheet, SHEET_COFRE_MAIN)   or [])
+                df_mirror = pd.DataFrame(buscar_dados(spreadsheet, SHEET_COFRE_MIRROR) or [])
+                dfh = _norm_df_cofre(df_main, df_mirror)
                 if not dfh.empty:
+                    # ordena por Data/Hora (quando possível)
                     if "Data" in dfh.columns and "Hora" in dfh.columns:
                         try:
                             dfh["Data"] = pd.to_datetime(dfh["Data"], errors="coerce")
-                            dfh = dfh.sort_values(by=["Data", "Hora"], ascending=False)
+                            dfh = dfh.sort_values(by=["Data","Hora"], ascending=False)
                         except Exception:
                             pass
                     st.dataframe(dfh, use_container_width=True)
@@ -2383,6 +2465,13 @@ def render_cofre(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
+
+
+
+
+
+
 
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
