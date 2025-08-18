@@ -671,7 +671,7 @@ def render_fechamento_loterica(spreadsheet):
 
     # 👉 Campo de lançamento imediato de suprimento do cofre
     st.markdown("### Suprimento do Cofre")
-    supr_manual = st.number_input("Suprimento do Cofre )", min_value=0.0, step=50.0, format="%.2f",
+    supr_manual = st.number_input("Suprimento do Cofre", min_value=0.0, step=50.0, format="%.2f",
                                   help="Se informar um valor aqui, ao salvar serão criados os lançamentos: "
                                        "Entrada do Cofre no PDV e Saída para PDV na guia do Cofre.")
     st.markdown("---")
@@ -815,13 +815,13 @@ def render_fechamento_loterica(spreadsheet):
     with ctbl2:
         st.dataframe(saidas_show, use_container_width=True)
 
-    st.caption(f"Δ Encerrante (Entradas − Saídas): **R$ {delta_enc_calc:,.2f}** — ideal é 0,00.")
+    st.caption(f"Encerrante (Entradas − Saídas): **R$ {delta_enc_calc:,.2f}** — ideal é 0,00.")
 
     # -------- Indicadores finais (apenas 2) --------
     st.markdown("#### 🎯 Indicadores finais")
     k1, k2 = st.columns(2)
     with k1:
-        st.metric("Saldo calculado (Encerrante)", f"R$ {delta_enc_calc:,.2f}")
+        st.metric("Saldo calculado (Entradas - Saídas)", f"R$ {delta_enc_calc:,.2f}")
     with k2:
         st.metric("Troco do dia anterior (auto)", f"R$ {troco_anterior:,.2f}")
 
