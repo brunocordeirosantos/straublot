@@ -658,26 +658,28 @@ def render_fechamento_loterica(spreadsheet):
         except Exception:
             return 0.0
 
-    # limpar campos pós-salvar
+    # limpar campos pós-salvar — usando pop() para evitar o erro do Streamlit
     def _reset_fechamento_form(keep_context=True):
-        defaults = {
-            K("operador"): "",
-            K("supr_manual"): 0.0,
-            K("qtd_comp_bolao"): 0,    K("custo_unit_bolao"): 0.0,
-            K("qtd_venda_bolao"): 0,   K("preco_unit_bolao"): 0.0,
-            K("qtd_venda_rasp"): 0,    K("preco_unit_rasp"): 0.0,
-            K("qtd_venda_fed"): 0,     K("preco_unit_fed"): 0.0,
-            K("mov_cielo"): 0.0,       K("pag_premios"): 0.0,
-            K("vales"): 0.0,           K("pix_saida"): 0.0,
-            K("cheques"): 0.0,
-            K("encerrante_rel"): 0.0,  K("dg_final"): 0.0,
-        }
-        for k, v in defaults.items():
-            st.session_state[k] = v
+        keys_to_clear = [
+            K("operador"),
+            K("supr_manual"),
+            K("qtd_comp_bolao"),    K("custo_unit_bolao"),
+            K("qtd_venda_bolao"),   K("preco_unit_bolao"),
+            K("qtd_venda_rasp"),    K("preco_unit_rasp"),
+            K("qtd_venda_fed"),     K("preco_unit_fed"),
+            K("mov_cielo"),         K("pag_premios"),
+            K("vales"),             K("pix_saida"),
+            K("cheques"),
+            K("encerrante_rel"),    K("dg_final"),
+        ]
+        # Mantém PDV/Data se keep_context=True, senão limpa também
         if not keep_context:
-            st.session_state[K("pdv")] = "PDV 1"
-            st.session_state[K("data")] = obter_date_brasilia()
-        st.experimental_rerun()
+            keys_to_clear += [K("pdv"), K("data")]
+
+        for k in keys_to_clear:
+            st.session_state.pop(k, None)  # remove a chave sem reatribuir
+
+        st.rerun()  # reexecuta a página com os widgets “zerados”
 
     # ---------- UI ----------
     c1, c2 = st.columns(2)
@@ -903,6 +905,7 @@ def render_fechamento_loterica(spreadsheet):
 
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 
