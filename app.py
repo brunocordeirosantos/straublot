@@ -671,7 +671,7 @@ def render_fechamento_loterica(spreadsheet):
 
     # 👉 Campo de lançamento imediato de suprimento do cofre
     st.markdown("### Suprimento do Cofre")
-    supr_manual = st.number_input("Suprimento do Cofre (lançar agora)", min_value=0.0, step=50.0, format="%.2f",
+    supr_manual = st.number_input("Suprimento do Cofre )", min_value=0.0, step=50.0, format="%.2f",
                                   help="Se informar um valor aqui, ao salvar serão criados os lançamentos: "
                                        "Entrada do Cofre no PDV e Saída para PDV na guia do Cofre.")
     st.markdown("---")
