@@ -1684,59 +1684,62 @@ def render_operacoes_caixa(spreadsheet):
 
     def _try_registrar_no_fechamento_ret_caixa_interno(data_mov, pdv_code, valor, vinculo_id, obs):
         """
-        Tenta lançar em uma planilha de Fechamento existente (coluna 'Retirada_CaixaInterno' ou similar).
-        Fallback: lança em 'Fechamento_PDV_Lancamentos'.
+        Lança no Fechamento diário do PDV (Fechamentos_PDV1/Fechamentos_PDV2)
+        na coluna 'Retirada_CaixaInterno'. Se a aba/coluna não existir, registra
+        apenas no fallback de auditoria, sem emitir avisos.
         """
-        candidatos = [
-            "Fechamentos_PDV1", "Fechamentos_PDV2",
-            "Fechamento_Loterica", "Fechamento_Loterica_PDV",
-            "Fechamento_PDV", "Fechamento PDV", "Fechamento PDVs"
-        ]
-        for nome in candidatos:
-            try:
-                dados = buscar_dados(spreadsheet, nome)
-            except Exception:
-                dados = None
-            if not dados:
-                continue
+        ws_name = "Fechamentos_PDV1" if pdv_code == "PDV 1" else "Fechamentos_PDV2"
 
+        try:
+            dados = buscar_dados(spreadsheet, ws_name) or []
+        except Exception:
+            dados = None
+
+        if dados:
             df = pd.DataFrame(dados)
-            if df.empty:
-                continue
+            if not df.empty:
+                cols = list(df.columns)
+                low  = {c: c.lower() for c in cols}
 
-            cols = list(df.columns)
-            low = {c: c.lower() for c in cols}
+                col_data = next((c for c in cols if "data" in low[c]), None)
+                col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
 
-            col_data = next((c for c in cols if "data" in low[c]), None)
-            col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
-            # procura uma coluna que pareça "Retirada_CaixaInterno"
-            col_ret_int = next((c for c in cols if ("retirada" in low[c] and ("interno" in low[c] or "caixa interno" in low[c] or "caixainterno" in low[c]))), None)
-            if not (col_data and col_pdv and col_ret_int):
-                continue
+                # Preferimos o nome exato da coluna usada no fechamento
+                col_ret_int = None
+                if "Retirada_CaixaInterno" in cols:
+                    col_ret_int = "Retirada_CaixaInterno"
+                else:
+                    # fallback leve (sem warnings)
+                    col_ret_int = next(
+                        (c for c in cols if "retirada" in low[c] and "interno" in low[c]),
+                        None
+                    )
 
-            ws = get_or_create_worksheet(spreadsheet, nome, cols)
-            nova = {c: "" for c in cols}
-            nova[col_data] = str(data_mov)
-            nova[col_pdv]  = pdv_code
-            nova[col_ret_int] = float(valor)
+                if col_data and col_pdv and col_ret_int:
+                    ws = get_or_create_worksheet(spreadsheet, ws_name, cols)
+                    nova = {c: "" for c in cols}
+                    nova[col_data]    = str(data_mov)
+                    nova[col_pdv]     = pdv_code
+                    nova[col_ret_int] = float(valor)
 
-            col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
-            if col_vinc:
-                nova[col_vinc] = vinculo_id
-            col_obs = next((c for c in cols if "observ" in low[c]), None)
-            if col_obs:
-                nova[col_obs] = f"PDV → Caixa Interno. {obs or ''}"
+                    col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
+                    if col_vinc: nova[col_vinc] = vinculo_id
+                    col_obs  = next((c for c in cols if "observ" in low[c]), None)
+                    if col_obs:  nova[col_obs]  = f"PDV → Caixa Interno. {obs or ''}"
 
-            ws.append_row([nova.get(c, "") for c in cols])
-            return True
+                    ws.append_row([nova.get(c, "") for c in cols])
+                    return True
 
-        # Fallback (auditoria)
+        # Fallback silencioso (auditoria)
         ws_fb = get_or_create_worksheet(
             spreadsheet,
             "Fechamento_PDV_Lancamentos",
             ["Data","PDV","Tipo","Valor","Vinculo_ID","Observacoes"]
         )
-        ws_fb.append_row([str(data_mov), pdv_code, "Retirada Caixa Interno", float(valor), vinculo_id, f"PDV → Caixa Interno. {obs or ''}"])
+        ws_fb.append_row([
+            str(data_mov), pdv_code, "Retirada Caixa Interno",
+            float(valor), vinculo_id, f"PDV → Caixa Interno. {obs or ''}"
+        ])
         return False
 
     try:
@@ -1928,7 +1931,7 @@ def render_operacoes_caixa(spreadsheet):
                                     f"Gerado por suprimento do Caixa Interno. {observacoes_sup or ''}"
                                 ])
 
-                            # 2.2) Fechamento PDV: tenta registrar em coluna de Retirada_CaixaInterno
+                            # 2.2) Fechamento PDV: registrar Retirada_CaixaInterno
                             _try_registrar_no_fechamento_ret_caixa_interno(
                                 data_mov, pdv_code_origem, valor_suprimento, vinculo_id, observacoes_sup
                             )
