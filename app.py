@@ -1658,10 +1658,11 @@ def render_gestao_loterica(spreadsheet):
 
 
 # ------------------------------------------------------------
-# Função para operações do caixa interno
+# Função para operações do caixa interno (com integração PDV -> Caixa Interno)
 def render_operacoes_caixa(spreadsheet):
     import pandas as pd
     from datetime import timedelta
+    from uuid import uuid4
 
     st.subheader("💳 Operações do Caixa Interno")
     
@@ -1671,134 +1672,157 @@ def render_operacoes_caixa(spreadsheet):
         "Pdv2 - terminal 030949 - Karina": "PDV 2",
     }
 
+    # Abas/headers auxiliares
+    ABA_CAIXA = "Operacoes_Caixa"
+    HEADERS_CAIXA = ["Data","Hora","Operador","Tipo_Operacao","Cliente","CPF","Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro","Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"]
+    ABA_MOV_PDV = "Movimentacoes_PDV"
+    HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"]
+
+    # --------- helpers ---------
+    def _gerar_vinc(prefix="CXINT"):
+        return f"{prefix}-{uuid4().hex[:8]}"
+
+    def _try_registrar_no_fechamento_ret_caixa_interno(data_mov, pdv_code, valor, vinculo_id, obs):
+        """
+        Tenta lançar em uma planilha de Fechamento existente (coluna 'Retirada_CaixaInterno' ou similar).
+        Fallback: lança em 'Fechamento_PDV_Lancamentos'.
+        """
+        candidatos = [
+            "Fechamentos_PDV1", "Fechamentos_PDV2",
+            "Fechamento_Loterica", "Fechamento_Loterica_PDV",
+            "Fechamento_PDV", "Fechamento PDV", "Fechamento PDVs"
+        ]
+        for nome in candidatos:
+            try:
+                dados = buscar_dados(spreadsheet, nome)
+            except Exception:
+                dados = None
+            if not dados:
+                continue
+
+            df = pd.DataFrame(dados)
+            if df.empty:
+                continue
+
+            cols = list(df.columns)
+            low = {c: c.lower() for c in cols}
+
+            col_data = next((c for c in cols if "data" in low[c]), None)
+            col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
+            # procura uma coluna que pareça "Retirada_CaixaInterno"
+            col_ret_int = next((c for c in cols if ("retirada" in low[c] and ("interno" in low[c] or "caixa interno" in low[c] or "caixainterno" in low[c]))), None)
+            if not (col_data and col_pdv and col_ret_int):
+                continue
+
+            ws = get_or_create_worksheet(spreadsheet, nome, cols)
+            nova = {c: "" for c in cols}
+            nova[col_data] = str(data_mov)
+            nova[col_pdv]  = pdv_code
+            nova[col_ret_int] = float(valor)
+
+            col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
+            if col_vinc:
+                nova[col_vinc] = vinculo_id
+            col_obs = next((c for c in cols if "observ" in low[c]), None)
+            if col_obs:
+                nova[col_obs] = f"PDV → Caixa Interno. {obs or ''}"
+
+            ws.append_row([nova.get(c, "") for c in cols])
+            return True
+
+        # Fallback (auditoria)
+        ws_fb = get_or_create_worksheet(
+            spreadsheet,
+            "Fechamento_PDV_Lancamentos",
+            ["Data","PDV","Tipo","Valor","Vinculo_ID","Observacoes"]
+        )
+        ws_fb.append_row([str(data_mov), pdv_code, "Retirada Caixa Interno", float(valor), vinculo_id, f"PDV → Caixa Interno. {obs or ''}"])
+        return False
+
     try:
-        # Headers para operações do caixa
-        HEADERS = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF", "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro", "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
-        
-        # Tabs para organizar as operações
+        # Tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa Interno"])
         
+        # =========================
+        # TAB 1 — Saque Cartão  (inalterado)
+        # =========================
         with tab1:
             st.markdown("### 💳 Saque com Cartão")
-            
             with st.form("form_saque_cartao", clear_on_submit=False):
-                # Campo de operador
-                operador_selecionado = st.selectbox("👤 Operador Responsável", 
-                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"])
-                
+                operador_selecionado = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"])
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     tipo_cartao = st.selectbox("Tipo de Cartão", ["Débito", "Crédito"])
                     valor = st.number_input("Valor do Saque (R$)", min_value=0.01, step=50.0)
                     nome = st.text_input("Nome do Cliente (Opcional)")
-                
                 with col2:
                     cpf = st.text_input("CPF do Cliente (Opcional)")
                     observacoes = st.text_area("Observações")
-                
                 col_sim, col_conf = st.columns([1, 1])
-                
                 with col_sim:
                     simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
-                
                 if simular and valor > 0:
                     try:
                         if tipo_cartao == "Débito":
                             calc = calcular_taxa_cartao_debito(valor)
                         else:
                             calc = calcular_taxa_cartao_credito(valor)
-                        
                         st.markdown("---")
                         st.markdown(f"### ✅ Simulação - Cartão {tipo_cartao}")
-                        
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
                             st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
-                        
                         with col_res2:
                             st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
-                            if tipo_cartao == "Débito":
-                                st.info("💡 Taxa de 1% sobre o valor do saque")
-                            else:
-                                st.info("💡 Taxa de 5,33% sobre o valor do saque")
-                        
+                            st.info("💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
                         st.session_state.simulacao_atual = {
                             "tipo": f"Saque Cartão {tipo_cartao}",
-                            "dados": calc,
-                            "valor_bruto": valor,
-                            "nome": nome or "Não informado",
-                            "cpf": cpf or "Não informado",
+                            "dados": calc, "valor_bruto": valor,
+                            "nome": nome or "Não informado", "cpf": cpf or "Não informado",
                             "observacoes": observacoes
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
-                
                 with col_conf:
                     confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
-                
                 if confirmar:
                     try:
                         if "simulacao_atual" not in st.session_state:
                             st.error("❌ Faça a simulação antes de confirmar!")
                         else:
-                            sim_data = st.session_state.simulacao_atual
-                            
-                            # Salvar no Google Sheets
-                            worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-                            
-                            nova_operacao = [
-                                obter_data_brasilia(),
-                                obter_horario_brasilia(),
-                                operador_selecionado,  # Operador responsável
-                                sim_data["tipo"],
-                                sim_data["nome"],
-                                sim_data["cpf"],
-                                sim_data["valor_bruto"],
-                                sim_data["dados"]["taxa_cliente"],
-                                sim_data["dados"]["taxa_banco"],
-                                sim_data["dados"]["valor_liquido"],
-                                sim_data["dados"]["lucro"],
-                                "Concluído",
-                                "",
-                                f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
-                                sim_data["observacoes"]
-                            ]
-                            
-                            worksheet.append_row(nova_operacao)
-                            st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
-                            
-                            # Limpar simulação
+                            sim = st.session_state.simulacao_atual
+                            ws = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
+                            ws.append_row([
+                                obter_data_brasilia(), obter_horario_brasilia(), operador_selecionado,
+                                sim["tipo"], sim["nome"], sim["cpf"], sim["valor_bruto"],
+                                sim["dados"]["taxa_cliente"], sim["dados"]["taxa_banco"], sim["dados"]["valor_liquido"],
+                                sim["dados"]["lucro"], "Concluído", "", f"{(sim['dados']['taxa_cliente']/sim['valor_bruto'])*100:.2f}%",
+                                sim["observacoes"]
+                            ])
+                            st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
                             del st.session_state.simulacao_atual
                             st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar operação: {str(e)}")
         
+        # =========================
+        # TAB 2 — Troca de Cheques (inalterado)
+        # =========================
         with tab2:
             st.markdown("### 📄 Troca de Cheques")
-            
             with st.form("form_troca_cheque", clear_on_submit=False):
-                # Campo de operador
-                operador_selecionado_cheque = st.selectbox("👤 Operador Responsável", 
-                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"], key="op_cheque")
-                
+                operador_selecionado_cheque = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_cheque")
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     tipo_cheque = st.selectbox("Tipo de Cheque", ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"])
                     valor = st.number_input("Valor do Cheque (R$)", min_value=0.01, step=100.0, key="valor_cheque")
                     nome = st.text_input("Nome do Cliente (Opcional)", key="nome_cheque")
-                
                 with col2:
                     cpf = st.text_input("CPF do Cliente (Opcional)", key="cpf_cheque")
                     observacoes = st.text_area("Observações", key="obs_cheque")
-                
-                # Campos específicos por tipo de cheque
-                dias = 0
-                taxa_manual = 0
-                data_venc = ""
-                
+                # campos extras…
+                dias = 0; taxa_manual = 0; data_venc = ""
                 if tipo_cheque == "Cheque Pré-datado":
                     data_vencimento = st.date_input("Data de Vencimento", min_value=obter_date_brasilia())
                     dias = (data_vencimento - obter_date_brasilia()).days
@@ -1806,221 +1830,158 @@ def render_operacoes_caixa(spreadsheet):
                     data_venc = str(data_vencimento)
                 elif tipo_cheque == "Cheque com Taxa Manual":
                     taxa_manual = st.number_input("Taxa Percentual (%)", min_value=0.1, max_value=50.0, step=0.1)
-                
                 col_sim, col_conf = st.columns([1, 1])
-                
                 with col_sim:
                     simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
-                
                 if simular and valor > 0:
                     try:
                         if tipo_cheque == "Cheque à Vista":
-                            calc = calcular_taxa_cheque_vista(valor)
-                            data_venc = obter_data_brasilia()
+                            calc = calcular_taxa_cheque_vista(valor); data_venc = obter_data_brasilia()
                         elif tipo_cheque == "Cheque Pré-datado":
                             calc = calcular_taxa_cheque_pre_datado(valor, dias)
                         else:
-                            calc = calcular_taxa_cheque_manual(valor, taxa_manual)
-                            data_venc = obter_data_brasilia()
-                        
-                        st.markdown("---")
-                        st.markdown(f"### ✅ Simulação - {tipo_cheque}")
-                        
+                            calc = calcular_taxa_cheque_manual(valor, taxa_manual); data_venc = obter_data_brasilia()
+                        st.markdown("---"); st.markdown(f"### ✅ Simulação - {tipo_cheque}")
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
                             st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
                             st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
-                        
                         with col_res2:
                             st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
-                            if tipo_cheque == "Cheque à Vista":
-                                st.info("💡 Taxa de 2% sobre o valor do cheque")
-                            elif tipo_cheque == "Cheque Pré-datado":
-                                st.info(f"💡 Taxa de 2% + 0,33% por dia ({dias} dias)")
-                            else:
-                                st.info(f"💡 Taxa manual de {taxa_manual}%")
-                        
                         st.session_state.simulacao_atual = {
-                            "tipo": tipo_cheque,
-                            "dados": calc,
-                            "valor_bruto": valor,
-                            "nome": nome or "Não informado",
-                            "cpf": cpf or "Não informado",
-                            "observacoes": observacoes,
-                            "data_vencimento": data_venc
+                            "tipo": tipo_cheque, "dados": calc, "valor_bruto": valor,
+                            "nome": nome or "Não informado", "cpf": cpf or "Não informado",
+                            "observacoes": observacoes, "data_vencimento": data_venc
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
-                
                 with col_conf:
                     confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
-                
                 if confirmar:
                     try:
                         if "simulacao_atual" not in st.session_state:
                             st.error("❌ Faça a simulação antes de confirmar!")
                         else:
-                            sim_data = st.session_state.simulacao_atual
-                            
-                            # Salvar no Google Sheets
-                            worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-                            
-                            nova_operacao = [
-                                obter_data_brasilia(),
-                                obter_horario_brasilia(),
-                                operador_selecionado_cheque,  # Operador responsável
-                                sim_data["tipo"],
-                                sim_data["nome"],
-                                sim_data["cpf"],
-                                sim_data["valor_bruto"],
-                                sim_data["dados"]["taxa_cliente"],
-                                sim_data["dados"]["taxa_banco"],
-                                sim_data["dados"]["valor_liquido"],
-                                sim_data["dados"]["lucro"],
-                                "Concluído",
-                                sim_data["data_vencimento"],
-                                f"{(sim_data['dados']['taxa_cliente']/sim_data['valor_bruto'])*100:.2f}%",
-                                sim_data["observacoes"]
-                            ]
-                            
-                            worksheet.append_row(nova_operacao)
-                            st.success(f"✅ {sim_data['tipo']} de R$ {sim_data['valor_bruto']:,.2f} registrado com sucesso!")
-                            
-                            # Limpar simulação
+                            sim = st.session_state.simulacao_atual
+                            ws = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
+                            ws.append_row([
+                                obter_data_brasilia(), obter_horario_brasilia(), operador_selecionado_cheque,
+                                sim["tipo"], sim["nome"], sim["cpf"], sim["valor_bruto"],
+                                sim["dados"]["taxa_cliente"], sim["dados"]["taxa_banco"], sim["dados"]["valor_liquido"],
+                                sim["dados"]["lucro"], "Concluído", sim["data_vencimento"],
+                                f"{(sim['dados']['taxa_cliente']/sim['valor_bruto'])*100:.2f}%", sim["observacoes"]
+                            ])
+                            st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
                             del st.session_state.simulacao_atual
                             st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar operação: {str(e)}")
         
+        # =========================
+        # TAB 3 — Suprimento do Caixa (AJUSTADO)
+        # =========================
         with tab3:
             st.markdown("### 🔄 Suprimento do Caixa")
-            
             with st.form("form_suprimento", clear_on_submit=True):
-                # Campo de operador
-                operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", 
-                    ["Bruna", "Karina", "Edson", "Robson", "Adiel", "Lucas", "Ana Paula", "Fernanda"], key="op_suprimento")
-                
+                operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_suprimento")
                 valor_suprimento = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0)
-                
-                # >>> Ajuste de nomes dos PDVs na UI (salvando de forma compatível)
-                origem_suprimento_ui = st.selectbox(
-                    "Origem do Suprimento",
-                    ["Cofre Principal"] + list(PDV_UI_TO_CODE.keys())
-                )
-                # Normaliza para a forma usada nas outras rotinas/planilhas
+                origem_suprimento_ui = st.selectbox("Origem do Suprimento", ["Cofre Principal"] + list(PDV_UI_TO_CODE.keys()))
+                # Normaliza origem e extrai PDV (se houver)
+                pdv_code_origem = None
                 if origem_suprimento_ui == "Cofre Principal":
                     origem_normalizada = "Cofre Principal"
                 else:
-                    origem_normalizada = f"Caixa Lotérica - {PDV_UI_TO_CODE[origem_suprimento_ui]}"
-                
+                    pdv_code_origem = PDV_UI_TO_CODE[origem_suprimento_ui]  # "PDV 1" | "PDV 2"
+                    origem_normalizada = f"Caixa Lotérica - {pdv_code_origem}"
                 observacoes_sup = st.text_area("Observações do Suprimento")
-                
+
                 if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
                     try:
-                        # Salvar no Google Sheets
-                        worksheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS)
-                        
-                        nova_operacao = [
-                            obter_data_brasilia(),
-                            obter_horario_brasilia(),
-                            operador_selecionado_suprimento,  # Operador responsável
-                            "Suprimento",
-                            "Sistema",
-                            "N/A",
-                            float(valor_suprimento),
-                            0,
-                            0,
-                            float(valor_suprimento),
-                            0,
-                            "Concluído",
-                            "",
-                            "0.00%",
-                            f"Origem: {origem_normalizada}. {observacoes_sup}"
-                        ]
-                        
-                        worksheet.append_row(nova_operacao)
+                        # 1) Salva no Caixa Interno
+                        ws_cx = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
+                        data_mov = obter_data_brasilia()
+                        hora_mov = obter_horario_brasilia()
+                        vinculo_id = _gerar_vinc("CXINT_SUPR")
+
+                        ws_cx.append_row([
+                            data_mov, hora_mov, operador_selecionado_suprimento,
+                            "Suprimento", "Sistema", "N/A",
+                            float(valor_suprimento), 0, 0, float(valor_suprimento), 0,
+                            "Concluído", "", "0.00%",
+                            f"Origem: {origem_normalizada}. Vínculo {vinculo_id}. {observacoes_sup or ''}"
+                        ])
+
+                        # 2) Se a origem é um PDV, espelhar no PDV e no Fechamento
+                        if pdv_code_origem in ["PDV 1","PDV 2"]:
+                            # 2.1) Movimentacoes_PDV: Saída p/ Caixa Interno
+                            ws_mov = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
+                            mov_exist = buscar_dados(spreadsheet, ABA_MOV_PDV) or []
+                            df_mov = pd.DataFrame(mov_exist)
+                            ja_existe = (not df_mov.empty and "Vinculo_ID" in df_mov.columns
+                                         and df_mov["Vinculo_ID"].astype(str).eq(vinculo_id).any())
+                            if not ja_existe:
+                                ws_mov.append_row([
+                                    str(data_mov), str(hora_mov),
+                                    pdv_code_origem, "Saída p/ Caixa Interno",
+                                    float(valor_suprimento), vinculo_id,
+                                    st.session_state.get("nome_usuario",""),
+                                    f"Gerado por suprimento do Caixa Interno. {observacoes_sup or ''}"
+                                ])
+
+                            # 2.2) Fechamento PDV: tenta registrar em coluna de Retirada_CaixaInterno
+                            _try_registrar_no_fechamento_ret_caixa_interno(
+                                data_mov, pdv_code_origem, valor_suprimento, vinculo_id, observacoes_sup
+                            )
+
                         st.success(f"✅ Suprimento de R$ {valor_suprimento:,.2f} registrado com sucesso!")
                         st.cache_data.clear()
+
                     except Exception as e:
                         st.error(f"❌ Erro ao registrar suprimento: {str(e)}")
         
+        # =========================
+        # TAB 4 — Histórico (inalterado)
+        # =========================
         with tab4:
             st.markdown("### 📊 Histórico de Operações")
-            
             try:
-                # Filtros
                 col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
-                
                 with col_filtro1:
                     if st.button("📅 Filtrar por Data"):
                         st.session_state.mostrar_filtro_data = not st.session_state.get("mostrar_filtro_data", False)
-                
                 if st.session_state.get("mostrar_filtro_data", False):
                     col_data1, col_data2 = st.columns(2)
                     with col_data1:
                         data_inicio = st.date_input("Data Início", value=obter_date_brasilia() - timedelta(days=7))
                     with col_data2:
-                        if "data_inicio" in locals():
-                            data_fim = st.date_input("Data Fim", value=obter_date_brasilia())
-                        else:
-                            data_fim = obter_date_brasilia()
-                
+                        data_fim = st.date_input("Data Fim", value=obter_date_brasilia())
                 with col_filtro2:
                     tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Suprimento"])
-                
-                # Buscar e exibir dados
-                operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa")
-                
+                operacoes_data = buscar_dados(spreadsheet, ABA_CAIXA)
                 if operacoes_data:
-                    # Normalizar dados
-                    operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
-                    df_operacoes = pd.DataFrame(operacoes_data_normalizada)
-                    
-                    # Aplicar filtros
+                    df_operacoes = pd.DataFrame(normalizar_dados_inteligente(operacoes_data))
                     if tipo_operacao_filtro != "Todos":
                         df_operacoes = df_operacoes[df_operacoes["Tipo_Operacao"] == tipo_operacao_filtro]
-                    
-                    if st.session_state.get("mostrar_filtro_data", False) and "data_inicio" in locals():
+                    if st.session_state.get("mostrar_filtro_data", False):
                         try:
                             df_operacoes["Data"] = pd.to_datetime(df_operacoes["Data"], errors="coerce")
-                            data_inicio_pd = pd.to_datetime(data_inicio)
-                            data_fim_pd = pd.to_datetime(data_fim)
-                            df_operacoes = df_operacoes[
-                                (df_operacoes["Data"] >= data_inicio_pd) & 
-                                (df_operacoes["Data"] <= data_fim_pd)
-                            ]
-                        except Exception as e:
+                            df_operacoes = df_operacoes[(df_operacoes["Data"] >= pd.to_datetime(data_inicio)) & (df_operacoes["Data"] <= pd.to_datetime(data_fim))]
+                        except Exception:
                             st.warning("⚠️ Erro ao aplicar filtro de data.")
-                    
-                    # Ordenar por data e hora (mais recente primeiro)
                     if not df_operacoes.empty:
                         try:
-                            if "Data" in df_operacoes.columns and "Hora" in df_operacoes.columns:
-                                df_operacoes = df_operacoes.sort_values(by=["Data", "Hora"], ascending=False)
-                        except Exception as e:
-                            st.warning("⚠️ Erro ao ordenar dados.")
-                        
+                            if {"Data","Hora"}.issubset(df_operacoes.columns):
+                                df_operacoes = df_operacoes.sort_values(by=["Data","Hora"], ascending=False)
+                        except Exception:
+                            pass
                         st.dataframe(df_operacoes, use_container_width=True)
-                        
-                        # Estatísticas do período
-                        st.markdown("---")
-                        st.markdown("### 📈 Estatísticas do Período")
-                        
-                        col_stat1, col_stat2, col_stat3 = st.columns(3)
-                        
-                        with col_stat1:
-                            total_operacoes = len(df_operacoes)
-                            st.metric("Total de Operações", total_operacoes)
-                        
-                        with col_stat2:
-                            if "Valor_Bruto" in df_operacoes.columns:
-                                total_movimentado = df_operacoes["Valor_Bruto"].sum()
-                                st.metric("Total Movimentado", f"R$ {total_movimentado:,.2f}")
-                        
-                        with col_stat3:
-                            if "Taxa_Cliente" in df_operacoes.columns:
-                                total_taxas = df_operacoes["Taxa_Cliente"].sum()
-                                st.metric("Total em Taxas", f"R$ {total_taxas:,.2f}")
+                        st.markdown("---"); st.markdown("### 📈 Estatísticas do Período")
+                        c1,c2,c3 = st.columns(3)
+                        with c1: st.metric("Total de Operações", len(df_operacoes))
+                        with c2:
+                            if "Valor_Bruto" in df_operacoes.columns: st.metric("Total Movimentado", f"R$ {df_operacoes['Valor_Bruto'].sum():,.2f}")
+                        with c3:
+                            if "Taxa_Cliente" in df_operacoes.columns: st.metric("Total em Taxas", f"R$ {df_operacoes['Taxa_Cliente'].sum():,.2f}")
                     else:
                         st.info("Nenhuma operação encontrada com os filtros aplicados.")
                 else:
@@ -2031,6 +1992,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
