@@ -907,15 +907,6 @@ def render_fechamento_loterica(spreadsheet):
             st.error(f"❌ Erro ao salvar fechamento: {e}")
 
 
-
-
-
-
-
-
-
-
-
 # ------------------------------------------------------------
 # 📈 Gestão Lotérica — Estoque + Relatórios + Sincronização + Edição/Remoção
 # ------------------------------------------------------------
