@@ -546,9 +546,11 @@ def verificar_login():
 # Fechamento de Caixa da Lotérica (PDV1/PDV2) — compatível com Suprimento/Sangria do Cofre
 def render_fechamento_loterica(spreadsheet):
     import pandas as pd
+    import streamlit as st
+
     st.subheader("📋 Fechamento da Lotérica (PDVs)")
 
-    # Cabeçalho base
+    # ====== Config / cabeçalhos ======
     HEADERS_FECHAMENTO = [
         "Data_Fechamento","PDV","Operador",
         "Qtd_Compra_Bolao","Custo_Unit_Bolao","Total_Compra_Bolao",
@@ -562,30 +564,26 @@ def render_fechamento_loterica(spreadsheet):
         "Saldo_Anterior","Saldo_Final_Calculado","Diferenca_Caixa",
         "Encerrante_Relatorio","Cheques_Recebidos","Suprimento_Cofre","Troco_Anterior","Delta_Encerrante"
     ]
-
-    # Guias
-    MOV_PDV_SHEET = "Movimentacoes_PDV"
+    MOV_PDV_SHEET   = "Movimentacoes_PDV"
     HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"]
-    COFRE_SHEET = "Operacoes_Cofre"
-    HEADERS_COFRE = ["Data","Hora","Operador","Tipo","Categoria","Origem","Destino","Valor","Observacoes","Status","Vinculo_ID"]
+    COFRE_SHEET     = "Operacoes_Cofre"
+    HEADERS_COFRE   = ["Data","Hora","Operador","Tipo","Categoria","Origem","Destino","Valor","Observacoes","Status","Vinculo_ID"]
 
-    # PDVs
     PDV_UI_TO_CODE = {
         "Pdv1 - terminal 051650 - bruna": "PDV 1",
         "Pdv2 - terminal 030949 - Karina": "PDV 2",
     }
-    PDV_CODE_TO_UI = {v:k for k,v in PDV_UI_TO_CODE.items()}
 
-    # Helpers
+    # ====== Helpers ======
     K = lambda name: f"fl_{name}"
     def _sheet_for_pdv_code(pdv_code): return "Fechamentos_PDV1" if pdv_code == "PDV 1" else "Fechamentos_PDV2"
     def _to_float(x):
         try: return float(x)
         except: return 0.0
 
-    # --- ALIASES (compatibilidade com dados antigos) ---
-    SUPR_ALIASES = {"suprimento","entrada do cofre"}
-    SANG_ALIASES = {"sangria","saida para cofre","saída para cofre","retirada para cofre"}
+    # ---- Aliases para compatibilidade com dados antigos ----
+    SUPR_ALIASES = {"suprimento", "entrada do cofre"}
+    SANG_ALIASES = {"sangria", "saida para cofre", "saída para cofre", "retirada para cofre"}
     SANG_INT_ALIASES = {"saída p/ caixa interno","saida p/ caixa interno","retirada p/ caixa interno"}
 
     def _sum_mov_by_alias(pdv_code, data_alvo, aliases_set):
@@ -606,21 +604,17 @@ def render_fechamento_loterica(spreadsheet):
             dfx["Valor"] = pd.to_numeric(dfx["Valor"], errors="coerce").fillna(0.0)
             total = float(dfx["Valor"].sum())
             ids = dfx["Vinculo_ID"].dropna().astype(str).tolist()
-            return total, ids
         except Exception as e:
             st.warning(f"⚠️ Não foi possível ler {MOV_PDV_SHEET}: {e}")
-            return 0.0, []
+        return total, ids
 
     def _get_suprimentos_cofre_dia(pdv_code, data_alvo):
-        # Conta tanto "Suprimento" (novo) quanto "Entrada do Cofre" (antigo)
         return _sum_mov_by_alias(pdv_code, data_alvo, SUPR_ALIASES)
 
     def _get_retiradas_cofre_dia(pdv_code, data_alvo):
-        # Conta "Sangria" (novo) e "Saída/Retirada para Cofre" (antigo)
         return _sum_mov_by_alias(pdv_code, data_alvo, SANG_ALIASES)
 
     def _get_sangrias_do_dia(pdv_code, data_alvo):
-        # Saída p/ Caixa Interno (rotina independente do cofre)
         return _sum_mov_by_alias(pdv_code, data_alvo, SANG_INT_ALIASES)
 
     def _get_saldo_anterior(pdv_code, data_alvo):
@@ -655,48 +649,67 @@ def render_fechamento_loterica(spreadsheet):
         except Exception:
             return 0.0
 
-    def _reset_fechamento_form(keep_context=True):
-        defaults = {
-            K("supr_manual"):0.0, K("ret_cofre_manual"):0.0,
-            K("qtd_comp_bolao"):0, K("custo_unit_bolao"):0.0,
-            K("qtd_venda_bolao"):0, K("preco_unit_bolao"):0.0,
-            K("qtd_venda_rasp"):0,  K("preco_unit_rasp"):0.0,
-            K("qtd_venda_fed"):0,   K("preco_unit_fed"):0.0,
-            K("mov_cielo"):0.0, K("pag_premios"):0.0,
-            K("vales"):0.0, K("pix_saida"):0.0,
-            K("cheques"):0.0, K("encerrante_rel"):0.0, K("dg_final"):0.0
-        }
-        for k,v in defaults.items(): st.session_state[k]=v
-        if not keep_context:
+    # ====== RESET SEGURO (flag + rerun) ======
+    DEFAULTS = {
+        K("supr_manual"): 0.0, K("ret_cofre_manual"): 0.0,
+        K("qtd_comp_bolao"): 0, K("custo_unit_bolao"): 0.0,
+        K("qtd_venda_bolao"): 0, K("preco_unit_bolao"): 0.0,
+        K("qtd_venda_rasp"): 0,  K("preco_unit_rasp"): 0.0,
+        K("qtd_venda_fed"): 0,   K("preco_unit_fed"): 0.0,
+        K("mov_cielo"): 0.0, K("pag_premios"): 0.0,
+        K("vales"): 0.0, K("pix_saida"): 0.0,
+        K("cheques"): 0.0, K("encerrante_rel"): 0.0, K("dg_final"): 0.0,
+    }
+
+    # Se veio de um salvamento, aplicar defaults ANTES de criar widgets
+    if st.session_state.get(K("do_reset"), False):
+        for k, v in DEFAULTS.items():
+            st.session_state[k] = v
+        # manter contexto? (padrão True)
+        if not st.session_state.get(K("keep_context"), True):
             st.session_state[K("pdv_ui")] = list(PDV_UI_TO_CODE.keys())[0]
             st.session_state[K("data")] = obter_date_brasilia()
-        st.experimental_rerun()
+        st.session_state[K("do_reset")] = False  # limpa a flag
+
+    def _reset_fechamento_form(keep_context=True):
+        # Em vez de alterar session_state após widgets, só marcamos a flag
+        st.session_state[K("keep_context")] = bool(keep_context)
+        st.session_state[K("do_reset")] = True
+        st.rerun()
 
     # ---------- UI ----------
-    c1,c2 = st.columns(2)
+    c1, c2 = st.columns(2)
     with c1:
         pdv_ui = st.selectbox("PDV", list(PDV_UI_TO_CODE.keys()), key=K("pdv_ui"))
         pdv_code = PDV_UI_TO_CODE[pdv_ui]
     with c2:
         data_alvo = st.date_input("Data do Fechamento", value=obter_date_brasilia(), key=K("data"))
 
-    operador = st.selectbox("👤 Operador",
-        ["","Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"],
+    operador = st.selectbox(
+        "👤 Operador",
+        ["", "Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"],
         key=K("operador")
     )
 
-    # 👉 Movimentos com Cofre (manuais + automáticos)
+    # 👉 Movimentos com Cofre
     st.markdown("### Movimentos com Cofre")
-    supr_manual = st.number_input("Suprimento do Cofre → entra no PDV (lançar agora)",
-                                  min_value=0.0, step=50.0, format="%.2f", key=K("supr_manual"),
-                                  help="Cria Suprimento no PDV e Saída no Cofre.")
-    ret_cofre_manual = st.number_input("Retirada para Cofre ← sai do PDV (lançar agora)",
-                                       min_value=0.0, step=50.0, format="%.2f", key=K("ret_cofre_manual"),
-                                       help="Cria Sangria no PDV e Entrada no Cofre.")
+    supr_manual = st.number_input(
+        "Suprimento do Cofre → entra no PDV (lançar agora)",
+        min_value=0.0, step=50.0, format="%.2f",
+        key=K("supr_manual"),
+        help="Cria Suprimento no PDV e Saída no Cofre."
+    )
+    ret_cofre_manual = st.number_input(
+        "Retirada para Cofre ← sai do PDV (lançar agora)",
+        min_value=0.0, step=50.0, format="%.2f",
+        key=K("ret_cofre_manual"),
+        help="Cria Sangria no PDV e Entrada no Cofre."
+    )
     st.markdown("---")
 
+    # Compras / Vendas
     st.markdown("### Compras (estoque)")
-    cc1,cc2,cc3 = st.columns(3)
+    cc1, cc2, cc3 = st.columns(3)
     with cc1:
         qtd_comp_bolao = st.number_input("Qtd Compra Bolão (un)", min_value=0, step=1, format="%d", key=K("qtd_comp_bolao"))
     with cc2:
@@ -709,7 +722,7 @@ def render_fechamento_loterica(spreadsheet):
 
     st.markdown("---")
     st.markdown("### Vendas")
-    vb1,vb2,vb3 = st.columns(3)
+    vb1, vb2, vb3 = st.columns(3)
     with vb1:
         qtd_venda_bolao = st.number_input("Qtd Venda Bolão (un)", min_value=0, step=1, format="%d", key=K("qtd_venda_bolao"))
     with vb2:
@@ -718,7 +731,7 @@ def render_fechamento_loterica(spreadsheet):
         total_venda_bolao = qtd_venda_bolao * preco_unit_bolao
         st.metric("Total Venda Bolão", f"R$ {total_venda_bolao:,.2f}")
 
-    vr1,vr2,vr3 = st.columns(3)
+    vr1, vr2, vr3 = st.columns(3)
     with vr1:
         qtd_venda_rasp = st.number_input("Qtd Venda Raspadinha (un)", min_value=0, step=1, format="%d", key=K("qtd_venda_rasp"))
     with vr2:
@@ -727,7 +740,7 @@ def render_fechamento_loterica(spreadsheet):
         total_venda_rasp = qtd_venda_rasp * preco_unit_rasp
         st.metric("Total Venda Raspadinha", f"R$ {total_venda_rasp:,.2f}")
 
-    vf1,vf2,vf3 = st.columns(3)
+    vf1, vf2, vf3 = st.columns(3)
     with vf1:
         qtd_venda_fed = st.number_input("Qtd Venda Loteria Federal (un)", min_value=0, step=1, format="%d", key=K("qtd_venda_fed"))
     with vf2:
@@ -740,7 +753,7 @@ def render_fechamento_loterica(spreadsheet):
 
     st.markdown("---")
     st.markdown("### Outras movimentações do dia")
-    om1,om2,om3 = st.columns(3)
+    om1, om2, om3 = st.columns(3)
     with om1:
         movimentacao_cielo = st.number_input("Movimentação Cielo (R$)", min_value=0.0, step=50.0, format="%.2f", key=K("mov_cielo"))
     with om2:
@@ -748,13 +761,13 @@ def render_fechamento_loterica(spreadsheet):
     with om3:
         vales_despesas = st.number_input("Vales/Despesas (R$)", min_value=0.0, step=50.0, format="%.2f", key=K("vales"))
 
-    om4,om5 = st.columns(2)
+    om4, om5 = st.columns(2)
     with om4:
         pix_saida = st.number_input("PIX Saída (R$)", min_value=0.0, step=50.0, format="%.2f", key=K("pix_saida"))
     with om5:
         cheques_recebidos = st.number_input("Cheques Recebidos (R$)", min_value=0.0, step=50.0, format="%.2f", key=K("cheques"))
 
-    # ===== Auto do dia (agora com aliases) =====
+    # ===== Auto (busca em Movimentacoes_PDV) =====
     total_sangrias_pdv, _ = _get_sangrias_do_dia(pdv_code, data_alvo)
     st.text_input("Retirada p/ Caixa Interno (auto)", value=f"R$ {total_sangrias_pdv:,.2f}", disabled=True)
 
@@ -771,11 +784,9 @@ def render_fechamento_loterica(spreadsheet):
     encerrante_rel = st.number_input("Encerrante do Relatório (pode ser negativo)", step=50.0, format="%.2f", key=K("encerrante_rel"))
     dg_final       = st.number_input("Dinheiro em Gaveta (final do dia) (R$)", min_value=0.0, step=50.0, format="%.2f", key=K("dg_final"))
 
-    # Totais (manual + auto)
     supr_total       = _to_float(supr_cofre_auto) + _to_float(supr_manual)
     retirada_cofre_t = _to_float(ret_cofre_auto) + _to_float(ret_cofre_manual)
 
-    # Cálculo
     saldo_final_calc = (
         _to_float(saldo_anterior)
         + (_to_float(total_vendas) - _to_float(movimentacao_cielo))
@@ -787,7 +798,7 @@ def render_fechamento_loterica(spreadsheet):
     )
     diferenca = _to_float(dg_final) - _to_float(saldo_final_calc)
 
-    # Conferência rápida
+    # Conferência
     st.markdown("#### 📑 Conferência rápida (dia)")
     entradas = pd.DataFrame([
         ["Encerrante do Relatório",             _to_float(encerrante_rel)],
@@ -797,7 +808,6 @@ def render_fechamento_loterica(spreadsheet):
         ["Vendas — Raspadinha",                 _to_float(total_venda_rasp)],
         ["Vendas — Loteria Federal",            _to_float(total_venda_fed)],
     ], columns=["Categoria","Valor_R$"])
-
     saidas = pd.DataFrame([
         ["Movimentação Cielo",                  _to_float(movimentacao_cielo)],
         ["PIX Saída",                            _to_float(pix_saida)],
@@ -809,7 +819,6 @@ def render_fechamento_loterica(spreadsheet):
         ["Retirada para Cofre (auto + manual)",  _to_float(retirada_cofre_t)],
         ["Dinheiro em Gaveta (final)",           _to_float(dg_final)],
     ], columns=["Categoria","Valor_R$"])
-
     entradas_tot = float(entradas["Valor_R$"].sum())
     saidas_tot   = float(saidas["Valor_R$"].sum())
     delta_enc_calc = entradas_tot - saidas_tot
@@ -824,7 +833,7 @@ def render_fechamento_loterica(spreadsheet):
     st.caption(f"Δ Encerrante (Entradas − Saídas): **R$ {delta_enc_calc:,.2f}** — ideal é 0,00.")
 
     st.markdown("#### 🎯 Indicadores finais")
-    k1,k2 = st.columns(2)
+    k1, k2 = st.columns(2)
     with k1: st.metric("Saldo calculado (Encerrante)", f"R$ {delta_enc_calc:,.2f}")
     with k2: st.metric("Troco do dia anterior (auto)", f"R$ {troco_anterior:,.2f}")
 
@@ -834,7 +843,7 @@ def render_fechamento_loterica(spreadsheet):
             ws_name = _sheet_for_pdv_code(pdv_code)
             ws = get_or_create_worksheet(spreadsheet, ws_name, HEADERS_FECHAMENTO)
 
-            # bloqueio duplicidade PDV+Data
+            # duplicidade PDV+Data
             df_exist = pd.DataFrame(buscar_dados(spreadsheet, ws_name) or [])
             existe_registro = False
             if not df_exist.empty and {"Data_Fechamento","PDV"}.issubset(df_exist.columns):
@@ -846,49 +855,39 @@ def render_fechamento_loterica(spreadsheet):
                 st.error("❌ Já existe um fechamento para este PDV nesta data. Edite/remova o registro existente.")
                 st.stop()
 
-            # 1) Lançar SUPRIMENTO manual (PDV Entrada / Cofre Saída)
+            # 1) Suprimento manual => Mov_PDV: Suprimento | Cofre: Saída
             if _to_float(supr_manual) > 0:
                 ws_mov_pdv = get_or_create_worksheet(spreadsheet, MOV_PDV_SHEET, HEADERS_MOV_PDV)
                 ws_cofre   = get_or_create_worksheet(spreadsheet, COFRE_SHEET, HEADERS_COFRE)
                 hora = obter_horario_brasilia()
                 vinc = f"SUPR|{str(data_alvo)}|{pdv_code}|{_to_float(supr_manual):.2f}|{hora}"
-
                 mov_exist = pd.DataFrame(buscar_dados(spreadsheet, MOV_PDV_SHEET) or [])
                 if not (("Vinculo_ID" in mov_exist.columns) and mov_exist["Vinculo_ID"].astype(str).eq(vinc).any()):
-                    # >>> padroniza como "Suprimento"
-                    ws_mov_pdv.append_row([
-                        str(data_alvo), hora, pdv_code, "Suprimento",
-                        float(_to_float(supr_manual)), vinc, st.session_state.get("nome_usuario",""), "lançado no Fechamento PDV"
-                    ])
-                    ws_cofre.append_row([
-                        str(obter_data_brasilia()), hora, st.session_state.get("nome_usuario",""),
-                        "Saída", "Transferência para Caixa Lotérica", "Cofre Principal",
-                        f"Caixa Lotérica - {pdv_code}", float(_to_float(supr_manual)),
-                        "lançado via Fechamento PDV", "Concluído", vinc
-                    ])
+                    ws_mov_pdv.append_row([str(data_alvo), hora, pdv_code, "Suprimento",
+                                           float(_to_float(supr_manual)), vinc, st.session_state.get("nome_usuario",""),
+                                           "lançado no Fechamento PDV"])
+                    ws_cofre.append_row([str(obter_data_brasilia()), hora, st.session_state.get("nome_usuario",""),
+                                         "Saída","Transferência para Caixa Lotérica","Cofre Principal",
+                                         f"Caixa Lotérica - {pdv_code}", float(_to_float(supr_manual)),
+                                         "lançado via Fechamento PDV","Concluído", vinc])
 
-            # 2) Lançar RETIRADA p/ COFRE manual (PDV Saída / Cofre Entrada)
+            # 2) Retirada p/ Cofre manual => Mov_PDV: Sangria | Cofre: Entrada
             if _to_float(ret_cofre_manual) > 0:
                 ws_mov_pdv = get_or_create_worksheet(spreadsheet, MOV_PDV_SHEET, HEADERS_MOV_PDV)
                 ws_cofre   = get_or_create_worksheet(spreadsheet, COFRE_SHEET, HEADERS_COFRE)
                 hora = obter_horario_brasilia()
                 vinc = f"RETCOFRE|{str(data_alvo)}|{pdv_code}|{_to_float(ret_cofre_manual):.2f}|{hora}"
-
                 mov_exist = pd.DataFrame(buscar_dados(spreadsheet, MOV_PDV_SHEET) or [])
                 if not (("Vinculo_ID" in mov_exist.columns) and mov_exist["Vinculo_ID"].astype(str).eq(vinc).any()):
-                    # >>> padroniza como "Sangria"
-                    ws_mov_pdv.append_row([
-                        str(data_alvo), hora, pdv_code, "Sangria",
-                        float(_to_float(ret_cofre_manual)), vinc, st.session_state.get("nome_usuario",""), "lançado no Fechamento PDV"
-                    ])
-                    ws_cofre.append_row([
-                        str(obter_data_brasilia()), hora, st.session_state.get("nome_usuario",""),
-                        "Entrada", "Transferência do Caixa Lotérica", f"Caixa Lotérica - {pdv_code}",
-                        "Cofre Principal", float(_to_float(ret_cofre_manual)),
-                        "lançado via Fechamento PDV", "Concluído", vinc
-                    ])
+                    ws_mov_pdv.append_row([str(data_alvo), hora, pdv_code, "Sangria",
+                                           float(_to_float(ret_cofre_manual)), vinc, st.session_state.get("nome_usuario",""),
+                                           "lançado no Fechamento PDV"])
+                    ws_cofre.append_row([str(obter_data_brasilia()), hora, st.session_state.get("nome_usuario",""),
+                                         "Entrada","Transferência do Caixa Lotérica",f"Caixa Lotérica - {pdv_code}",
+                                         "Cofre Principal", float(_to_float(ret_cofre_manual)),
+                                         "lançado via Fechamento PDV","Concluído", vinc])
 
-            # 3) Salva o fechamento (Retirada_Cofre = auto + manual)
+            # 3) Salvar o fechamento
             row = [
                 str(data_alvo), pdv_code, st.session_state.get(K("operador"), ""),
                 int(qtd_comp_bolao), float(custo_unit_bolao), float(total_comp_bolao),
@@ -907,10 +906,13 @@ def render_fechamento_loterica(spreadsheet):
 
             st.success("✅ Fechamento salvo com sucesso!")
             st.cache_data.clear()
+
+            # Reset seguro (sem tocar no session_state após widgets)
             _reset_fechamento_form(keep_context=True)
 
         except Exception as e:
             st.error(f"❌ Erro ao salvar fechamento: {e}")
+
 
 
 
