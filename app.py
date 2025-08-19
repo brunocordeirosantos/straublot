@@ -2209,10 +2209,12 @@ def render_dashboard_caixa(spreadsheet):
         )
 
 
-# Função melhorada para gestão do cofre com interface dinâmica
+# Função melhorada para gestão do cofre (compat antiga + novo layout) 
 def render_cofre(spreadsheet):
+    import pandas as pd
     from decimal import Decimal
-    
+    from uuid import uuid4
+
     st.subheader("🏦 Gestão do Cofre")
 
     # Mapeamento: rótulo da UI -> código interno (compat com outras rotinas)
@@ -2221,120 +2223,207 @@ def render_cofre(spreadsheet):
         "Pdv2 - terminal 030949 - Karina": "PDV 2",
     }
 
+    # Cabeçalho NOVO (padronizado)
+    HEADERS_COFRE = [
+        "Data", "Hora", "Operador",
+        "Tipo",            # "Entrada" | "Saída"
+        "Categoria",       # Entrada: Banco|Sócio|Vendas|Outros | Saída: Transferência p/ Caixa Interno|Transferência p/ Caixa Lotérica|Outros
+        "Origem",          # ex.: "Cofre Principal" ou "Banco"
+        "Destino",         # ex.: "Cofre Principal", "Caixa Interno", "Caixa Lotérica - PDV 1"
+        "Valor",
+        "Observacoes",
+        "Status",          # "Concluído" (padrão)
+        "Vinculo_ID"
+    ]
+
+    # Cabeçalho do Caixa Interno (para criar suprimento quando necessário)
+    HEADERS_CAIXA = [
+        "Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF",
+        "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro",
+        "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"
+    ]
+
+    def _novo_vinc(prefix="COFRE"):
+        return f"{prefix}-{uuid4().hex[:8]}"
+
+    def _coerce_float(x):
+        try:
+            return float(x)
+        except Exception:
+            return 0.0
+
+    def _load_normalizado():
+        """Lê Operacoes_Cofre em qualquer dos layouts e retorna df normalizado + saldo."""
+        dados = buscar_dados(spreadsheet, "Operacoes_Cofre") or []
+        df = pd.DataFrame(dados)
+
+        if df.empty:
+            return df, Decimal("0")
+
+        # --- Normalização de colunas antigas -> novas ---
+        # Se vier no formato antigo:
+        # ["Data","Hora","Operador","Tipo_Transacao","Valor","Destino_Origem","Observacoes"]
+        if "Tipo" not in df.columns and "Tipo_Transacao" in df.columns:
+            df["Tipo"] = df["Tipo_Transacao"].replace({
+                "Entrada no Cofre": "Entrada",
+                "Saída do Cofre": "Saída",
+                "Saida do Cofre": "Saída"
+            })
+        if "Destino" not in df.columns and "Destino_Origem" in df.columns:
+            df["Destino"] = df["Destino_Origem"]
+        if "Origem" not in df.columns:
+            # Suposição razoável para dados antigos
+            df["Origem"] = df.get("Destino_Origem", "Cofre Principal")
+        if "Categoria" not in df.columns:
+            df["Categoria"] = ""
+        if "Status" not in df.columns:
+            df["Status"] = "Concluído"
+        if "Vinculo_ID" not in df.columns:
+            df["Vinculo_ID"] = ""
+
+        # Garante as colunas do layout novo (ordem não é crítica para display)
+        for col in HEADERS_COFRE:
+            if col not in df.columns:
+                df[col] = ""
+
+        # Tipagem do Valor
+        df["Valor"] = pd.to_numeric(df["Valor"], errors="coerce").fillna(0.0)
+
+        # --- Cálculo do saldo: Entrada - Saída ---
+        t = df["Tipo"].astype(str)
+        m_entrada = t.str.contains("Entrada", case=False, na=False)
+        m_saida   = t.str.contains("Saída|Saida", case=False, na=False)
+
+        entradas = df.loc[m_entrada, "Valor"].sum()
+        saidas   = df.loc[m_saida, "Valor"].sum()
+        saldo    = Decimal(str(entradas)) - Decimal(str(saidas))
+
+        # Ordenação para histórico
+        try:
+            if "Data" in df.columns and "Hora" in df.columns:
+                df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
+                df = df.sort_values(by=["Data", "Hora"], ascending=False)
+                # volta Data para string (evita mostrar timestamp)
+                df["Data"] = df["Data"].dt.date.astype(str)
+        except Exception:
+            pass
+
+        return df, saldo
+
     try:
-        HEADERS_COFRE = ["Data", "Hora", "Operador", "Tipo_Transacao", "Valor", "Destino_Origem", "Observacoes"]
+        # Carrega e normaliza
+        df_cofre, saldo_cofre = _load_normalizado()
 
-        # Buscar dados
-        cofre_data = buscar_dados(spreadsheet, "Operacoes_Cofre")
-        df_cofre = pd.DataFrame(cofre_data)
-
-        # Saldo do cofre (Entrada soma, Saída subtrai)
-        saldo_cofre = Decimal("0")
-        if not df_cofre.empty and "Tipo_Transacao" in df_cofre.columns and "Valor" in df_cofre.columns:
-            df_cofre["Valor"] = pd.to_numeric(df_cofre["Valor"], errors="coerce").fillna(0)
-            df_cofre["Tipo_Transacao"] = df_cofre["Tipo_Transacao"].astype(str)
-            entradas = df_cofre[df_cofre["Tipo_Transacao"] == "Entrada no Cofre"]["Valor"].sum()
-            saidas   = df_cofre[df_cofre["Tipo_Transacao"] == "Saída do Cofre"]["Valor"].sum()
-            saldo_cofre = Decimal(str(entradas)) - Decimal(str(saidas))
-
-        st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);">
-            <h3>R$ {saldo_cofre:,.2f}</h3>
-            <p>🔒 Saldo Atual do Cofre</p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Métrica de saldo
+        st.markdown(
+            f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); padding:14px; border-radius:14px;">
+                <h3 style="margin:0; font-size:28px;">R$ {float(saldo_cofre):,.2f}</h3>
+                <p style="margin:0;">🔒 Saldo Atual do Cofre</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         st.markdown("---")
 
         tab1, tab2 = st.tabs(["➕ Registrar Movimentação", "📋 Histórico do Cofre"])
 
-        # ====== TAB 1: formulário único ======
+        # =========================
+        # TAB 1 — Nova movimentação
+        # =========================
         with tab1:
             st.markdown("#### Nova Movimentação no Cofre")
+            tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada", "Saída"], key="cofre_tipo")
 
-            tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada no Cofre", "Saída do Cofre"])
             with st.form("form_mov_cofre", clear_on_submit=True):
-                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0)
-                destino_final = ""
+                valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=100.0, format="%.2f")
 
-                if tipo_mov == "Saída do Cofre":
-                    tipo_saida = st.selectbox("Tipo de Saída", ["Transferência para Caixa", "Pagamento de Despesa"])
+                categoria = ""
+                origem    = "Cofre Principal"
+                destino   = "Cofre Principal"
+
+                if tipo_mov == "Saída":
+                    # Somente as opções pedidas e compatíveis com outras rotinas
+                    tipo_saida = st.selectbox("Tipo de Saída", ["Transferência para Caixa", "Pagamento de Despesa"], key="cofre_tipo_saida")
                     if tipo_saida == "Transferência para Caixa":
-                        destino_caixa = st.selectbox("Transferir para", ["Caixa Interno", "Caixa Lotérica"])
-                        if destino_caixa == "Caixa Lotérica":
-                            # >>> nomes novos na UI, salva como "Caixa Lotérica - PDV 1/2"
-                            pdv_ui = st.selectbox("Selecione o PDV", list(PDV_UI_TO_CODE.keys()))
+                        destino_op = st.selectbox("Transferir para", ["Caixa Interno", "Caixa Lotérica"], key="cofre_destino_caixa")
+                        if destino_op == "Caixa Lotérica":
+                            pdv_ui = st.selectbox("Selecione o PDV", list(PDV_UI_TO_CODE.keys()), key="cofre_pdv")
                             pdv_code = PDV_UI_TO_CODE[pdv_ui]
-                            destino_final = f"{destino_caixa} - {pdv_code}"
+                            categoria = "Transferência para Caixa Lotérica"
+                            destino   = f"Caixa Lotérica - {pdv_code}"
                         else:
-                            destino_final = destino_caixa
+                            categoria = "Transferência para Caixa Interno"
+                            destino   = "Caixa Interno"
                     else:
-                        destino_final = st.text_input("Descrição da Despesa (Ex: Aluguel, Fornecedor X)")
+                        categoria = "Outros"
+                        destino   = st.text_input("Descrição da Despesa (Ex: Aluguel, Fornecedor X)", key="cofre_desc_despesa")
                 else:
-                    destino_final = st.text_input("Origem da Entrada (Ex: Banco, Sócio)")
+                    categoria = st.selectbox("Origem da Entrada", ["Banco", "Sócio", "Vendas", "Outros"], key="cofre_origem_entrada")
+                    origem    = st.text_input("Detalhe da Origem (Banco/Sócio/etc.)", value="Cofre Principal", key="cofre_detalhe_origem")
+                    destino   = "Cofre Principal"
 
-                observacoes = st.text_area("Observações Adicionais")
+                observacoes = st.text_area("Observações", key="cofre_obs")
 
                 submitted = st.form_submit_button("💾 Salvar Movimentação", use_container_width=True)
                 if submitted:
                     try:
-                        cofre_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
-                        nova_mov_cofre = [
-                            obter_data_brasilia(),
-                            obter_horario_brasilia(),
-                            st.session_state.nome_usuario,
-                            tipo_mov,
-                            round(float(valor), 2),
-                            destino_final,   # ex.: "Caixa Lotérica - PDV 1" ou "Caixa Interno"
-                            observacoes
-                        ]
-                        cofre_sheet.append_row(nova_mov_cofre)
+                        ws_cofre = get_or_create_worksheet(spreadsheet, "Operacoes_Cofre", HEADERS_COFRE)
+                        vinculo  = _novo_vinc("COFRE")
 
-                        # Integração: se saída para Caixa Interno, registrar Suprimento no módulo do caixa
-                        if tipo_mov == "Saída do Cofre" and destino_final == "Caixa Interno":
-                            HEADERS_CAIXA = ["Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF",
-                                             "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro",
-                                             "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"]
-                            caixa_sheet = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
-                            nova_operacao_caixa = [
-                                obter_data_brasilia(), obter_horario_brasilia(), st.session_state.nome_usuario,
+                        # Grava SEMPRE no layout novo
+                        ws_cofre.append_row([
+                            str(obter_data_brasilia()), obter_horario_brasilia(), st.session_state.get("nome_usuario",""),
+                            tipo_mov, categoria, origem, destino, float(valor),
+                            f"Vínculo: {vinculo}. {observacoes or ''}",
+                            "Concluído", vinculo
+                        ])
+
+                        # Integração: se Saída -> Caixa Interno, cria Suprimento no Caixa Interno
+                        if tipo_mov == "Saída" and destino == "Caixa Interno":
+                            ws_caixa = get_or_create_worksheet(spreadsheet, "Operacoes_Caixa", HEADERS_CAIXA)
+                            ws_caixa.append_row([
+                                str(obter_data_brasilia()), obter_horario_brasilia(), st.session_state.get("nome_usuario",""),
                                 "Suprimento", "Sistema", "N/A",
-                                round(float(valor), 2), 0, 0, round(float(valor), 2), 0,
+                                float(valor), 0.0, 0.0, float(valor), 0.0,
                                 "Concluído", "", "0.00%",
-                                f"Transferência do Cofre para: {destino_final}"
-                            ]
-                            caixa_sheet.append_row(nova_operacao_caixa)
+                                f"Origem: Cofre Principal. Vinculo_Cofre: {vinculo}"
+                            ])
                             st.success(f"✅ Saída de R$ {valor:,.2f} do cofre registrada e suprimento criado no Caixa Interno!")
 
-                        elif tipo_mov == "Saída do Cofre" and destino_final.startswith("Caixa Lotérica - "):
-                            # Mantém mensagem, agora com nomes de PDV atualizados na UI
-                            st.info(f"Saída para {destino_final} registrada. (Espelha no PDV na rotina de fechamento)")
-                            st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada!")
+                        elif tipo_mov == "Saída" and destino.startswith("Caixa Lotérica - "):
+                            # Aqui apenas registramos a saída do cofre.
+                            # A entrada correspondente no PDV pode ser criada pelo fechamento da lotérica (como fallback).
+                            st.success(f"✅ Saída para {destino} registrada com sucesso!")
 
                         else:
                             st.success(f"✅ Movimentação de R$ {valor:,.2f} no cofre registrada!")
 
                         st.cache_data.clear()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
 
-        # ====== TAB 2: histórico ======
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar movimentação: {e}")
+
+        # =========================
+        # TAB 2 — Histórico
+        # =========================
         with tab2:
             st.markdown("#### Histórico de Movimentações")
-            if not df_cofre.empty:
-                try:
-                    if "Data" in df_cofre.columns and "Hora" in df_cofre.columns:
-                        df_cofre_sorted = df_cofre.sort_values(by=["Data", "Hora"], ascending=False)
-                        st.dataframe(df_cofre_sorted, use_container_width=True)
-                    else:
-                        st.dataframe(df_cofre, use_container_width=True)
-                except Exception:
-                    st.dataframe(df_cofre, use_container_width=True)
-            else:
+            try:
+                df_hist, _ = _load_normalizado()
+                if not df_hist.empty:
+                    # Exibe nas colunas chave do layout novo
+                    cols_show = [c for c in HEADERS_COFRE if c in df_hist.columns]
+                    st.dataframe(df_hist[cols_show], use_container_width=True)
+                else:
+                    st.info("Nenhuma movimentação registrada no cofre.")
+            except Exception:
                 st.info("Nenhuma movimentação registrada no cofre.")
 
     except Exception as e:
-        st.error(f"❌ Erro ao carregar gestão do cofre: {str(e)}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+        st.error(f"❌ Erro ao carregar gestão do cofre: {e}")
+        st.info("🔄 Tente recarregar a página ou verificar a conexão com o Google Sheets.")
+
 
 
 
