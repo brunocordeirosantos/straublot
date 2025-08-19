@@ -2161,7 +2161,7 @@ def render_dashboard_caixa(spreadsheet):
 
 
 
-# Gestão do Cofre integrada com Fechamento da Lotérica (PDVs) — saldo cofre ajustado por PDV e lançamento no Fechamento
+# Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
 def render_cofre(spreadsheet):
     import pandas as pd
     from decimal import Decimal
@@ -2183,81 +2183,81 @@ def render_cofre(spreadsheet):
     ABA_CAIXA_INTERNO = "Operacoes_Caixa"
 
     HEADERS_COFRE = [
-        "Data", "Hora", "Operador",
-        "Tipo", "Categoria", "Origem", "Destino",
-        "Valor", "Observacoes", "Status", "Vinculo_ID"
+        "Data","Hora","Operador","Tipo","Categoria","Origem","Destino",
+        "Valor","Observacoes","Status","Vinculo_ID"
     ]
     HEADERS_MOV_PDV = [
-        "Data", "Hora", "PDV", "Tipo_Mov",  # Tipo_Mov: Suprimento | Sangria
-        "Valor", "Vinculo_ID", "Operador", "Observacoes"
+        "Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"
     ]
     HEADERS_CAIXA = [
-        "Data", "Hora", "Operador", "Tipo_Operacao", "Cliente", "CPF",
-        "Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro",
-        "Status", "Data_Vencimento_Cheque", "Taxa_Percentual", "Observacoes"
+        "Data","Hora","Operador","Tipo_Operacao","Cliente","CPF",
+        "Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro",
+        "Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"
     ]
 
     def _gerar_id(prefix="COFRE"):
         return f"{prefix}-{uuid4().hex[:8]}"
 
-    # ---- Registrar também no Fechamento diário do PDV (se existir uma planilha compatível) ----
+    # ---- Registrar também no Fechamento diário do PDV (silencioso) ----
     def _try_registrar_no_fechamento_pdv(data_mov, pdv_code, tipo_mov_pdv, valor, vinculo_id, obs):
         """
-        tipo_mov_pdv: "Suprimento" ou "Sangria"
-        Procura por uma planilha de Fechamento existente com colunas compatíveis e acrescenta linha.
-        Fallback: cria/usa 'Fechamento_PDV_Lancamentos'.
+        tipo_mov_pdv: "Suprimento" (Cofre -> PDV) ou "Sangria" (PDV -> Cofre)
+        Abre somente a planilha do PDV (Fechamentos_PDV1/Fechamentos_PDV2).
+        Escreve nas colunas corretas: Suprimento_Cofre ou Retirada_Cofre.
+        Fallback: 'Fechamento_PDV_Lancamentos' (sem warnings).
         """
-        candidatos = [
-            "Fechamento_Loterica", "Fechamento_Loterica_PDV",
-            "Fechamento_PDV", "Fechamento PDV", "Fechamento PDVs"
-        ]
-        for nome in candidatos:
-            try:
-                dados = buscar_dados(spreadsheet, nome)
-            except Exception:
-                dados = None
-            if not dados:
-                continue
+        ws_name = "Fechamentos_PDV1" if pdv_code == "PDV 1" else "Fechamentos_PDV2"
 
+        try:
+            dados = buscar_dados(spreadsheet, ws_name) or []
+        except Exception:
+            dados = None
+
+        if dados:
             df = pd.DataFrame(dados)
-            if df.empty:
-                continue
+            if not df.empty:
+                cols = list(df.columns)
+                low  = {c: c.lower() for c in cols}
 
-            cols = [c for c in df.columns]
-            low = {c: c.lower() for c in cols}
-            col_data = next((c for c in cols if "data" in low[c]), None)
-            col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
-            col_supr = next((c for c in cols if "supr" in low[c] or "suprimento" in low[c]), None)
-            col_sang = next((c for c in cols if "sangria" in low[c] or "retirada" in low[c]), None)
+                col_data = next((c for c in cols if "data" in low[c]), None)
+                col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
 
-            if col_data and col_pdv and (col_supr or col_sang):
-                ws = get_or_create_worksheet(spreadsheet, nome, cols)
-                nova = {c: "" for c in cols}
-                nova[col_data] = str(data_mov)
-                nova[col_pdv]  = pdv_code
-                if tipo_mov_pdv == "Suprimento" and col_supr:
-                    nova[col_supr] = float(valor)
-                if tipo_mov_pdv == "Sangria" and col_sang:
-                    nova[col_sang] = float(valor)
-                col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
-                if col_vinc:
-                    nova[col_vinc] = vinculo_id
-                col_obs = next((c for c in cols if "observ" in low[c]), None)
-                if col_obs:
-                    nova[col_obs] = f"Gerado via Cofre ({tipo_mov_pdv}). {obs or ''}"
-                ws.append_row([nova.get(c, "") for c in cols])
-                return True
+                # coluna alvo correta
+                if tipo_mov_pdv == "Suprimento":
+                    target = "Suprimento_Cofre" if "Suprimento_Cofre" in cols else \
+                             next((c for c in cols if "supr" in low[c] and "cofre" in low[c]), None)
+                else:  # "Sangria"
+                    target = "Retirada_Cofre" if "Retirada_Cofre" in cols else \
+                             next((c for c in cols if "retirada" in low[c] and "cofre" in low[c]), None)
 
-        # Fallback seguro (auditoria)
-        ws = get_or_create_worksheet(
+                if col_data and col_pdv and target:
+                    ws = get_or_create_worksheet(spreadsheet, ws_name, cols)
+                    nova = {c: "" for c in cols}
+                    nova[col_data] = str(data_mov)
+                    nova[col_pdv]  = pdv_code
+                    nova[target]   = float(valor)
+
+                    col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
+                    if col_vinc: nova[col_vinc] = vinculo_id
+                    col_obs  = next((c for c in cols if "observ" in low[c]), None)
+                    if col_obs:  nova[col_obs]  = f"Gerado via Cofre ({tipo_mov_pdv}). {obs or ''}"
+
+                    ws.append_row([nova.get(c, "") for c in cols])
+                    return True
+
+        # Fallback silencioso (auditoria)
+        ws_fb = get_or_create_worksheet(
             spreadsheet,
             "Fechamento_PDV_Lancamentos",
-            ["Data", "PDV", "Tipo", "Valor", "Vinculo_ID", "Observacoes"]
+            ["Data","PDV","Tipo","Valor","Vinculo_ID","Observacoes"]
         )
-        ws.append_row([str(data_mov), pdv_code, tipo_mov_pdv, float(valor), vinculo_id, f"Gerado via Cofre. {obs or ''}"])
+        ws_fb.append_row([
+            str(data_mov), pdv_code, tipo_mov_pdv,
+            float(valor), vinculo_id, f"Gerado via Cofre. {obs or ''}"
+        ])
         return False
 
-    # ---- Saldo do Cofre (inclui ajustes por PDV sem vínculo) ----
+    # ---- Saldo do Cofre ----
     try:
         cofre_data = buscar_dados(spreadsheet, ABA_COFRE) or []
         df_cofre = pd.DataFrame(cofre_data)
@@ -2271,28 +2271,20 @@ def render_cofre(spreadsheet):
             if "Tipo" in df_cofre.columns:
                 t = df_cofre["Tipo"].astype(str).str.lower()
                 entradas = Decimal(str(df_cofre.loc[t.eq("entrada"), "Valor"].sum()))
-                saidas   = Decimal(str(df_cofre.loc[t.isin(["saída", "saida"]), "Valor"].sum()))
+                saidas   = Decimal(str(df_cofre.loc[t.isin(["saída","saida"]), "Valor"].sum()))
             saldo_cofre = entradas - saidas
 
-        # >>> AJUSTE: considerar movimentos de PDV que NÃO têm vínculo com o Cofre
+        # Ajuste: PDV sem vínculo (não duplicar os que já tem Vinculo_ID no cofre)
         try:
             mov_pdv = buscar_dados(spreadsheet, ABA_MOV_PDV) or []
             df_pdv = pd.DataFrame(mov_pdv)
-            if not df_pdv.empty and "Valor" in df_pdv.columns and "Tipo_Mov" in df_pdv.columns:
+            if not df_pdv.empty and {"Valor","Tipo_Mov"}.issubset(df_pdv.columns):
                 df_pdv["Valor"] = pd.to_numeric(df_pdv["Valor"], errors="coerce").fillna(0.0)
-                cofre_vinc = set()
-                if not df_cofre.empty and "Vinculo_ID" in df_cofre.columns:
-                    cofre_vinc = set(df_cofre["Vinculo_ID"].astype(str).tolist())
-
-                # Não contar o que já veio do Cofre (tem mesmo Vinculo_ID)
-                vinc_pdv = df_pdv.get("Vinculo_ID")
-                if vinc_pdv is not None:
-                    mask_unlinked = ~vinc_pdv.astype(str).isin(cofre_vinc)
-                    df_pdv = df_pdv[mask_unlinked]
-
+                cofre_vinc = set(df_cofre["Vinculo_ID"].astype(str)) if (not df_cofre.empty and "Vinculo_ID" in df_cofre.columns) else set()
+                if "Vinculo_ID" in df_pdv.columns:
+                    df_pdv = df_pdv[~df_pdv["Vinculo_ID"].astype(str).isin(cofre_vinc)]
                 supr = df_pdv.loc[df_pdv["Tipo_Mov"].astype(str).str.lower().eq("suprimento"), "Valor"].sum()
                 sang = df_pdv.loc[df_pdv["Tipo_Mov"].astype(str).str.lower().eq("sangria"), "Valor"].sum()
-                # Sangria aumenta o cofre; Suprimento diminui o cofre
                 saldo_cofre += Decimal(str(sang)) - Decimal(str(supr))
         except Exception:
             pass
@@ -2323,7 +2315,6 @@ def render_cofre(spreadsheet):
 
         with st.form("form_mov_cofre", clear_on_submit=True):
             valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=0.01, format="%.2f", key="cofre_valor")
-
             categoria, origem, destino = "", "", ""
             obs_user = ""
 
@@ -2380,12 +2371,11 @@ def render_cofre(spreadsheet):
                     st.warning("Informe um valor maior que zero.")
                 else:
                     try:
-                        # Garantir planilhas
+                        # 1) Registra no COFRE
                         ws_cofre = get_or_create_worksheet(spreadsheet, ABA_COFRE, HEADERS_COFRE)
                         vinculo_id = _gerar_id("COFRE")
                         hora_agora = obter_horario_brasilia()
 
-                        # 1) Registra no COFRE
                         ws_cofre.append_row([
                             str(data_mov), str(hora_agora), st.session_state.get("nome_usuario",""),
                             tipo_mov, categoria, origem, destino, float(valor),
@@ -2404,7 +2394,7 @@ def render_cofre(spreadsheet):
                                 f"Transferência do Cofre → Caixa Interno. Vínculo {vinculo_id}."
                             ])
 
-                        # 2.2) Saída -> PDV (Caixa Lotérica) => Suprimento no Movimentacoes_PDV + Fechamento
+                        # 2.2) Saída -> PDV (Caixa Lotérica) => PDV: Suprimento + Fechamento: Suprimento_Cofre
                         if (tipo_mov == "Saída") and isinstance(destino, str) and destino.startswith("Caixa Lotérica - "):
                             pdv_code = "PDV 1" if "PDV 1" in destino else "PDV 2"
                             ws_mov_pdv = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
@@ -2420,11 +2410,10 @@ def render_cofre(spreadsheet):
                                     float(valor), vinculo_id, st.session_state.get("nome_usuario",""),
                                     f"Cofre → {pdv_code}. {obs_user or ''}"
                                 ])
-                            # Fechamento (registro amigável)
                             _try_registrar_no_fechamento_pdv(data_mov, pdv_code, "Suprimento", valor, vinculo_id, obs_user)
 
-                        # 2.3) Entrada (Sangria dos PDVs) => Sangria no Movimentacoes_PDV + Fechamento
-                        if (tipo_mov == "Entrada") and (categoria == "Sangria dos PDVs") and (origem in ["PDV 1", "PDV 2"]):
+                        # 2.3) Entrada (Sangria dos PDVs) => PDV: Sangria + Fechamento: Retirada_Cofre
+                        if (tipo_mov == "Entrada") and (categoria == "Sangria dos PDVs") and (origem in ["PDV 1","PDV 2"]):
                             ws_mov_pdv = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
                             mov_exist = buscar_dados(spreadsheet, ABA_MOV_PDV) or []
                             df_mov = pd.DataFrame(mov_exist)
@@ -2437,14 +2426,13 @@ def render_cofre(spreadsheet):
                                     float(valor), vinculo_id, st.session_state.get("nome_usuario",""),
                                     f"{origem} → Cofre. {obs_user or ''}"
                                 ])
-                            # Fechamento (registro amigável)
                             _try_registrar_no_fechamento_pdv(data_mov, origem, "Sangria", valor, vinculo_id, obs_user)
 
                         st.success(f"✅ Movimentação de R$ {valor:,.2f} registrada, integrada ao PDV e refletida no Fechamento.")
                         st.cache_data.clear()
 
                     except Exception as e:
-                        st.error(f"❌ Erro ao salvar movimentação: {str(e)}")
+                        st.error(f"❌ Erro ao salvar movimentação: {e}")
 
     # =========================
     # TAB 2 — Histórico
@@ -2456,11 +2444,9 @@ def render_cofre(spreadsheet):
             dfh = pd.DataFrame(cofre_hist)
             if not dfh.empty:
                 if "Data" in dfh.columns:
-                    try:
-                        dfh["Data"] = pd.to_datetime(dfh["Data"], errors="coerce")
-                    except Exception:
-                        pass
-                sort_cols = [c for c in ["Data", "Hora"] if c in dfh.columns]
+                    try: dfh["Data"] = pd.to_datetime(dfh["Data"], errors="coerce")
+                    except Exception: pass
+                sort_cols = [c for c in ["Data","Hora"] if c in dfh.columns]
                 if sort_cols:
                     dfh = dfh.sort_values(by=sort_cols, ascending=False)
                 st.dataframe(dfh, use_container_width=True)
@@ -2468,6 +2454,7 @@ def render_cofre(spreadsheet):
                 st.info("Nenhuma movimentação registrada no cofre.")
         except Exception:
             st.info("Nenhuma movimentação registrada no cofre.")
+
 
 
 
