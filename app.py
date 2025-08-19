@@ -2211,7 +2211,8 @@ def render_dashboard_caixa(spreadsheet):
 
 
 
-# Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
+
+# Gestão do Cofre integrada com Fechamento da Lotérica (PDVs) — versão com seleção direta dos PDVs
 def render_cofre(spreadsheet):
     import pandas as pd
     from decimal import Decimal
@@ -2298,19 +2299,24 @@ def render_cofre(spreadsheet):
             obs_user = ""
 
             if tipo_mov == "Saída":
-                tipo_saida = st.selectbox("Tipo de Saída", ["Transferência para Caixa", "Pagamento de Despesa", "Outros"], key="cofre_tipo_saida")
-                if tipo_saida == "Transferência para Caixa":
-                    destino_caixa = st.selectbox("Transferir para", ["Caixa Interno", "Caixa Lotérica"], key="cofre_destino_caixa")
-                    if destino_caixa == "Caixa Lotérica":
-                        pdv_ui = st.selectbox("Selecione o PDV", PDV_UI_LIST, key="cofre_pdv_ui_saida")
-                        pdv_code = PDV_UI_TO_CODE[pdv_ui]  # "PDV 1" | "PDV 2"
-                        categoria = "Transferência para Caixa Lotérica"
-                        origem = "Cofre Principal"
-                        destino = f"Caixa Lotérica - {pdv_code}"
-                    else:
-                        categoria = "Transferência para Caixa Interno"
-                        origem = "Cofre Principal"
-                        destino = "Caixa Interno"
+                # >>> AJUSTE: opções separadas para PDV e Caixa Interno
+                tipo_saida = st.selectbox(
+                    "Tipo de Saída",
+                    ["Para PDV (Caixa Lotérica)", "Para Caixa Interno", "Pagamento de Despesa", "Outros"],
+                    key="cofre_tipo_saida"
+                )
+
+                if tipo_saida == "Para PDV (Caixa Lotérica)":
+                    # >>> AJUSTE: aqui aparecem DIRETO os PDVs por rótulo (igual no Fechamento)
+                    pdv_ui = st.selectbox("Transferir para (PDV)", PDV_UI_LIST, key="cofre_destino_pdv")
+                    pdv_code = PDV_UI_TO_CODE[pdv_ui]  # "PDV 1" | "PDV 2"
+                    categoria = "Transferência para Caixa Lotérica"
+                    origem = "Cofre Principal"
+                    destino = f"Caixa Lotérica - {pdv_code}"
+                elif tipo_saida == "Para Caixa Interno":
+                    categoria = "Transferência para Caixa Interno"
+                    origem = "Cofre Principal"
+                    destino = "Caixa Interno"
                 elif tipo_saida == "Pagamento de Despesa":
                     categoria = "Pagamento de Despesa"
                     origem = "Cofre Principal"
@@ -2321,7 +2327,11 @@ def render_cofre(spreadsheet):
                     destino = st.text_input("Destino (descrição livre)", key="cofre_destino_outros_saida")
 
             else:  # Entrada
-                origem_entrada = st.selectbox("Origem da Entrada", ["Banco", "Sócio", "Vendas", "Sangria dos PDVs", "Outros"], key="cofre_cat_entrada")
+                origem_entrada = st.selectbox(
+                    "Origem da Entrada",
+                    ["Banco", "Sócio", "Vendas", "Sangria dos PDVs", "Outros"],
+                    key="cofre_cat_entrada"
+                )
                 if origem_entrada == "Sangria dos PDVs":
                     pdv_ui_in = st.selectbox("Selecione o PDV (origem da sangria)", PDV_UI_LIST, key="cofre_pdv_ui_entrada")
                     pdv_code_in = PDV_UI_TO_CODE[pdv_ui_in]
@@ -2368,7 +2378,7 @@ def render_cofre(spreadsheet):
                                 f"Transferência do Cofre → Caixa Interno. Vínculo {vinculo_id}."
                             ])
 
-                        # 2.2) Saída -> Caixa Lotérica (PDV 1/2) => Suprimento no Movimentacoes_PDV
+                        # 2.2) Saída -> PDV (Caixa Lotérica) => Suprimento no Movimentacoes_PDV
                         if (tipo_mov == "Saída") and isinstance(destino, str) and destino.startswith("Caixa Lotérica - "):
                             pdv_code = "PDV 1" if "PDV 1" in destino else "PDV 2"
                             ws_mov_pdv = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
@@ -2416,7 +2426,6 @@ def render_cofre(spreadsheet):
             cofre_hist = buscar_dados(spreadsheet, ABA_COFRE) or []
             dfh = pd.DataFrame(cofre_hist)
             if not dfh.empty:
-                # Ordena por Data/Hora se houver
                 if "Data" in dfh.columns:
                     try:
                         dfh["Data"] = pd.to_datetime(dfh["Data"], errors="coerce")
@@ -2430,6 +2439,9 @@ def render_cofre(spreadsheet):
                 st.info("Nenhuma movimentação registrada no cofre.")
         except Exception:
             st.info("Nenhuma movimentação registrada no cofre.")
+
+
+
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
 def render_fechamento_diario_simplificado(spreadsheet):
