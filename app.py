@@ -2209,6 +2209,8 @@ def render_dashboard_caixa(spreadsheet):
         )
 
 
+
+
 # Função melhorada para gestão do cofre com interface dinâmica
 def render_cofre(spreadsheet):
     import pandas as pd
