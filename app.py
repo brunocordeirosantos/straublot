@@ -2430,18 +2430,6 @@ def render_cofre(spreadsheet):
                 st.info("Nenhuma movimentação registrada no cofre.")
         except Exception:
             st.info("Nenhuma movimentação registrada no cofre.")
-
-
-
-
-
-
-
-
-
-
-
-
 # ...
 # Fechamento Diário do Caixa Interno (robusto)
 def render_fechamento_diario_simplificado(spreadsheet):
