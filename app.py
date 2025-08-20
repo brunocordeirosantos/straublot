@@ -1658,21 +1658,19 @@ def render_gestao_loterica(spreadsheet):
 
 
 # ------------------------------------------------------------
-# Função para operações do caixa interno (com integração PDV -> Caixa Interno)
 def render_operacoes_caixa(spreadsheet):
     import pandas as pd
     from datetime import timedelta
     from uuid import uuid4
+    from decimal import Decimal
 
     st.subheader("💳 Operações do Caixa Interno")
     
-    # Mapeamento: rótulo da UI -> código interno (compat com outras rotinas/planilhas)
     PDV_UI_TO_CODE = {
         "Pdv1 - terminal 051650 - bruna": "PDV 1",
         "Pdv2 - terminal 030949 - Karina": "PDV 2",
     }
 
-    # Abas/headers auxiliares
     ABA_CAIXA = "Operacoes_Caixa"
     HEADERS_CAIXA = ["Data","Hora","Operador","Tipo_Operacao","Cliente","CPF","Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro","Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"]
     ABA_MOV_PDV = "Movimentacoes_PDV"
@@ -1682,14 +1680,20 @@ def render_operacoes_caixa(spreadsheet):
     def _gerar_vinc(prefix="CXINT"):
         return f"{prefix}-{uuid4().hex[:8]}"
 
-    def _try_registrar_no_fechamento_ret_caixa_interno(data_mov, pdv_code, valor, vinculo_id, obs):
-        """
-        Lança no Fechamento diário do PDV (Fechamentos_PDV1/Fechamentos_PDV2)
-        na coluna 'Retirada_CaixaInterno'. Se a aba/coluna não existir, registra
-        apenas no fallback de auditoria, sem emitir avisos.
-        """
-        ws_name = "Fechamentos_PDV1" if pdv_code == "PDV 1" else "Fechamentos_PDV2"
+    def _to_float(x):
+        try:
+            if isinstance(x, Decimal):
+                return float(x)
+            return float(x)
+        except Exception:
+            return 0.0
 
+    def _pct(taxa, base):
+        basef = _to_float(base)
+        return 0.0 if basef == 0 else (_to_float(taxa) / basef) * 100.0
+
+    def _try_registrar_no_fechamento_ret_caixa_interno(data_mov, pdv_code, valor, vinculo_id, obs):
+        ws_name = "Fechamentos_PDV1" if pdv_code == "PDV 1" else "Fechamentos_PDV2"
         try:
             dados = buscar_dados(spreadsheet, ws_name) or []
         except Exception:
@@ -1700,27 +1704,19 @@ def render_operacoes_caixa(spreadsheet):
             if not df.empty:
                 cols = list(df.columns)
                 low  = {c: c.lower() for c in cols}
-
                 col_data = next((c for c in cols if "data" in low[c]), None)
                 col_pdv  = next((c for c in cols if "pdv"  in low[c]), None)
-
-                # Preferimos o nome exato da coluna usada no fechamento
-                col_ret_int = None
                 if "Retirada_CaixaInterno" in cols:
                     col_ret_int = "Retirada_CaixaInterno"
                 else:
-                    # fallback leve (sem warnings)
-                    col_ret_int = next(
-                        (c for c in cols if "retirada" in low[c] and "interno" in low[c]),
-                        None
-                    )
+                    col_ret_int = next((c for c in cols if "retirada" in low[c] and "interno" in low[c]), None)
 
                 if col_data and col_pdv and col_ret_int:
                     ws = get_or_create_worksheet(spreadsheet, ws_name, cols)
                     nova = {c: "" for c in cols}
                     nova[col_data]    = str(data_mov)
                     nova[col_pdv]     = pdv_code
-                    nova[col_ret_int] = float(valor)
+                    nova[col_ret_int] = _to_float(valor)
 
                     col_vinc = next((c for c in cols if "vinculo" in low[c]), None)
                     if col_vinc: nova[col_vinc] = vinculo_id
@@ -1730,7 +1726,6 @@ def render_operacoes_caixa(spreadsheet):
                     ws.append_row([nova.get(c, "") for c in cols])
                     return True
 
-        # Fallback silencioso (auditoria)
         ws_fb = get_or_create_worksheet(
             spreadsheet,
             "Fechamento_PDV_Lancamentos",
@@ -1738,17 +1733,14 @@ def render_operacoes_caixa(spreadsheet):
         )
         ws_fb.append_row([
             str(data_mov), pdv_code, "Retirada Caixa Interno",
-            float(valor), vinculo_id, f"PDV → Caixa Interno. {obs or ''}"
+            _to_float(valor), vinculo_id, f"PDV → Caixa Interno. {obs or ''}"
         ])
         return False
 
     try:
-        # Tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa Interno"])
         
-        # =========================
-        # TAB 1 — Saque Cartão  (inalterado)
-        # =========================
+        # ============== TAB 1 — Saque Cartão ==============
         with tab1:
             st.markdown("### 💳 Saque com Cartão")
             with st.form("form_saque_cartao", clear_on_submit=False):
@@ -1774,15 +1766,17 @@ def render_operacoes_caixa(spreadsheet):
                         st.markdown(f"### ✅ Simulação - Cartão {tipo_cartao}")
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                            st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                            st.metric("Taxa Percentual", f"{_pct(calc['taxa_cliente'], valor):.2f}%")
+                            st.metric("Taxa em Valores", f"R$ {_to_float(calc['taxa_cliente']):,.2f}")
                         with col_res2:
-                            st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                            st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc['valor_liquido']):,.2f}")
                             st.info("💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
                         st.session_state.simulacao_atual = {
                             "tipo": f"Saque Cartão {tipo_cartao}",
-                            "dados": calc, "valor_bruto": valor,
-                            "nome": nome or "Não informado", "cpf": cpf or "Não informado",
+                            "dados": calc,
+                            "valor_bruto": _to_float(valor),
+                            "nome": nome or "Não informado",
+                            "cpf": cpf or "Não informado",
                             "observacoes": observacoes
                         }
                     except Exception as e:
@@ -1798,9 +1792,9 @@ def render_operacoes_caixa(spreadsheet):
                             ws = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
                             ws.append_row([
                                 obter_data_brasilia(), obter_horario_brasilia(), operador_selecionado,
-                                sim["tipo"], sim["nome"], sim["cpf"], sim["valor_bruto"],
-                                sim["dados"]["taxa_cliente"], sim["dados"]["taxa_banco"], sim["dados"]["valor_liquido"],
-                                sim["dados"]["lucro"], "Concluído", "", f"{(sim['dados']['taxa_cliente']/sim['valor_bruto'])*100:.2f}%",
+                                sim["tipo"], sim["nome"], sim["cpf"], _to_float(sim["valor_bruto"]),
+                                _to_float(sim["dados"]["taxa_cliente"]), _to_float(sim["dados"]["taxa_banco"]), _to_float(sim["dados"]["valor_liquido"]),
+                                _to_float(sim["dados"]["lucro"]), "Concluído", "", f"{_pct(sim['dados']['taxa_cliente'], sim['valor_bruto']):.2f}%",
                                 sim["observacoes"]
                             ])
                             st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
@@ -1809,9 +1803,7 @@ def render_operacoes_caixa(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar operação: {str(e)}")
         
-        # =========================
-        # TAB 2 — Troca de Cheques (inalterado)
-        # =========================
+        # ============== TAB 2 — Troca de Cheques ==============
         with tab2:
             st.markdown("### 📄 Troca de Cheques")
             with st.form("form_troca_cheque", clear_on_submit=False):
@@ -1824,10 +1816,9 @@ def render_operacoes_caixa(spreadsheet):
                 with col2:
                     cpf = st.text_input("CPF do Cliente (Opcional)", key="cpf_cheque")
                     observacoes = st.text_area("Observações", key="obs_cheque")
-                # campos extras…
                 dias = 0; taxa_manual = 0; data_venc = ""
                 if tipo_cheque == "Cheque Pré-datado":
-                    data_vencimento = st.date_input("Data de Vencimento", min_value=obter_date_brasilia())
+                    data_vencimento = st.date_input("Data de Vencimento", value=obter_date_brasilia())
                     dias = (data_vencimento - obter_date_brasilia()).days
                     st.info(f"📅 Dias até vencimento: {dias}")
                     data_venc = str(data_vencimento)
@@ -1847,12 +1838,12 @@ def render_operacoes_caixa(spreadsheet):
                         st.markdown("---"); st.markdown(f"### ✅ Simulação - {tipo_cheque}")
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
-                            st.metric("Taxa Percentual", f"{(calc['taxa_cliente']/valor)*100:.2f}%")
-                            st.metric("Taxa em Valores", f"R$ {calc['taxa_cliente']:,.2f}")
+                            st.metric("Taxa Percentual", f"{_pct(calc['taxa_cliente'], valor):.2f}%")
+                            st.metric("Taxa em Valores", f"R$ {_to_float(calc['taxa_cliente']):,.2f}")
                         with col_res2:
-                            st.metric("💵 Valor a Entregar", f"R$ {calc['valor_liquido']:,.2f}")
+                            st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc['valor_liquido']):,.2f}")
                         st.session_state.simulacao_atual = {
-                            "tipo": tipo_cheque, "dados": calc, "valor_bruto": valor,
+                            "tipo": tipo_cheque, "dados": calc, "valor_bruto": _to_float(valor),
                             "nome": nome or "Não informado", "cpf": cpf or "Não informado",
                             "observacoes": observacoes, "data_vencimento": data_venc
                         }
@@ -1869,10 +1860,10 @@ def render_operacoes_caixa(spreadsheet):
                             ws = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
                             ws.append_row([
                                 obter_data_brasilia(), obter_horario_brasilia(), operador_selecionado_cheque,
-                                sim["tipo"], sim["nome"], sim["cpf"], sim["valor_bruto"],
-                                sim["dados"]["taxa_cliente"], sim["dados"]["taxa_banco"], sim["dados"]["valor_liquido"],
-                                sim["dados"]["lucro"], "Concluído", sim["data_vencimento"],
-                                f"{(sim['dados']['taxa_cliente']/sim['valor_bruto'])*100:.2f}%", sim["observacoes"]
+                                sim["tipo"], sim["nome"], sim["cpf"], _to_float(sim["valor_bruto"]),
+                                _to_float(sim["dados"]["taxa_cliente"]), _to_float(sim["dados"]["taxa_banco"]), _to_float(sim["dados"]["valor_liquido"]),
+                                _to_float(sim["dados"]["lucro"]), "Concluído", sim["data_vencimento"],
+                                f"{_pct(sim['dados']['taxa_cliente'], sim['valor_bruto']):.2f}%", sim["observacoes"]
                             ])
                             st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
                             del st.session_state.simulacao_atual
@@ -1880,27 +1871,23 @@ def render_operacoes_caixa(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar operação: {str(e)}")
         
-        # =========================
-        # TAB 3 — Suprimento do Caixa (AJUSTADO)
-        # =========================
+        # ============== TAB 3 — Suprimento do Caixa ==============
         with tab3:
             st.markdown("### 🔄 Suprimento do Caixa")
             with st.form("form_suprimento", clear_on_submit=True):
                 operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_suprimento")
                 valor_suprimento = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0)
                 origem_suprimento_ui = st.selectbox("Origem do Suprimento", ["Cofre Principal"] + list(PDV_UI_TO_CODE.keys()))
-                # Normaliza origem e extrai PDV (se houver)
                 pdv_code_origem = None
                 if origem_suprimento_ui == "Cofre Principal":
                     origem_normalizada = "Cofre Principal"
                 else:
-                    pdv_code_origem = PDV_UI_TO_CODE[origem_suprimento_ui]  # "PDV 1" | "PDV 2"
+                    pdv_code_origem = PDV_UI_TO_CODE[origem_suprimento_ui]
                     origem_normalizada = f"Caixa Lotérica - {pdv_code_origem}"
                 observacoes_sup = st.text_area("Observações do Suprimento")
 
                 if st.form_submit_button("💰 Registrar Suprimento", use_container_width=True):
                     try:
-                        # 1) Salva no Caixa Interno
                         ws_cx = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
                         data_mov = obter_data_brasilia()
                         hora_mov = obter_horario_brasilia()
@@ -1909,14 +1896,12 @@ def render_operacoes_caixa(spreadsheet):
                         ws_cx.append_row([
                             data_mov, hora_mov, operador_selecionado_suprimento,
                             "Suprimento", "Sistema", "N/A",
-                            float(valor_suprimento), 0, 0, float(valor_suprimento), 0,
+                            _to_float(valor_suprimento), 0, 0, _to_float(valor_suprimento), 0,
                             "Concluído", "", "0.00%",
                             f"Origem: {origem_normalizada}. Vínculo {vinculo_id}. {observacoes_sup or ''}"
                         ])
 
-                        # 2) Se a origem é um PDV, espelhar no PDV e no Fechamento
                         if pdv_code_origem in ["PDV 1","PDV 2"]:
-                            # 2.1) Movimentacoes_PDV: Saída p/ Caixa Interno
                             ws_mov = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
                             mov_exist = buscar_dados(spreadsheet, ABA_MOV_PDV) or []
                             df_mov = pd.DataFrame(mov_exist)
@@ -1926,12 +1911,11 @@ def render_operacoes_caixa(spreadsheet):
                                 ws_mov.append_row([
                                     str(data_mov), str(hora_mov),
                                     pdv_code_origem, "Saída p/ Caixa Interno",
-                                    float(valor_suprimento), vinculo_id,
+                                    _to_float(valor_suprimento), vinculo_id,
                                     st.session_state.get("nome_usuario",""),
                                     f"Gerado por suprimento do Caixa Interno. {observacoes_sup or ''}"
                                 ])
 
-                            # 2.2) Fechamento PDV: registrar Retirada_CaixaInterno
                             _try_registrar_no_fechamento_ret_caixa_interno(
                                 data_mov, pdv_code_origem, valor_suprimento, vinculo_id, observacoes_sup
                             )
@@ -1942,9 +1926,7 @@ def render_operacoes_caixa(spreadsheet):
                     except Exception as e:
                         st.error(f"❌ Erro ao registrar suprimento: {str(e)}")
         
-        # =========================
-        # TAB 4 — Histórico (inalterado)
-        # =========================
+        # ============== TAB 4 — Histórico ==============
         with tab4:
             st.markdown("### 📊 Histórico de Operações")
             try:
@@ -1995,6 +1977,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
