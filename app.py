@@ -1675,6 +1675,9 @@ def render_operacoes_caixa(spreadsheet):
     HEADERS_CAIXA = ["Data","Hora","Operador","Tipo_Operacao","Cliente","CPF","Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro","Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"]
     ABA_MOV_PDV = "Movimentacoes_PDV"
     HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"]
+    # >>> NOVO: para espelhar a saída no cofre quando a origem for "Cofre Principal"
+    ABA_COFRE = "Operacoes_Cofre"
+    HEADERS_COFRE = ["Data","Hora","Operador","Tipo","Categoria","Origem","Destino","Valor","Observacoes","Status","Vinculo_ID"]
 
     # --------- helpers ---------
     def _gerar_vinc(prefix="CXINT"):
@@ -1893,6 +1896,7 @@ def render_operacoes_caixa(spreadsheet):
                         hora_mov = obter_horario_brasilia()
                         vinculo_id = _gerar_vinc("CXINT_SUPR")
 
+                        # 1) Lança no Caixa Interno
                         ws_cx.append_row([
                             data_mov, hora_mov, operador_selecionado_suprimento,
                             "Suprimento", "Sistema", "N/A",
@@ -1901,6 +1905,27 @@ def render_operacoes_caixa(spreadsheet):
                             f"Origem: {origem_normalizada}. Vínculo {vinculo_id}. {observacoes_sup or ''}"
                         ])
 
+                        # 2) SE a origem for COFRE PRINCIPAL -> espelha no COFRE como SAÍDA (Transferência p/ Caixa Interno)
+                        if origem_suprimento_ui == "Cofre Principal":
+                            ws_cofre = get_or_create_worksheet(spreadsheet, ABA_COFRE, HEADERS_COFRE)
+                            # idempotência pelo vínculo
+                            try:
+                                exist = buscar_dados(spreadsheet, ABA_COFRE) or []
+                                df_exist = pd.DataFrame(exist)
+                                dup = (not df_exist.empty and "Vinculo_ID" in df_exist.columns
+                                       and df_exist["Vinculo_ID"].astype(str).eq(vinculo_id).any())
+                            except Exception:
+                                dup = False
+                            if not dup:
+                                ws_cofre.append_row([
+                                    str(data_mov), str(hora_mov), st.session_state.get("nome_usuario",""),
+                                    "Saída", "Transferência para Caixa Interno", "Cofre Principal", "Caixa Interno",
+                                    _to_float(valor_suprimento),
+                                    f"Gerado por Suprimento do Caixa Interno. Vínculo {vinculo_id}. {observacoes_sup or ''}",
+                                    "Concluído", vinculo_id
+                                ])
+
+                        # 3) SE a origem for PDV -> já havia integração PDV + Fechamento
                         if pdv_code_origem in ["PDV 1","PDV 2"]:
                             ws_mov = get_or_create_worksheet(spreadsheet, ABA_MOV_PDV, HEADERS_MOV_PDV)
                             mov_exist = buscar_dados(spreadsheet, ABA_MOV_PDV) or []
@@ -1915,7 +1940,6 @@ def render_operacoes_caixa(spreadsheet):
                                     st.session_state.get("nome_usuario",""),
                                     f"Gerado por suprimento do Caixa Interno. {observacoes_sup or ''}"
                                 ])
-
                             _try_registrar_no_fechamento_ret_caixa_interno(
                                 data_mov, pdv_code_origem, valor_suprimento, vinculo_id, observacoes_sup
                             )
@@ -1977,6 +2001,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
