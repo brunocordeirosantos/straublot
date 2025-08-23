@@ -2466,182 +2466,198 @@ def render_cofre(spreadsheet):
 
 
 
-# ...
 # Fechamento Diário do Caixa Interno (robusto)
 def render_fechamento_diario_simplificado(spreadsheet):
+    import pandas as pd
+    from datetime import timedelta
     st.subheader("🗓️ Fechamento Diário do Caixa Interno")
 
-    # Configurações/base
     TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito"]
     TIPOS_CHEQUE = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
 
-    try:
-        HEADERS_FECHAMENTO_CAIXA = [
-            "Data_Fechamento", "Operador", "Saldo_Dia_Anterior",
-            "Total_Saques_Cartao", "Total_Trocas_Cheque", "Total_Suprimentos",
-            "Saldo_Calculado_Dia", "Dinheiro_Contado_Gaveta", "Diferenca_Caixa",
-            "Observacoes_Fechamento"
-        ]
+    SHEET_FECH = "Fechamento_Diario_Caixa_Interno"
+    HEADERS_FECH = [
+        "Data_Fechamento", "Operador", "Saldo_Dia_Anterior",
+        "Total_Saques_Cartao", "Total_Trocas_Cheque", "Total_Suprimentos",
+        "Saldo_Calculado_Dia", "Dinheiro_Contado_Gaveta", "Diferenca_Caixa",
+        "Observacoes_Fechamento"
+    ]
 
-        # ---------------- 1) Escolher a DATA do fechamento ----------------
-        hoje_sys = obter_date_brasilia()
-        st.markdown("Selecione a data para calcular e registrar o fechamento (pode ser dias anteriores).")
-        data_alvo = st.date_input("Data do Fechamento", value=hoje_sys, key="dt_fechamento_alvo")
+    # ---------------- helpers robustos ----------------
+    def _to_float_series(s):
+        if s is None: 
+            return pd.Series(dtype="float64")
+        s = pd.Series(s).astype(str)
+        s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+        return pd.to_numeric(s, errors="coerce").fillna(0.0)
 
-        if data_alvo > hoje_sys:
-            st.error("❌ Não é possível fechar uma data futura.")
-            return
+    def _load_ops_do_dia(data_alvo):
+        raw = buscar_dados(spreadsheet, "Operacoes_Caixa") or []
+        if not raw:
+            return pd.DataFrame()
 
-        dia_anterior = data_alvo - timedelta(days=1)
-
-        # ---------------- 2) Buscar SALDO do dia anterior ----------------
-        saldo_dia_anterior = 0.0
-        usou_zero = True
         try:
-            fechamentos_data = buscar_dados(spreadsheet, "Fechamento_Diario_Caixa_Interno") or []
-            df_fech = pd.DataFrame(fechamentos_data)
-            if not df_fech.empty:
-                df_fech["Data_Fechamento"] = pd.to_datetime(df_fech["Data_Fechamento"], errors="coerce").dt.date
-                df_fech["Saldo_Calculado_Dia"] = pd.to_numeric(df_fech.get("Saldo_Calculado_Dia", 0), errors="coerce").fillna(0.0)
+            df = pd.DataFrame(normalizar_dados_inteligente(raw))
+        except Exception:
+            df = pd.DataFrame(raw)
 
-                # pega o último fechamento <= dia_anterior (cobre finais de semana/feriados)
-                prev = df_fech[df_fech["Data_Fechamento"] <= dia_anterior].sort_values("Data_Fechamento").tail(1)
-                if not prev.empty:
-                    saldo_dia_anterior = float(prev.iloc[0]["Saldo_Calculado_Dia"])
-                    usou_zero = False
-        except Exception as e:
-            st.warning(f"⚠️ Erro ao buscar saldos anteriores: {e}")
-
-        msg = f"**Saldo final do último fechamento ≤ {dia_anterior.strftime('%d/%m/%Y')}:** R$ {saldo_dia_anterior:,.2f}"
-        if usou_zero:
-            msg += "  \n_(nenhum fechamento anterior encontrado; assumindo R$ 0,00)_"
-        st.markdown(msg)
-        st.markdown("---")
-
-        # ---------------- 3) Carregar OPERAÇÕES do DIA-ALVO ----------------
-        operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa") or []
-        if operacoes_data:
-            df_op = pd.DataFrame(normalizar_dados_inteligente(operacoes_data))
-            # tipagem
-            for c in ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]:
-                if c in df_op.columns:
-                    df_op[c] = pd.to_numeric(df_op[c], errors="coerce").fillna(0.0)
-            try:
-                df_op["Data"] = pd.to_datetime(df_op["Data"], errors="coerce").dt.date
-            except Exception:
-                pass
-            df_op.dropna(subset=["Data"], inplace=True)
-            operacoes_do_dia = df_op[df_op["Data"] == data_alvo]
+        # normaliza datas e números (aceita ambos os formatos)
+        if "Data" in df.columns:
+            df["Data"] = pd.to_datetime(df["Data"], errors="coerce").dt.date
+            df = df.dropna(subset=["Data"])
         else:
-            operacoes_do_dia = pd.DataFrame()
+            return pd.DataFrame()
 
-        total_saques_cartao = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_SAQUE)]["Valor_Liquido"].sum() if not operacoes_do_dia.empty else 0.0
-        total_trocas_cheque = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_CHEQUE)]["Valor_Liquido"].sum() if not operacoes_do_dia.empty else 0.0
-        total_suprimentos   = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum() if not operacoes_do_dia.empty else 0.0
+        for c in ["Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro"]:
+            if c in df.columns:
+                df[c] = _to_float_series(df[c])
 
-        # saldo calculado do DIA-ALVO
-        saldo_calculado_dia = float(saldo_dia_anterior + total_suprimentos - (total_saques_cartao + total_trocas_cheque))
+        # algumas versões antigas não tinham Valor_Liquido
+        if "Valor_Liquido" not in df.columns and "Valor_Bruto" in df.columns:
+            df["Valor_Liquido"] = df["Valor_Bruto"]
 
-        # Alerta operacional (só para a data alvo)
-        tem_mov = len(operacoes_do_dia) > 0
-        tem_supr = False if operacoes_do_dia.empty else len(operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"] == "Suprimento"]) > 0
-        if tem_mov and not tem_supr:
-            st.markdown("""
-            <div style="background:#fff3cd;color:#856404;border:1px solid #ffeeba;padding:10px;border-radius:10px;">
-                ⚠️ <b>Atenção:</b> Há movimentações nesta data, mas <u>nenhum Suprimento foi registrado</u>.
-                Isso pode distorcer o saldo e os relatórios.
-            </div>
-            """, unsafe_allow_html=True)
+        return df[df["Data"].eq(pd.to_datetime(data_alvo).date())].copy()
 
-        # ---------------- 4) Resumo visual ----------------
-        st.markdown("#### Resumo do Dia Selecionado")
-        c1, c2, c3 = st.columns(3)
-        with c1: st.metric("Total Saques Cartão", f"R$ {total_saques_cartao:,.2f}")
-        with c2: st.metric("Total Trocas Cheque", f"R$ {total_trocas_cheque:,.2f}")
-        with c3: st.metric("Total Suprimentos", f"R$ {total_suprimentos:,.2f}")
+    def _calc_totais(data_alvo, saldo_anterior):
+        df_dia = _load_ops_do_dia(data_alvo)
 
-        st.markdown(f"**Saldo Calculado ({data_alvo.strftime('%d/%m/%Y')}):** R$ {saldo_calculado_dia:,.2f}")
-        st.markdown("---")
+        if df_dia.empty:
+            ts, tc, sup = 0.0, 0.0, 0.0
+        else:
+            ts  = float(df_dia.loc[df_dia["Tipo_Operacao"].isin(TIPOS_SAQUE),  "Valor_Liquido"].sum())
+            tc  = float(df_dia.loc[df_dia["Tipo_Operacao"].isin(TIPOS_CHEQUE), "Valor_Liquido"].sum())
+            sup = float(df_dia.loc[df_dia["Tipo_Operacao"].eq("Suprimento"),   "Valor_Bruto"].sum())
 
-        # ---------------- 5) Registrar/Alterar fechamento ----------------
-        with st.form("form_fechamento_caixa_simplificado", clear_on_submit=True):
-            st.markdown("#### Registrar/Editar Fechamento")
-            dinheiro_contado = st.number_input("Dinheiro Contado na Gaveta (R$)", min_value=0.0, step=10.0, format="%.2f", key="din_cont_fech")
-            observacoes_fech = st.text_area("Observações do Fechamento (Opcional)", key="obs_fech")
+        saldo_calc = float(saldo_anterior + sup - (ts + tc))
+        return ts, tc, sup, saldo_calc, df_dia
 
-            diferenca = float(dinheiro_contado - saldo_calculado_dia)
-            st.markdown(f"**Diferença:** R$ {diferenca:,.2f}")
+    # ---------------- 1) escolher data ----------------
+    hoje_sys = obter_date_brasilia()
+    st.markdown("Selecione a data para calcular e registrar o fechamento (pode ser dias anteriores).")
+    data_alvo = st.date_input("Data do Fechamento", value=hoje_sys, key="dt_fechamento_alvo")
 
-            # Se já existir fechamento na data-alvo, permitir sobrescrever (opcional)
-            existe_registro_alvo = False
-            row_alvo = None
-            try:
-                if not df_fech.empty:
-                    df_exist = df_fech[df_fech["Data_Fechamento"] == data_alvo]
-                    if not df_exist.empty:
-                        existe_registro_alvo = True
-                        # linha real na planilha (1-based, com header na linha 1)
-                        idx = df_exist.index[0]
-                        row_alvo = idx + 2
-            except Exception:
-                pass
+    if data_alvo > hoje_sys:
+        st.error("❌ Não é possível fechar uma data futura.")
+        return
 
-            col_b1, col_b2 = st.columns([1,1])
-            sobrescrever = False
-            with col_b1:
-                btn_salvar = st.form_submit_button("💾 Salvar Fechamento", use_container_width=True)
-            with col_b2:
-                if existe_registro_alvo:
-                    sobrescrever = st.checkbox("Sobrescrever se já existir", value=False)
+    dia_anterior = data_alvo - timedelta(days=1)
 
-        if 'btn_salvar' in locals() and btn_salvar:
-            try:
-                if "nome_usuario" not in st.session_state:
-                    st.session_state.nome_usuario = "OPERADOR"
+    # ---------------- 2) saldo do dia anterior ----------------
+    saldo_dia_anterior, usou_zero = 0.0, True
+    try:
+        dados_fech = buscar_dados(spreadsheet, SHEET_FECH) or []
+        df_fech = pd.DataFrame(dados_fech)
+    except Exception:
+        df_fech = pd.DataFrame()
 
-                ws = get_or_create_worksheet(spreadsheet, "Fechamento_Diario_Caixa_Interno", HEADERS_FECHAMENTO_CAIXA)
-                linha = [
-                    str(data_alvo),
-                    st.session_state.nome_usuario,
-                    float(saldo_dia_anterior),
-                    float(total_saques_cartao),
-                    float(total_trocas_cheque),
-                    float(total_suprimentos),
-                    float(saldo_calculado_dia),
-                    float(dinheiro_contado),
-                    float(diferenca),
-                    observacoes_fech
-                ]
+    if not df_fech.empty and "Data_Fechamento" in df_fech.columns:
+        df_fech["Data_Fechamento"] = pd.to_datetime(df_fech["Data_Fechamento"], errors="coerce").dt.date
+        df_fech["Saldo_Calculado_Dia"] = _to_float_series(df_fech.get("Saldo_Calculado_Dia", 0))
+        prev = df_fech[df_fech["Data_Fechamento"] <= dia_anterior].sort_values("Data_Fechamento").tail(1)
+        if not prev.empty:
+            saldo_dia_anterior = float(prev.iloc[0]["Saldo_Calculado_Dia"])
+            usou_zero = False
 
-                if existe_registro_alvo and sobrescrever and row_alvo:
-                    # UPDATE no lugar de APPEND
-                    ws.update(f"A{row_alvo}:J{row_alvo}", [linha])
-                    st.success(f"✅ Fechamento de {data_alvo.strftime('%d/%m/%Y')} atualizado com sucesso!")
-                elif existe_registro_alvo and not sobrescrever:
-                    st.error("❌ Já existe fechamento para essa data. Marque 'Sobrescrever' para atualizar.")
-                    return
-                else:
-                    ws.append_row(linha)
-                    st.success(f"✅ Fechamento de {data_alvo.strftime('%d/%m/%Y')} registrado com sucesso!")
+    msg = f"**Saldo final do último fechamento ≤ {dia_anterior.strftime('%d/%m/%Y')}:** R$ {saldo_dia_anterior:,.2f}"
+    if usou_zero:
+        msg += "  \n_(nenhum fechamento anterior encontrado; assumindo R$ 0,00)_"
+    st.markdown(msg)
+    st.markdown("---")
 
-                st.cache_data.clear()
-            except Exception as e:
-                st.error(f"❌ Erro ao salvar fechamento: {e}")
+    # ---------------- 3) calcular totais (preview) ----------------
+    total_saques_cartao, total_trocas_cheque, total_suprimentos, saldo_calculado_dia, df_preview = \
+        _calc_totais(data_alvo, saldo_dia_anterior)
 
-        # ---------------- 6) Expander de conferência ----------------
-        with st.expander("🔍 Conferência rápida dessa data"):
-            st.write(f"Linhas de {data_alvo}: {len(operacoes_do_dia)}")
-            if not operacoes_do_dia.empty:
-                st.dataframe(
-                    operacoes_do_dia.groupby("Tipo_Operacao", as_index=False)[
-                        ["Valor_Bruto", "Taxa_Cliente", "Taxa_Banco", "Valor_Liquido", "Lucro"]
-                    ].sum().sort_values("Valor_Liquido", ascending=False),
-                    use_container_width=True
-                )
+    # alerta se tem mov sem suprimento
+    if not df_preview.empty and df_preview["Tipo_Operacao"].eq("Suprimento").sum() == 0:
+        st.markdown(
+            "<div style='background:#fff3cd;color:#856404;border:1px solid #ffeeba;padding:10px;border-radius:10px;'>"
+            "⚠️ <b>Atenção:</b> Há movimentações nesta data, mas <u>nenhum Suprimento foi registrado</u>."
+            "</div>",
+            unsafe_allow_html=True
+        )
 
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar fechamento de caixa: {str(e)}")
-        st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+    # ---------------- 4) resumo ----------------
+    st.markdown("#### Resumo do Dia Selecionado")
+    c1, c2, c3 = st.columns(3)
+    with c1: st.metric("Total Saques Cartão", f"R$ {total_saques_cartao:,.2f}")
+    with c2: st.metric("Total Trocas Cheque", f"R$ {total_trocas_cheque:,.2f}")
+    with c3: st.metric("Total Suprimentos",   f"R$ {total_suprimentos:,.2f}")
+    st.markdown(f"**Saldo Calculado ({data_alvo.strftime('%d/%m/%Y')}):** R$ {saldo_calculado_dia:,.2f}")
+    st.markdown("---")
+
+    # ---------------- 5) form salvar ----------------
+    with st.form("form_fechamento_caixa_simplificado", clear_on_submit=True):
+        st.markdown("#### Registrar/Editar Fechamento")
+        dinheiro_contado = st.number_input("Dinheiro Contado na Gaveta (R$)", min_value=0.0, step=10.0, format="%.2f", key="din_cont_fech")
+        observacoes_fech = st.text_area("Observações do Fechamento (Opcional)", key="obs_fech")
+
+        # diferença sobre o preview atual
+        diferenca_preview = float(dinheiro_contado - saldo_calculado_dia)
+        st.markdown(f"**Diferença (prévia):** R$ {diferenca_preview:,.2f}")
+
+        # checa se já existe lançamento nessa data
+        existe_registro_alvo, row_alvo = False, None
+        if not df_fech.empty:
+            df_exist = df_fech[df_fech["Data_Fechamento"] == data_alvo]
+            if not df_exist.empty:
+                existe_registro_alvo = True
+                row_alvo = int(df_exist.index[0]) + 2  # +2 por causa do header
+
+        col_b1, col_b2 = st.columns([1,1])
+        with col_b1:
+            btn_salvar = st.form_submit_button("💾 Salvar Fechamento", use_container_width=True)
+        with col_b2:
+            sobrescrever = st.checkbox("Sobrescrever se já existir", value=False) if existe_registro_alvo else False
+
+    # ---------------- 6) persistência (recalcula na hora) ----------------
+    if btn_salvar:
+        try:
+            if "nome_usuario" not in st.session_state:
+                st.session_state.nome_usuario = "OPERADOR"
+
+            # **Recalcula agora** para evitar qualquer chance de 0/valores desatualizados
+            ts, tc, sup, saldo_calc, _ = _calc_totais(data_alvo, saldo_dia_anterior)
+            diferenca = float(dinheiro_contado) - float(saldo_calc)
+
+            ws = get_or_create_worksheet(spreadsheet, SHEET_FECH, HEADERS_FECH)
+            linha = [
+                str(data_alvo),
+                st.session_state.nome_usuario,
+                float(saldo_dia_anterior),
+                float(ts), float(tc), float(sup),
+                float(saldo_calc),
+                float(dinheiro_contado),
+                float(diferenca),
+                observacoes_fech
+            ]
+
+            if existe_registro_alvo and sobrescrever and row_alvo:
+                ws.update(f"A{row_alvo}:J{row_alvo}", [linha])
+                st.success(f"✅ Fechamento de {data_alvo.strftime('%d/%m/%Y')} atualizado com sucesso!")
+            elif existe_registro_alvo and not sobrescrever:
+                st.error("❌ Já existe fechamento para essa data. Marque 'Sobrescrever' para atualizar.")
+                return
+            else:
+                ws.append_row(linha)
+                st.success(f"✅ Fechamento de {data_alvo.strftime('%d/%m/%Y')} registrado com sucesso!")
+
+            st.cache_data.clear()
+        except Exception as e:
+            st.error(f"❌ Erro ao salvar fechamento: {e}")
+
+    # ---------------- 7) conferência opcional ----------------
+    with st.expander("🔍 Conferência rápida dessa data"):
+        if df_preview.empty:
+            st.write("Sem operações encontradas para esta data.")
+        else:
+            st.dataframe(
+                df_preview.groupby("Tipo_Operacao", as_index=False)[
+                    ["Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro"]
+                ].sum().sort_values("Valor_Liquido", ascending=False),
+                use_container_width=True
+            )
+
 
 
 # ------------------------------------------------------------
