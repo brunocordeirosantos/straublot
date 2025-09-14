@@ -687,7 +687,7 @@ def render_fechamento_loterica(spreadsheet):
 
     operador = st.selectbox(
         "👤 Operador",
-        ["", "Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"],
+        ["", "Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"],
         key=K("operador")
     )
 
@@ -1747,7 +1747,7 @@ def render_operacoes_caixa(spreadsheet):
         with tab1:
             st.markdown("### 💳 Saque com Cartão")
             with st.form("form_saque_cartao", clear_on_submit=False):
-                operador_selecionado = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"])
+                operador_selecionado = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"])
                 col1, col2 = st.columns(2)
                 with col1:
                     tipo_cartao = st.selectbox("Tipo de Cartão", ["Débito", "Crédito"])
@@ -1810,7 +1810,7 @@ def render_operacoes_caixa(spreadsheet):
         with tab2:
             st.markdown("### 📄 Troca de Cheques")
             with st.form("form_troca_cheque", clear_on_submit=False):
-                operador_selecionado_cheque = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_cheque")
+                operador_selecionado_cheque = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"], key="op_cheque")
                 col1, col2 = st.columns(2)
                 with col1:
                     tipo_cheque = st.selectbox("Tipo de Cheque", ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"])
@@ -1878,7 +1878,7 @@ def render_operacoes_caixa(spreadsheet):
         with tab3:
             st.markdown("### 🔄 Suprimento do Caixa")
             with st.form("form_suprimento", clear_on_submit=True):
-                operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda"], key="op_suprimento")
+                operador_selecionado_suprimento = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"], key="op_suprimento")
                 valor_suprimento = st.number_input("Valor do Suprimento (R$)", min_value=0.01, step=100.0)
                 origem_suprimento_ui = st.selectbox("Origem do Suprimento", ["Cofre Principal"] + list(PDV_UI_TO_CODE.keys()))
                 pdv_code_origem = None
