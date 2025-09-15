@@ -1741,7 +1741,7 @@ def render_operacoes_caixa(spreadsheet):
         return False
 
     try:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa Interno"])
         
         # ============== TAB 1 — Saque Cartão ==============
         with tab1:
