@@ -1675,7 +1675,6 @@ def render_operacoes_caixa(spreadsheet):
     HEADERS_CAIXA = ["Data","Hora","Operador","Tipo_Operacao","Cliente","CPF","Valor_Bruto","Taxa_Cliente","Taxa_Banco","Valor_Liquido","Lucro","Status","Data_Vencimento_Cheque","Taxa_Percentual","Observacoes"]
     ABA_MOV_PDV = "Movimentacoes_PDV"
     HEADERS_MOV_PDV = ["Data","Hora","PDV","Tipo_Mov","Valor","Vinculo_ID","Operador","Observacoes"]
-    # >>> NOVO: para espelhar a saída no cofre quando a origem for "Cofre Principal"
     ABA_COFRE = "Operacoes_Cofre"
     HEADERS_COFRE = ["Data","Hora","Operador","Tipo","Categoria","Origem","Destino","Valor","Observacoes","Status","Vinculo_ID"]
 
@@ -1750,54 +1749,47 @@ def render_operacoes_caixa(spreadsheet):
                 operador_selecionado = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"])
                 col1, col2 = st.columns(2)
                 with col1:
-                    tipo_cartao = st.selectbox("Tipo de Cartão", ["Débito", "Crédito"])
-                    # >>> NOVO: Forma de Recebimento (Cielo Posto com taxa 0)
-                    forma_recebimento = st.selectbox("Forma de Recebimento", ["Convencional", "Cielo Posto"])
+                    # >>> AJUSTE: Cielo Posto integrado ao Tipo de Cartão
+                    tipo_cartao = st.selectbox(
+                        "Tipo de Cartão",
+                        ["Débito", "Crédito", "Cielo Posto (Débito)", "Cielo Posto (Crédito)"]
+                    )
                     valor = st.number_input("Valor do Saque (R$)", min_value=0.01, step=50.0)
                     nome = st.text_input("Nome do Cliente (Opcional)")
                 with col2:
                     cpf = st.text_input("CPF do Cliente (Opcional)")
                     observacoes = st.text_area("Observações")
+
+                # Deriva base e flag Cielo
+                is_cielo = "Cielo Posto" in tipo_cartao
+                tipo_base = "Débito" if "Débito" in tipo_cartao else "Crédito"
+
                 col_sim, col_conf = st.columns([1, 1])
                 with col_sim:
                     simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
+
                 if simular and valor > 0:
                     try:
-                        # >>> NOVO: Se for Cielo Posto, taxa 0
-                        if forma_recebimento == "Cielo Posto":
-                            calc = {
-                                "taxa_cliente": 0.0,
-                                "taxa_banco": 0.0,
-                                "lucro": 0.0,
-                                "valor_liquido": _to_float(valor)
-                            }
+                        if is_cielo:
+                            calc = {"taxa_cliente": 0.0, "taxa_banco": 0.0, "lucro": 0.0, "valor_liquido": _to_float(valor)}
                         else:
-                            if tipo_cartao == "Débito":
-                                calc = calcular_taxa_cartao_debito(valor)
-                            else:
-                                calc = calcular_taxa_cartao_credito(valor)
+                            calc = calcular_taxa_cartao_debito(valor) if tipo_base == "Débito" else calcular_taxa_cartao_credito(valor)
 
                         st.markdown("---")
-                        st.markdown(f"### ✅ Simulação - Cartão {tipo_cartao}")
+                        st.markdown(f"### ✅ Simulação - Cartão {tipo_base}")
                         col_res1, col_res2 = st.columns(2)
                         with col_res1:
                             st.metric("Taxa Percentual", f"{_pct(calc['taxa_cliente'], valor):.2f}%")
                             st.metric("Taxa em Valores", f"R$ {_to_float(calc['taxa_cliente']):,.2f}")
                         with col_res2:
                             st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc['valor_liquido']):,.2f}")
-                            # >>> NOVO: mensagem condicional
-                            if forma_recebimento == "Cielo Posto":
-                                st.info("💡 Cielo Posto: taxa 0%.")
-                            else:
-                                st.info("💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
-                        # >>> NOVO: marca “Forma: Cielo Posto” nas observações
-                        obs_final = (
-                            f"{observacoes} | Forma: Cielo Posto".strip()
-                            if forma_recebimento == "Cielo Posto" and observacoes
-                            else ("Forma: Cielo Posto" if forma_recebimento == "Cielo Posto" else (observacoes or ""))
-                        )
+                            st.info("💡 Cielo Posto: taxa 0%." if is_cielo else "💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
+
+                        obs_final = (f"{observacoes} | Forma: Cielo Posto".strip() if is_cielo and observacoes
+                                     else ("Forma: Cielo Posto" if is_cielo else (observacoes or "")))
+
                         st.session_state.simulacao_atual = {
-                            "tipo": f"Saque Cartão {tipo_cartao}",
+                            "tipo": f"Saque Cartão {tipo_base}",          # mantém a categoria original
                             "dados": calc,
                             "valor_bruto": _to_float(valor),
                             "nome": nome or "Não informado",
@@ -1806,8 +1798,10 @@ def render_operacoes_caixa(spreadsheet):
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
+
                 with col_conf:
                     confirmar = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
+
                 if confirmar:
                     try:
                         if "simulacao_atual" not in st.session_state:
@@ -1930,7 +1924,6 @@ def render_operacoes_caixa(spreadsheet):
                         # 2) SE a origem for COFRE PRINCIPAL -> espelha no COFRE como SAÍDA (Transferência p/ Caixa Interno)
                         if origem_suprimento_ui == "Cofre Principal":
                             ws_cofre = get_or_create_worksheet(spreadsheet, ABA_COFRE, HEADERS_COFRE)
-                            # idempotência pelo vínculo
                             try:
                                 exist = buscar_dados(spreadsheet, ABA_COFRE) or []
                                 df_exist = pd.DataFrame(exist)
@@ -2023,6 +2016,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
