@@ -2011,6 +2011,9 @@ def render_operacoes_caixa(spreadsheet):
 def render_dashboard_caixa(spreadsheet):
     st.subheader("💳 Dashboard Caixa Interno")
 
+    # Flag de perfil (robusta a variações)
+    is_gerente = "gerente" in str(st.session_state.get("tipo_usuario", "")).lower()
+
     # 1) Buscar e normalizar dados de operações
     operacoes_data = buscar_dados(spreadsheet, "Operacoes_Caixa") or []
     operacoes_data_normalizada = normalizar_dados_inteligente(operacoes_data)
@@ -2027,7 +2030,6 @@ def render_dashboard_caixa(spreadsheet):
             pass
 
     # ================== CÁLCULO NOVO DO SALDO ==================
-    # Categorias canônicas
     TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito"]
     TIPOS_CHEQUE = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
 
@@ -2117,33 +2119,34 @@ def render_dashboard_caixa(spreadsheet):
     st.markdown("---")
 
     # ----------------- GRÁFICO (últimos 7 dias) -----------------
-    st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
-    try:
-        if df_operacoes.empty:
-            st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
-        else:
-            # janela de 7 dias
-            data_limite = obter_date_brasilia() - timedelta(days=7)
-            df_recente = df_operacoes.copy()
-            df_recente = df_recente[df_recente["Data"] >= data_limite]
-
-            if df_recente.empty:
+    if is_gerente:
+        st.subheader("📊 Resumo de Operações (Últimos 7 Dias)")
+        try:
+            if df_operacoes.empty:
                 st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
             else:
-                resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
-                fig = px.bar(
-                    resumo_por_tipo,
-                    x="Tipo_Operacao",
-                    y="Valor_Liquido",
-                    title="Valor Líquido por Tipo de Operação",
-                    labels={"Tipo_Operacao": "Tipo de Operação", "Valor_Liquido": "Valor Líquido Total (R$)"},
-                    color="Tipo_Operacao",
-                    text_auto=".2f",
-                )
-                fig.update_layout(showlegend=False, height=420, font=dict(family="Inter, sans-serif"))
-                st.plotly_chart(fig, use_container_width=True)
-    except Exception:
-        st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
+                # janela de 7 dias
+                data_limite = obter_date_brasilia() - timedelta(days=7)
+                df_recente = df_operacoes.copy()
+                df_recente = df_recente[df_recente["Data"] >= data_limite]
+
+                if df_recente.empty:
+                    st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
+                else:
+                    resumo_por_tipo = df_recente.groupby("Tipo_Operacao")["Valor_Liquido"].sum().reset_index()
+                    fig = px.bar(
+                        resumo_por_tipo,
+                        x="Tipo_Operacao",
+                        y="Valor_Liquido",
+                        title="Valor Líquido por Tipo de Operação",
+                        labels={"Tipo_Operacao": "Tipo de Operação", "Valor_Liquido": "Valor Líquido Total (R$)"},
+                        color="Tipo_Operacao",
+                        text_auto=".2f",
+                    )
+                    fig.update_layout(showlegend=False, height=420, font=dict(family="Inter, sans-serif"))
+                    st.plotly_chart(fig, use_container_width=True)
+        except Exception:
+            st.warning("⚠️ Erro ao carregar gráfico. Dados podem estar inconsistentes.")
 
     # ----------------- ALERTAS DE SALDO -----------------
     if saldo_caixa < 1000:
@@ -2164,6 +2167,7 @@ def render_dashboard_caixa(spreadsheet):
             """,
             unsafe_allow_html=True,
         )
+
 
 
 
