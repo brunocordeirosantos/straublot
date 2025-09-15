@@ -1751,6 +1751,8 @@ def render_operacoes_caixa(spreadsheet):
                 col1, col2 = st.columns(2)
                 with col1:
                     tipo_cartao = st.selectbox("Tipo de Cartão", ["Débito", "Crédito"])
+                    # >>> NOVO: Forma de Recebimento (Cielo Posto com taxa 0)
+                    forma_recebimento = st.selectbox("Forma de Recebimento", ["Convencional", "Cielo Posto"])
                     valor = st.number_input("Valor do Saque (R$)", min_value=0.01, step=50.0)
                     nome = st.text_input("Nome do Cliente (Opcional)")
                 with col2:
@@ -1761,10 +1763,20 @@ def render_operacoes_caixa(spreadsheet):
                     simular = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
                 if simular and valor > 0:
                     try:
-                        if tipo_cartao == "Débito":
-                            calc = calcular_taxa_cartao_debito(valor)
+                        # >>> NOVO: Se for Cielo Posto, taxa 0
+                        if forma_recebimento == "Cielo Posto":
+                            calc = {
+                                "taxa_cliente": 0.0,
+                                "taxa_banco": 0.0,
+                                "lucro": 0.0,
+                                "valor_liquido": _to_float(valor)
+                            }
                         else:
-                            calc = calcular_taxa_cartao_credito(valor)
+                            if tipo_cartao == "Débito":
+                                calc = calcular_taxa_cartao_debito(valor)
+                            else:
+                                calc = calcular_taxa_cartao_credito(valor)
+
                         st.markdown("---")
                         st.markdown(f"### ✅ Simulação - Cartão {tipo_cartao}")
                         col_res1, col_res2 = st.columns(2)
@@ -1773,14 +1785,24 @@ def render_operacoes_caixa(spreadsheet):
                             st.metric("Taxa em Valores", f"R$ {_to_float(calc['taxa_cliente']):,.2f}")
                         with col_res2:
                             st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc['valor_liquido']):,.2f}")
-                            st.info("💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
+                            # >>> NOVO: mensagem condicional
+                            if forma_recebimento == "Cielo Posto":
+                                st.info("💡 Cielo Posto: taxa 0%.")
+                            else:
+                                st.info("💡 Taxa de 1% (Débito) | 5,33% (Crédito)")
+                        # >>> NOVO: marca “Forma: Cielo Posto” nas observações
+                        obs_final = (
+                            f"{observacoes} | Forma: Cielo Posto".strip()
+                            if forma_recebimento == "Cielo Posto" and observacoes
+                            else ("Forma: Cielo Posto" if forma_recebimento == "Cielo Posto" else (observacoes or ""))
+                        )
                         st.session_state.simulacao_atual = {
                             "tipo": f"Saque Cartão {tipo_cartao}",
                             "dados": calc,
                             "valor_bruto": _to_float(valor),
                             "nome": nome or "Não informado",
                             "cpf": cpf or "Não informado",
-                            "observacoes": observacoes
+                            "observacoes": obs_final
                         }
                     except Exception as e:
                         st.error(f"❌ Erro na simulação: {str(e)}")
@@ -2001,6 +2023,7 @@ def render_operacoes_caixa(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar operações do caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
