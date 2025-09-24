@@ -2191,6 +2191,7 @@ def render_dashboard_caixa(spreadsheet):
 
 
 # Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
+
 # Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
 def render_cofre(spreadsheet):
     import pandas as pd
@@ -2343,20 +2344,25 @@ def render_cofre(spreadsheet):
         data_mov = st.date_input("Data da Movimentação", value=_date.today(), key="cofre_data_mov")
         tipo_mov = st.selectbox("Tipo de Movimentação", ["Entrada", "Saída"], key="cofre_tipo_mov")
 
+        # 👇 NOVO: escolher o Tipo de Saída FORA do form para rerender imediato
+        tipo_saida_escolhido = None
+        if tipo_mov == "Saída":
+            tipo_saida_escolhido = st.selectbox(
+                "Tipo de Saída",
+                ["Para PDV (Caixa Lotérica)", "Para Caixa Interno", "Pagamento de Despesa", "Depósito Banco", "Outros"],
+                key="cofre_tipo_saida"
+            )
+
         with st.form("form_mov_cofre", clear_on_submit=True):
             valor = st.number_input("Valor da Movimentação (R$)", min_value=0.01, step=0.01, format="%.2f", key="cofre_valor")
             categoria, origem, destino = "", "", ""
             obs_user = ""
+            detalhes_banco = ""  # evita NameError no submit
 
             if tipo_mov == "Saída":
-                # >>> NOVO: adicionada a opção "Depósito Banco"
-                tipo_saida = st.selectbox(
-                    "Tipo de Saída",
-                    ["Para PDV (Caixa Lotérica)", "Para Caixa Interno", "Pagamento de Despesa", "Depósito Banco", "Outros"],
-                    key="cofre_tipo_saida"
-                )
+                # pega a escolha feita fora do form (mantém após submit)
+                tipo_saida = st.session_state.get("cofre_tipo_saida", tipo_saida_escolhido)
 
-                # PDV só aparece quando a saída for para PDV (Lotérica)
                 if tipo_saida == "Para PDV (Caixa Lotérica)":
                     pdv_ui = st.selectbox("Transferir para (PDV)", PDV_UI_LIST, key="cofre_destino_pdv")
                     pdv_code = PDV_UI_TO_CODE[pdv_ui]
@@ -2374,14 +2380,13 @@ def render_cofre(spreadsheet):
                     origem = "Cofre Principal"
                     destino = st.text_input("Descrição da Despesa (Ex.: Aluguel, Fornecedor X)", key="cofre_desc_desp")
 
-                elif tipo_saida == "Depósito Banco":  # <<< NOVO
+                elif tipo_saida == "Depósito Banco":
                     categoria = "Depósito Banco"
                     origem = "Cofre Principal"
                     destino = "Banco"
-                    # campo opcional para detalhar o depósito (não mostra PDV)
                     detalhes_banco = st.text_input("Banco / Agência / Conta / Comprovante (opcional)", key="cofre_det_banco")
 
-                else:
+                else:  # Outros
                     categoria = "Outros"
                     origem = "Cofre Principal"
                     destino = st.text_input("Destino (descrição livre)", key="cofre_destino_outros_saida")
@@ -2422,11 +2427,8 @@ def render_cofre(spreadsheet):
                         # Complementa observação quando for Depósito Banco
                         obs_final = f"Vínculo: {vinculo_id}. {obs_user or ''}"
                         if (tipo_mov == "Saída") and (categoria == "Depósito Banco"):
-                            try:
-                                if detalhes_banco:
-                                    obs_final = f"{obs_final} Banco: {detalhes_banco}."
-                            except NameError:
-                                pass  # se o campo não existir por alguma razão
+                            if detalhes_banco:
+                                obs_final = f"{obs_final} Banco: {detalhes_banco}."
 
                         ws_cofre.append_row([
                             str(data_mov), str(hora_agora), st.session_state.get("nome_usuario",""),
