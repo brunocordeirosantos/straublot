@@ -2191,6 +2191,7 @@ def render_dashboard_caixa(spreadsheet):
 
 
 # Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
+# Gestão do Cofre integrada com Fechamento da Lotérica (PDVs)
 def render_cofre(spreadsheet):
     import pandas as pd
     from decimal import Decimal
@@ -2348,25 +2349,38 @@ def render_cofre(spreadsheet):
             obs_user = ""
 
             if tipo_mov == "Saída":
+                # >>> NOVO: adicionada a opção "Depósito Banco"
                 tipo_saida = st.selectbox(
                     "Tipo de Saída",
-                    ["Para PDV (Caixa Lotérica)", "Para Caixa Interno", "Pagamento de Despesa", "Outros"],
+                    ["Para PDV (Caixa Lotérica)", "Para Caixa Interno", "Pagamento de Despesa", "Depósito Banco", "Outros"],
                     key="cofre_tipo_saida"
                 )
+
+                # PDV só aparece quando a saída for para PDV (Lotérica)
                 if tipo_saida == "Para PDV (Caixa Lotérica)":
                     pdv_ui = st.selectbox("Transferir para (PDV)", PDV_UI_LIST, key="cofre_destino_pdv")
                     pdv_code = PDV_UI_TO_CODE[pdv_ui]
                     categoria = "Transferência para Caixa Lotérica"
                     origem = "Cofre Principal"
                     destino = f"Caixa Lotérica - {pdv_code}"
+
                 elif tipo_saida == "Para Caixa Interno":
                     categoria = "Transferência para Caixa Interno"
                     origem = "Cofre Principal"
                     destino = "Caixa Interno"
+
                 elif tipo_saida == "Pagamento de Despesa":
                     categoria = "Pagamento de Despesa"
                     origem = "Cofre Principal"
                     destino = st.text_input("Descrição da Despesa (Ex.: Aluguel, Fornecedor X)", key="cofre_desc_desp")
+
+                elif tipo_saida == "Depósito Banco":  # <<< NOVO
+                    categoria = "Depósito Banco"
+                    origem = "Cofre Principal"
+                    destino = "Banco"
+                    # campo opcional para detalhar o depósito (não mostra PDV)
+                    detalhes_banco = st.text_input("Banco / Agência / Conta / Comprovante (opcional)", key="cofre_det_banco")
+
                 else:
                     categoria = "Outros"
                     origem = "Cofre Principal"
@@ -2405,10 +2419,19 @@ def render_cofre(spreadsheet):
                         vinculo_id = _gerar_id("COFRE")
                         hora_agora = obter_horario_brasilia()
 
+                        # Complementa observação quando for Depósito Banco
+                        obs_final = f"Vínculo: {vinculo_id}. {obs_user or ''}"
+                        if (tipo_mov == "Saída") and (categoria == "Depósito Banco"):
+                            try:
+                                if detalhes_banco:
+                                    obs_final = f"{obs_final} Banco: {detalhes_banco}."
+                            except NameError:
+                                pass  # se o campo não existir por alguma razão
+
                         ws_cofre.append_row([
                             str(data_mov), str(hora_agora), st.session_state.get("nome_usuario",""),
                             tipo_mov, categoria, origem, destino, float(valor),
-                            f"Vínculo: {vinculo_id}. {obs_user or ''}", "Concluído", vinculo_id
+                            obs_final, "Concluído", vinculo_id
                         ])
 
                         # 2) Integrações automáticas
@@ -2483,6 +2506,7 @@ def render_cofre(spreadsheet):
                 st.info("Nenhuma movimentação registrada no cofre.")
         except Exception:
             st.info("Nenhuma movimentação registrada no cofre.")
+
 
 
 
