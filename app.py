@@ -2127,7 +2127,8 @@ def render_dashboard_caixa(spreadsheet):
             pass
 
     # ================== CÁLCULO NOVO DO SALDO ==================
-    TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito"]
+    # 👇 Inclui Saque PIX nas saídas
+    TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito", "Saque PIX"]
     TIPOS_CHEQUE = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
 
     # 1) Saldo do dia anterior (último fechamento <= ontem)
@@ -2222,7 +2223,6 @@ def render_dashboard_caixa(spreadsheet):
             if df_operacoes.empty:
                 st.info("📊 Nenhuma operação nos últimos 7 dias para exibir no gráfico.")
             else:
-                # janela de 7 dias
                 data_limite = obter_date_brasilia() - timedelta(days=7)
                 df_recente = df_operacoes.copy()
                 df_recente = df_recente[df_recente["Data"] >= data_limite]
@@ -2264,6 +2264,7 @@ def render_dashboard_caixa(spreadsheet):
             """,
             unsafe_allow_html=True,
         )
+
 
 
 
