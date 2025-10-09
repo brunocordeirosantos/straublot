@@ -1865,7 +1865,7 @@ def render_operacoes_caixa(spreadsheet):
                             st.metric("Taxa em Valores", f"R$ {_to_float(calc_pix['taxa_cliente']):,.2f}")
                         with col_res2:
                             st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc_pix['valor_liquido']):,.2f}")
-                            st.info("💡 PIX: cliente paga 1% | custo p/ empresa 0%.")
+                            st.info("💡 PIX: cliente paga 1%")
                         
                         st.session_state.simulacao_pix = {
                             "tipo": "Saque PIX",
