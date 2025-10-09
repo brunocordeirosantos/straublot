@@ -1740,7 +1740,11 @@ def render_operacoes_caixa(spreadsheet):
         return False
 
     try:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["💳 Saque Cartão", "📄 Troca de Cheques", "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa Interno"])
+        # 👇 NOVO: inclui a aba "⚡ Saque PIX"
+        tab1, tab_pix, tab2, tab3, tab4, tab5 = st.tabs([
+            "💳 Saque Cartão", "⚡ Saque PIX", "📄 Troca de Cheques",
+            "🔄 Suprimento Caixa", "📊 Histórico", "🗓️ Fechamento Caixa Interno"
+        ])
         
         # ============== TAB 1 — Saque Cartão ==============
         with tab1:
@@ -1789,7 +1793,7 @@ def render_operacoes_caixa(spreadsheet):
                                      else ("Forma: Cielo Posto" if is_cielo else (observacoes or "")))
 
                         st.session_state.simulacao_atual = {
-                            "tipo": f"Saque Cartão {tipo_base}",          # mantém a categoria original
+                            "tipo": f"Saque Cartão {tipo_base}",
                             "dados": calc,
                             "valor_bruto": _to_float(valor),
                             "nome": nome or "Não informado",
@@ -1818,6 +1822,81 @@ def render_operacoes_caixa(spreadsheet):
                             ])
                             st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
                             del st.session_state.simulacao_atual
+                            st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar operação: {str(e)}")
+
+        # ============== TAB PIX — Saque PIX ==============
+        with tab_pix:
+            st.markdown("### ⚡ Saque PIX")
+            with st.form("form_saque_pix", clear_on_submit=False):
+                operador_pix = st.selectbox("👤 Operador Responsável", ["Bruna","Karina","Edson","Robson","Adiel","Lucas","Ana Paula","Fernanda","CRIS"], key="op_pix")
+                col1, col2 = st.columns(2)
+                with col1:
+                    valor_pix = st.number_input("Valor do Saque (R$)", min_value=0.01, step=50.0, key="valor_pix")
+                    nome_pix = st.text_input("Nome do Cliente (Opcional)", key="nome_pix")
+                with col2:
+                    cpf_pix = st.text_input("CPF do Cliente (Opcional)", key="cpf_pix")
+                    obs_pix = st.text_area("Observações", key="obs_pix")
+
+                col_sim_pix, col_conf_pix = st.columns([1, 1])
+                with col_sim_pix:
+                    simular_pix = st.form_submit_button("🧮 Simular Operação", use_container_width=True)
+
+                if simular_pix and valor_pix > 0:
+                    try:
+                        taxa_cliente = _to_float(valor_pix) * 0.01  # 1% cobrado do cliente
+                        taxa_banco = 0.0                           # custo para empresa = 0%
+                        lucro = taxa_cliente - taxa_banco
+                        valor_liquido = _to_float(valor_pix) - taxa_cliente
+
+                        calc_pix = {
+                            "taxa_cliente": taxa_cliente,
+                            "taxa_banco": taxa_banco,
+                            "lucro": lucro,
+                            "valor_liquido": valor_liquido
+                        }
+
+                        st.markdown("---")
+                        st.markdown("### ✅ Simulação - Saque PIX")
+                        col_res1, col_res2 = st.columns(2)
+                        with col_res1:
+                            st.metric("Taxa Percentual", f"{_pct(calc_pix['taxa_cliente'], valor_pix):.2f}%")
+                            st.metric("Taxa em Valores", f"R$ {_to_float(calc_pix['taxa_cliente']):,.2f}")
+                        with col_res2:
+                            st.metric("💵 Valor a Entregar", f"R$ {_to_float(calc_pix['valor_liquido']):,.2f}")
+                            st.info("💡 PIX: cliente paga 1% | custo p/ empresa 0%.")
+                        
+                        st.session_state.simulacao_pix = {
+                            "tipo": "Saque PIX",
+                            "dados": calc_pix,
+                            "valor_bruto": _to_float(valor_pix),
+                            "nome": nome_pix or "Não informado",
+                            "cpf": cpf_pix or "Não informado",
+                            "observacoes": obs_pix or ""
+                        }
+                    except Exception as e:
+                        st.error(f"❌ Erro na simulação: {str(e)}")
+
+                with col_conf_pix:
+                    confirmar_pix = st.form_submit_button("💾 Confirmar e Salvar", use_container_width=True)
+
+                if confirmar_pix:
+                    try:
+                        if "simulacao_pix" not in st.session_state:
+                            st.error("❌ Faça a simulação antes de confirmar!")
+                        else:
+                            sim = st.session_state.simulacao_pix
+                            ws = get_or_create_worksheet(spreadsheet, ABA_CAIXA, HEADERS_CAIXA)
+                            ws.append_row([
+                                obter_data_brasilia(), obter_horario_brasilia(), operador_pix,
+                                sim["tipo"], sim["nome"], sim["cpf"], _to_float(sim["valor_bruto"]),
+                                _to_float(sim["dados"]["taxa_cliente"]), _to_float(sim["dados"]["taxa_banco"]), _to_float(sim["dados"]["valor_liquido"]),
+                                _to_float(sim["dados"]["lucro"]), "Concluído", "", f"{_pct(sim['dados']['taxa_cliente'], sim['valor_bruto']):.2f}%",
+                                sim["observacoes"]
+                            ])
+                            st.success(f"✅ {sim['tipo']} de R$ {sim['valor_bruto']:,.2f} registrado!")
+                            del st.session_state.simulacao_pix
                             st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar operação: {str(e)}")
@@ -1980,7 +2059,8 @@ def render_operacoes_caixa(spreadsheet):
                     with col_data2:
                         data_fim = st.date_input("Data Fim", value=obter_date_brasilia())
                 with col_filtro2:
-                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Suprimento"])
+                    # 👇 NOVO: inclui Saque PIX no filtro
+                    tipo_operacao_filtro = st.selectbox("Tipo de Operação", ["Todos", "Saque Cartão Débito", "Saque Cartão Crédito", "Saque PIX", "Troca Cheque à Vista", "Troca Cheque Pré-datado", "Suprimento"])
                 operacoes_data = buscar_dados(spreadsheet, ABA_CAIXA)
                 if operacoes_data:
                     df_operacoes = pd.DataFrame(normalizar_dados_inteligente(operacoes_data))
