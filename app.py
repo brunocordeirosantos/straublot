@@ -2594,7 +2594,6 @@ def render_cofre(spreadsheet):
 
 
 
-# Fechamento Diário do Caixa Interno (robusto)
 # Fechamento Diário do Caixa Interno (mantém formato original e recalcula no salvar)
 def render_fechamento_diario_simplificado(spreadsheet):
     st.subheader("🗓️ Fechamento Diário do Caixa Interno")
@@ -2602,6 +2601,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
     # Configurações/base
     TIPOS_SAQUE  = ["Saque Cartão Débito", "Saque Cartão Crédito"]
     TIPOS_CHEQUE = ["Cheque à Vista", "Cheque Pré-datado", "Cheque com Taxa Manual"]
+    TIPO_PIX     = "Saque PIX"
 
     try:
         HEADERS_FECHAMENTO_CAIXA = [
@@ -2629,12 +2629,26 @@ def render_fechamento_diario_simplificado(spreadsheet):
             else:
                 operacoes_do_dia = pd.DataFrame()
 
-            total_saques_cartao = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_SAQUE)]["Valor_Liquido"].sum() if not operacoes_do_dia.empty else 0.0
-            total_trocas_cheque = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_CHEQUE)]["Valor_Liquido"].sum() if not operacoes_do_dia.empty else 0.0
-            total_suprimentos   = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"] == "Suprimento"]["Valor_Bruto"].sum() if not operacoes_do_dia.empty else 0.0
+            if operacoes_do_dia.empty:
+                total_saques_cartao = total_saques_pix = total_trocas_cheque = total_suprimentos = 0.0
+            else:
+                total_saques_cartao = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_SAQUE)]["Valor_Liquido"].sum()
+                total_saques_pix    = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].eq(TIPO_PIX)]["Valor_Liquido"].sum()
+                total_trocas_cheque = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].isin(TIPOS_CHEQUE)]["Valor_Liquido"].sum()
+                total_suprimentos   = operacoes_do_dia[operacoes_do_dia["Tipo_Operacao"].eq("Suprimento")]["Valor_Bruto"].sum()
 
-            saldo_calculado_dia = float(saldo_anterior + total_suprimentos - (total_saques_cartao + total_trocas_cheque))
-            return float(total_saques_cartao), float(total_trocas_cheque), float(total_suprimentos), float(saldo_calculado_dia), operacoes_do_dia
+            # Saldo considera PIX também (saída)
+            saldo_calculado_dia = float(
+                saldo_anterior + total_suprimentos - (total_saques_cartao + total_saques_pix + total_trocas_cheque)
+            )
+            return (
+                float(total_saques_cartao),
+                float(total_saques_pix),
+                float(total_trocas_cheque),
+                float(total_suprimentos),
+                float(saldo_calculado_dia),
+                operacoes_do_dia
+            )
 
         # ---------------- 1) Escolher a DATA do fechamento ----------------
         hoje_sys = obter_date_brasilia()
@@ -2671,7 +2685,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
         st.markdown("---")
 
         # ---------------- 3) Totais do DIA-ALVO (preview) ----------------
-        total_saques_cartao, total_trocas_cheque, total_suprimentos, saldo_calculado_dia, operacoes_do_dia = \
+        total_saques_cartao, total_saques_pix, total_trocas_cheque, total_suprimentos, saldo_calculado_dia, operacoes_do_dia = \
             _calcular_totais_dia(data_alvo, saldo_dia_anterior)
 
         # Alerta operacional (só para a data alvo)
@@ -2687,10 +2701,11 @@ def render_fechamento_diario_simplificado(spreadsheet):
 
         # ---------------- 4) Resumo visual ----------------
         st.markdown("#### Resumo do Dia Selecionado")
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1: st.metric("Total Saques Cartão", f"R$ {total_saques_cartao:,.2f}")
-        with c2: st.metric("Total Trocas Cheque", f"R$ {total_trocas_cheque:,.2f}")
-        with c3: st.metric("Total Suprimentos", f"R$ {total_suprimentos:,.2f}")
+        with c2: st.metric("Total Saques PIX",    f"R$ {total_saques_pix:,.2f}")
+        with c3: st.metric("Total Trocas Cheque", f"R$ {total_trocas_cheque:,.2f}")
+        with c4: st.metric("Total Suprimentos",   f"R$ {total_suprimentos:,.2f}")
 
         st.markdown(f"**Saldo Calculado ({data_alvo.strftime('%d/%m/%Y')}):** R$ {saldo_calculado_dia:,.2f}")
         st.markdown("---")
@@ -2729,7 +2744,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
                     st.session_state.nome_usuario = "OPERADOR"
 
                 # >>> Recalcula neste instante (lendo Operacoes_Caixa) para gravar números corretos
-                ts, tc, sup, saldo_calc, _ = _calcular_totais_dia(data_alvo, saldo_dia_anterior)
+                ts_cartao, ts_pix, tc, sup, saldo_calc, _ = _calcular_totais_dia(data_alvo, saldo_dia_anterior)
                 diferenca = float(dinheiro_contado - saldo_calc)
 
                 ws = get_or_create_worksheet(spreadsheet, "Fechamento_Diario_Caixa_Interno", HEADERS_FECHAMENTO_CAIXA)
@@ -2737,7 +2752,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
                     str(data_alvo),
                     st.session_state.nome_usuario,
                     float(saldo_dia_anterior),
-                    float(ts),
+                    float(ts_cartao),     # mantém a coluna original (sem PIX separado)
                     float(tc),
                     float(sup),
                     float(saldo_calc),
@@ -2774,6 +2789,7 @@ def render_fechamento_diario_simplificado(spreadsheet):
     except Exception as e:
         st.error(f"❌ Erro ao carregar fechamento de caixa: {str(e)}")
         st.info("🔄 Tente recarregar a página ou verifique a conexão com o Google Sheets.")
+
 
 
 
