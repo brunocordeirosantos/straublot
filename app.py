@@ -2812,7 +2812,6 @@ def render_gestao_caixa_interno(spreadsheet):
 
     # ---------- helpers ----------
     def _col_letter(idx_1based: int) -> str:
-        # 1 -> A, 26 -> Z, 27 -> AA...
         s = ""
         n = idx_1based
         while n:
@@ -2821,8 +2820,7 @@ def render_gestao_caixa_interno(spreadsheet):
         return s
 
     def _ensure_schema():
-        """Garante que a aba tenha EXACTAMENTE os EXPECTED_HEADERS.
-        Se precisar, migra dados antigos e realinha as colunas."""
+        """Garante a aba com EXACTAMENTE os EXPECTED_HEADERS (migra se preciso)."""
         ws = get_or_create_worksheet(spreadsheet, SHEET, EXPECTED_HEADERS)
         values = ws.get_all_values() or []
 
@@ -2834,7 +2832,7 @@ def render_gestao_caixa_interno(spreadsheet):
         if header == EXPECTED_HEADERS:
             return ws
 
-        # Migração: reordena/insere colunas faltantes e regrava tudo
+        # Migração: reordena/insere colunas faltantes
         rows = values[1:]
         df = pd.DataFrame(rows, columns=header)
 
@@ -2847,7 +2845,6 @@ def render_gestao_caixa_interno(spreadsheet):
             if col not in df.columns:
                 df[col] = 0.0 if col in numeric_like else ""
 
-        # reordena e normaliza tipos
         df = df[EXPECTED_HEADERS]
         for col in numeric_like:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
@@ -2859,7 +2856,7 @@ def render_gestao_caixa_interno(spreadsheet):
 
     # garante a planilha com os headers novos (idempotente + migração)
     ws = _ensure_schema()
-    HEADERS = EXPECTED_HEADERS[:]  # para manter referência local
+    HEADERS = EXPECTED_HEADERS[:]
 
     # util: carregar DF com índice real da linha (_row) para editar/remover
     def _load_df():
@@ -2872,8 +2869,13 @@ def render_gestao_caixa_interno(spreadsheet):
         df = pd.DataFrame(rows, columns=hdr)
         df["_row"] = list(range(2, 2 + len(df)))  # linha real na planilha (1 = cabeçalho)
 
-        # normalização
-        df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce").dt.date
+        # --- normalização robusta ---
+        # 1) Data: força datetime, remove inválidos, volta para date
+        df["Data_Fechamento"] = pd.to_datetime(df["Data_Fechamento"], errors="coerce")
+        df = df.loc[~df["Data_Fechamento"].isna()].copy()  # remove linhas quebradas (evita comparar date x float)
+        df["Data_Fechamento"] = df["Data_Fechamento"].dt.date
+
+        # 2) Numéricos
         for c in [
             "Saldo_Dia_Anterior", "Total_Saques_Cartao", "Total_Saques_PIX",
             "Total_Trocas_Cheque", "Total_Suprimentos", "Saldo_Calculado_Dia",
@@ -2881,8 +2883,11 @@ def render_gestao_caixa_interno(spreadsheet):
         ]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+
+        # compat: se não existir, cria coluna PIX zerada
         if "Total_Saques_PIX" not in df.columns:
             df["Total_Saques_PIX"] = 0.0
+
         return df
 
     tab_hist, tab_edit = st.tabs(["📜 Histórico", "✏️ Editar / Remover"])
@@ -2896,19 +2901,33 @@ def render_gestao_caixa_interno(spreadsheet):
             c1, c2, c3 = st.columns(3)
             with c1:
                 modo = st.radio("Filtro", ["Por dia", "Período"], horizontal=True, key="flt_gci_modo")
+
+            # valores padrão seguros (usam min/max após limpeza)
+            _min_date = df["Data_Fechamento"].min()
+            _max_date = df["Data_Fechamento"].max()
+
             with c2:
                 if modo == "Por dia":
-                    dia = st.date_input("Data", value=df["Data_Fechamento"].max(), key="flt_gci_dia")
+                    dia = st.date_input("Data", value=_max_date, key="flt_gci_dia")
                 else:
-                    ini = st.date_input("Início", value=df["Data_Fechamento"].min(), key="flt_gci_ini")
+                    ini = st.date_input("Início", value=_min_date, key="flt_gci_ini")
             with c3:
                 if modo == "Período":
-                    fim = st.date_input("Fim", value=df["Data_Fechamento"].max(), key="flt_gci_fim")
+                    fim = st.date_input("Fim", value=_max_date, key="flt_gci_fim")
 
-            if modo == "Por dia":
-                df_f = df[df["Data_Fechamento"] == (dia or df["Data_Fechamento"].max())]
-            else:
-                df_f = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
+            # filtros defensivos
+            try:
+                if modo == "Por dia":
+                    alvo = dia or _max_date
+                    df_f = df[df["Data_Fechamento"] == alvo]
+                else:
+                    # garante ordem válida
+                    if ini > fim:
+                        ini, fim = fim, ini
+                    df_f = df[(df["Data_Fechamento"] >= ini) & (df["Data_Fechamento"] <= fim)]
+            except Exception as e:
+                st.error(f"Erro ao aplicar filtro: {e}")
+                df_f = pd.DataFrame(columns=df.columns)
 
             if df_f.empty:
                 st.info("Sem registros no filtro selecionado.")
