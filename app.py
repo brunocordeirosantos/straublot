@@ -2782,18 +2782,68 @@ def render_fechamento_diario_simplificado(spreadsheet):
 # 🛠️ Gestão do Caixa Interno — Fechamentos (Histórico + Edição)
 # ------------------------------------------------------------
 def render_gestao_caixa_interno(spreadsheet):
+    import pandas as pd
+
     st.subheader("🛠️ Gestão do Caixa Interno — Fechamentos")
 
     SHEET = "Fechamento_Diario_Caixa_Interno"
-    HEADERS = [
+    EXPECTED_HEADERS = [
         "Data_Fechamento", "Operador", "Saldo_Dia_Anterior",
         "Total_Saques_Cartao", "Total_Saques_PIX", "Total_Trocas_Cheque",
         "Total_Suprimentos", "Saldo_Calculado_Dia", "Dinheiro_Contado_Gaveta",
         "Diferenca_Caixa", "Observacoes_Fechamento"
     ]
 
-    # garante a planilha com os headers novos (idempotente)
-    ws = get_or_create_worksheet(spreadsheet, SHEET, HEADERS)
+    # ---------- helpers ----------
+    def _col_letter(idx_1based: int) -> str:
+        # 1 -> A, 26 -> Z, 27 -> AA...
+        s = ""
+        n = idx_1based
+        while n:
+            n, r = divmod(n - 1, 26)
+            s = chr(65 + r) + s
+        return s
+
+    def _ensure_schema():
+        """Garante que a aba tenha EXACTAMENTE os EXPECTED_HEADERS.
+        Se precisar, migra dados antigos e realinha as colunas."""
+        ws = get_or_create_worksheet(spreadsheet, SHEET, EXPECTED_HEADERS)
+        values = ws.get_all_values() or []
+
+        if not values:
+            ws.update("A1", [EXPECTED_HEADERS])
+            return ws
+
+        header = values[0]
+        if header == EXPECTED_HEADERS:
+            return ws
+
+        # Migração: reordena/insere colunas faltantes e regrava tudo
+        rows = values[1:]
+        df = pd.DataFrame(rows, columns=header)
+
+        numeric_like = {
+            "Saldo_Dia_Anterior", "Total_Saques_Cartao", "Total_Saques_PIX",
+            "Total_Trocas_Cheque", "Total_Suprimentos", "Saldo_Calculado_Dia",
+            "Dinheiro_Contado_Gaveta", "Diferenca_Caixa"
+        }
+        for col in EXPECTED_HEADERS:
+            if col not in df.columns:
+                df[col] = 0.0 if col in numeric_like else ""
+
+        # reordena e normaliza tipos
+        df = df[EXPECTED_HEADERS]
+        for col in numeric_like:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+
+        matrix = [EXPECTED_HEADERS] + df.values.tolist()
+        ws.clear()
+        ws.update("A1", matrix)
+        return ws
+
+    # garante a planilha com os headers novos (idempotente + migração)
+    ws = _ensure_schema()
+    HEADERS = EXPECTED_HEADERS[:]  # para manter referência local
 
     # util: carregar DF com índice real da linha (_row) para editar/remover
     def _load_df():
@@ -2815,7 +2865,6 @@ def render_gestao_caixa_interno(spreadsheet):
         ]:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
-        # compat: se a planilha antiga não tiver a coluna PIX, cria com zero
         if "Total_Saques_PIX" not in df.columns:
             df["Total_Saques_PIX"] = 0.0
         return df
@@ -2850,26 +2899,20 @@ def render_gestao_caixa_interno(spreadsheet):
             else:
                 # KPIs
                 k1, k2, k3, k4 = st.columns(4)
-                with k1: st.metric("Fechamentos", len(df_f))
-                with k2: 
-                    total_saques = df_f["Total_Saques_Cartao"].sum() + df_f["Total_Saques_PIX"].sum()
+                with k1:
+                    st.metric("Fechamentos", len(df_f))
+                with k2:
+                    total_saques = float(df_f["Total_Saques_Cartao"].sum()) + float(df_f["Total_Saques_PIX"].sum())
                     st.metric("Saques (Σ) [Cartão + PIX]", f"R$ {total_saques:,.2f}")
-                with k3: st.metric("Cheques (Σ)", f"R$ {df_f['Total_Trocas_Cheque'].sum():,.2f}")
-                with k4: st.metric("Suprimentos (Σ)", f"R$ {df_f['Total_Suprimentos'].sum():,.2f}")
+                with k3:
+                    st.metric("Cheques (Σ)", f"R$ {df_f['Total_Trocas_Cheque'].sum():,.2f}")
+                with k4:
+                    st.metric("Suprimentos (Σ)", f"R$ {df_f['Total_Suprimentos'].sum():,.2f}")
 
                 st.markdown("#### Registros")
-                cols_show = [
-                    "Data_Fechamento","Operador","Saldo_Dia_Anterior",
-                    "Total_Saques_Cartao","Total_Saques_PIX","Total_Trocas_Cheque",
-                    "Total_Suprimentos","Saldo_Calculado_Dia","Dinheiro_Contado_Gaveta",
-                    "Diferenca_Caixa","Observacoes_Fechamento"
-                ]
-                # garante colunas mesmo em registros antigos
-                for c in cols_show:
-                    if c not in df_f.columns:
-                        df_f[c] = 0 if "Observacoes" not in c else ""
+                cols_show = HEADERS[:]  # mostra todas as colunas do schema atual
                 st.dataframe(
-                    df_f.sort_values(["Data_Fechamento","Operador"], ascending=[False, True])[cols_show],
+                    df_f.sort_values(["Data_Fechamento", "Operador"], ascending=[False, True])[cols_show],
                     use_container_width=True
                 )
 
@@ -2898,7 +2941,7 @@ def render_gestao_caixa_interno(spreadsheet):
         if not dup.empty:
             st.warning(f"⚠️ Existem {len(dup)} outro(s) registro(s) na mesma data ({reg['Data_Fechamento']}).")
 
-        # variáveis de controle dos botões (para existirem fora do form)
+        # variáveis de controle dos botões
         salvar = False
         remover = False
         confirma_del = False
@@ -2910,34 +2953,49 @@ def render_gestao_caixa_interno(spreadsheet):
 
             c1, c2, c3 = st.columns(3)
             with c1:
-                saldo_ant = st.number_input("Saldo do Dia Anterior (R$)", value=float(reg["Saldo_Dia_Anterior"]),
-                                            step=10.0, format="%.2f")
+                saldo_ant = st.number_input(
+                    "Saldo do Dia Anterior (R$)", value=float(reg["Saldo_Dia_Anterior"]),
+                    step=10.0, format="%.2f"
+                )
             with c2:
-                saques_cartao = st.number_input("Total Saques Cartão (R$)", value=float(reg["Total_Saques_Cartao"]),
-                                                step=10.0, format="%.2f")
+                saques_cartao = st.number_input(
+                    "Total Saques Cartão (R$)", value=float(reg["Total_Saques_Cartao"]),
+                    step=10.0, format="%.2f"
+                )
             with c3:
-                # NOVO: campo de edição para PIX
-                saques_pix = st.number_input("Total Saques PIX (R$)", 
-                                             value=float(reg.get("Total_Saques_PIX", 0.0)),
-                                             step=10.0, format="%.2f")
+                saques_pix = st.number_input(
+                    "Total Saques PIX (R$)", value=float(reg.get("Total_Saques_PIX", 0.0)),
+                    step=10.0, format="%.2f"
+                )
 
             c4, c5, c6 = st.columns(3)
             with c4:
-                cheques = st.number_input("Total Trocas Cheque (R$)", value=float(reg["Total_Trocas_Cheque"]),
-                                          step=10.0, format="%.2f")
+                cheques = st.number_input(
+                    "Total Trocas Cheque (R$)", value=float(reg["Total_Trocas_Cheque"]),
+                    step=10.0, format="%.2f"
+                )
             with c5:
-                supr = st.number_input("Total Suprimentos (R$)", value=float(reg["Total_Suprimentos"]),
-                                       step=10.0, format="%.2f")
+                supr = st.number_input(
+                    "Total Suprimentos (R$)", value=float(reg["Total_Suprimentos"]),
+                    step=10.0, format="%.2f"
+                )
             with c6:
-                saldo_calc = st.number_input("Saldo Calculado do Dia (R$)",
-                                             value=float(reg["Saldo_Calculado_Dia"]), step=10.0, format="%.2f")
+                saldo_calc = st.number_input(
+                    "Saldo Calculado do Dia (R$)", value=float(reg["Saldo_Calculado_Dia"]),
+                    step=10.0, format="%.2f"
+                )
 
-            # Sugerir cálculo do saldo com PIX incluso (apenas informativo)
+            # Cálculo sugerido com PIX incluso (informativo)
             saldo_calc_sugerido = float(saldo_ant) + float(supr) - (float(saques_cartao) + float(saques_pix) + float(cheques))
-            st.caption(f"🧮 Sugerido: Saldo Anterior + Suprimentos – (Saques Cartão + Saques PIX + Cheques) = **R$ {saldo_calc_sugerido:,.2f}**")
+            st.caption(
+                f"🧮 Sugerido: Saldo Anterior + Suprimentos – (Saques Cartão + Saques PIX + Cheques) = "
+                f"**R$ {saldo_calc_sugerido:,.2f}**"
+            )
 
-            dinheiro = st.number_input("Dinheiro Contado na Gaveta (R$)",
-                                       value=float(reg["Dinheiro_Contado_Gaveta"]), step=10.0, format="%.2f")
+            dinheiro = st.number_input(
+                "Dinheiro Contado na Gaveta (R$)", value=float(reg["Dinheiro_Contado_Gaveta"]),
+                step=10.0, format="%.2f"
+            )
 
             diferenca = float(dinheiro) - float(saldo_calc)
             st.info(f"🔎 Diferença recalculada: R$ {diferenca:,.2f}")
@@ -2945,9 +3003,8 @@ def render_gestao_caixa_interno(spreadsheet):
             obs = st.text_area("Observações do Fechamento", value=str(reg.get("Observacoes_Fechamento", "")))
 
             col_btn1, col_btn2, _ = st.columns([1, 1, 2])
-            salvar  = col_btn1.form_submit_button("💾 Salvar alterações", use_container_width=True)
+            salvar = col_btn1.form_submit_button("💾 Salvar alterações", use_container_width=True)
 
-            # ATENÇÃO: dentro do form, use form_submit_button (nunca st.button)
             with col_btn2:
                 confirma_del = st.checkbox("Confirmar exclusão")
                 remover = st.form_submit_button(
@@ -2965,7 +3022,7 @@ def render_gestao_caixa_interno(spreadsheet):
                     operador,
                     float(saldo_ant),
                     float(saques_cartao),
-                    float(saques_pix),              # <<< NOVO campo
+                    float(saques_pix),
                     float(cheques),
                     float(supr),
                     float(saldo_calc),
@@ -2973,8 +3030,8 @@ def render_gestao_caixa_interno(spreadsheet):
                     float(diferenca),
                     obs
                 ]
-                # Atualiza na faixa correta (A:K)
-                ws.update(f"A{row_idx}:K{row_idx}", [linha])
+                last_col = _col_letter(len(HEADERS))  # ex.: 11 -> 'K'
+                ws.update(f"A{row_idx}:{last_col}{row_idx}", [linha])
                 st.success("✅ Registro atualizado com sucesso!")
                 st.cache_data.clear()
                 st.rerun()
@@ -2989,6 +3046,7 @@ def render_gestao_caixa_interno(spreadsheet):
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Erro ao remover: {e}")
+
 
 
 
